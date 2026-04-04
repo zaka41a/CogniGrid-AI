@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import { Bell, ChevronDown, Check, AlertTriangle, Info } from 'lucide-react'
+import { Bell, ChevronDown, Check, AlertTriangle, Info, Sun, Moon } from 'lucide-react'
 import { useAppStore } from '../../store'
 
 const BREADCRUMB_MAP: Record<string, string[]> = {
@@ -15,7 +15,7 @@ const BREADCRUMB_MAP: Record<string, string[]> = {
 
 export default function Navbar() {
   const location = useLocation()
-  const { currentUser, notifications, markNotificationRead } = useAppStore()
+  const { currentUser, notifications, markNotificationRead, theme, toggleTheme } = useAppStore()
   const [notifOpen, setNotifOpen] = useState(false)
   const [userOpen, setUserOpen] = useState(false)
 
@@ -35,6 +35,15 @@ export default function Navbar() {
           </span>
         ))}
       </nav>
+
+      {/* Theme toggle */}
+      <button
+        onClick={toggleTheme}
+        title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+        className="p-2 rounded-lg text-cg-muted hover:text-cg-txt hover:bg-cg-s2 transition-colors"
+      >
+        {theme === 'light' ? <Moon size={17} /> : <Sun size={17} />}
+      </button>
 
       {/* Notifications */}
       <div className="relative">

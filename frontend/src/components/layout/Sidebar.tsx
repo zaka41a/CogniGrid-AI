@@ -5,50 +5,64 @@ import {
 } from 'lucide-react'
 import { useAppStore } from '../../store'
 
-// ── Logo SVG extracted from cognigrid-ai-logo.html (Horizontal Lockup) ────────
+// ── Logo Icon Mark from cognigrid-ai-brand.html ─────────────────────────────
 function LogoIcon({ size = 36 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
       <defs>
-        <linearGradient id="cgGrad" x1="24" y1="6" x2="24" y2="42" gradientUnits="userSpaceOnUse">
+        <linearGradient id="cgMark" x1="24" y1="6" x2="24" y2="42" gradientUnits="userSpaceOnUse">
           <stop offset="0%"   stopColor="#3B82F6"/>
           <stop offset="100%" stopColor="#22C55E"/>
         </linearGradient>
       </defs>
-      {/* Grid lines — horizontal */}
-      <line x1="6"  y1="6"  x2="24" y2="6"  stroke="#3B82F6" strokeWidth="1" strokeOpacity="0.22"/>
-      <line x1="24" y1="6"  x2="42" y2="6"  stroke="#3B82F6" strokeWidth="1" strokeOpacity="0.22"/>
-      <line x1="6"  y1="24" x2="24" y2="24" stroke="#3B82F6" strokeWidth="1" strokeOpacity="0.22"/>
-      <line x1="24" y1="24" x2="42" y2="24" stroke="#3B82F6" strokeWidth="1" strokeOpacity="0.22"/>
-      <line x1="6"  y1="42" x2="24" y2="42" stroke="#22C55E" strokeWidth="1" strokeOpacity="0.22"/>
-      <line x1="24" y1="42" x2="42" y2="42" stroke="#22C55E" strokeWidth="1" strokeOpacity="0.22"/>
-      {/* Grid lines — vertical */}
-      <line x1="6"  y1="6"  x2="6"  y2="24" stroke="#3B82F6" strokeWidth="1" strokeOpacity="0.22"/>
-      <line x1="6"  y1="24" x2="6"  y2="42" stroke="#3B82F6" strokeWidth="1" strokeOpacity="0.22"/>
-      <line x1="24" y1="6"  x2="24" y2="24" stroke="#3B82F6" strokeWidth="1" strokeOpacity="0.22"/>
-      <line x1="24" y1="24" x2="24" y2="42" stroke="#22C55E" strokeWidth="1" strokeOpacity="0.22"/>
-      <line x1="42" y1="6"  x2="42" y2="24" stroke="#3B82F6" strokeWidth="1" strokeOpacity="0.22"/>
-      <line x1="42" y1="24" x2="42" y2="42" stroke="#22C55E" strokeWidth="1" strokeOpacity="0.22"/>
-      {/* Lightning bolt spark */}
+
+      {/* Grid connections */}
+      <line x1="6"  y1="6"  x2="24" y2="6"  stroke="url(#cgMark)" strokeWidth="0.85" strokeOpacity="0.22"/>
+      <line x1="24" y1="6"  x2="42" y2="6"  stroke="url(#cgMark)" strokeWidth="0.85" strokeOpacity="0.22"/>
+      <line x1="6"  y1="6"  x2="6"  y2="24" stroke="url(#cgMark)" strokeWidth="0.85" strokeOpacity="0.22"/>
+      <line x1="42" y1="6"  x2="42" y2="24" stroke="url(#cgMark)" strokeWidth="0.85" strokeOpacity="0.22"/>
+      <line x1="6"  y1="24" x2="6"  y2="42" stroke="url(#cgMark)" strokeWidth="0.85" strokeOpacity="0.22"/>
+      <line x1="42" y1="24" x2="42" y2="42" stroke="url(#cgMark)" strokeWidth="0.85" strokeOpacity="0.22"/>
+      <line x1="6"  y1="42" x2="24" y2="42" stroke="url(#cgMark)" strokeWidth="0.85" strokeOpacity="0.22"/>
+      <line x1="24" y1="42" x2="42" y2="42" stroke="url(#cgMark)" strokeWidth="0.85" strokeOpacity="0.22"/>
+      <line x1="6"  y1="6"  x2="24" y2="24" stroke="url(#cgMark)" strokeWidth="0.85" strokeOpacity="0.22"/>
+      <line x1="42" y1="6"  x2="24" y2="24" stroke="url(#cgMark)" strokeWidth="0.85" strokeOpacity="0.22"/>
+      <line x1="6"  y1="42" x2="24" y2="24" stroke="url(#cgMark)" strokeWidth="0.85" strokeOpacity="0.22"/>
+      <line x1="42" y1="42" x2="24" y2="24" stroke="url(#cgMark)" strokeWidth="0.85" strokeOpacity="0.22"/>
+
+      {/* Animated pulse halos — inner */}
+      <circle className="cg-pulse-a" cx="24" cy="6"  r="8"  fill="none" stroke="url(#cgMark)" strokeWidth="0.9"/>
+      <circle className="cg-pulse-b" cx="6"  cy="24" r="8"  fill="none" stroke="url(#cgMark)" strokeWidth="0.9"/>
+      <circle className="cg-pulse-a" cx="42" cy="24" r="8"  fill="none" stroke="url(#cgMark)" strokeWidth="0.9"/>
+      <circle className="cg-pulse-b" cx="24" cy="42" r="8"  fill="none" stroke="url(#cgMark)" strokeWidth="0.9"/>
+      {/* Animated pulse halos — outer */}
+      <circle className="cg-pulse-a" cx="24" cy="6"  r="12" fill="none" stroke="url(#cgMark)" strokeWidth="0.6" style={{ animationDelay: '0.5s' }}/>
+      <circle className="cg-pulse-b" cx="6"  cy="24" r="12" fill="none" stroke="url(#cgMark)" strokeWidth="0.6" style={{ animationDelay: '2.2s' }}/>
+      <circle className="cg-pulse-a" cx="42" cy="24" r="12" fill="none" stroke="url(#cgMark)" strokeWidth="0.6" style={{ animationDelay: '0.5s' }}/>
+      <circle className="cg-pulse-b" cx="24" cy="42" r="12" fill="none" stroke="url(#cgMark)" strokeWidth="0.6" style={{ animationDelay: '2.2s' }}/>
+
+      {/* Lightning bolt */}
       <polyline
         points="24,6 6,24 42,24 24,42"
         fill="none"
-        stroke="url(#cgGrad)"
-        strokeWidth="2.8"
+        stroke="url(#cgMark)"
+        strokeWidth="3"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+
       {/* Background nodes — subtle */}
-      <circle cx="6"  cy="6"  r="2.5" fill="#3B82F6" opacity="0.32"/>
-      <circle cx="42" cy="6"  r="2.5" fill="#3B82F6" opacity="0.32"/>
-      <circle cx="24" cy="24" r="2.5" fill="#3B82F6" opacity="0.32"/>
-      <circle cx="6"  cy="42" r="2.5" fill="#22C55E" opacity="0.32"/>
-      <circle cx="42" cy="42" r="2.5" fill="#22C55E" opacity="0.32"/>
+      <circle cx="6"  cy="6"  r="2.5" fill="#3B82F6" opacity="0.28"/>
+      <circle cx="42" cy="6"  r="2.5" fill="#3B82F6" opacity="0.28"/>
+      <circle cx="24" cy="24" r="2.5" fill="#3B82F6" opacity="0.28"/>
+      <circle cx="6"  cy="42" r="2.5" fill="#22C55E" opacity="0.28"/>
+      <circle cx="42" cy="42" r="2.5" fill="#22C55E" opacity="0.28"/>
+
       {/* Bolt nodes — prominent */}
-      <circle cx="24" cy="6"  r="4.2" fill="url(#cgGrad)"/>
-      <circle cx="6"  cy="24" r="4.2" fill="url(#cgGrad)"/>
-      <circle cx="42" cy="24" r="4.2" fill="url(#cgGrad)"/>
-      <circle cx="24" cy="42" r="4.2" fill="url(#cgGrad)"/>
+      <circle cx="24" cy="6"  r="4.4" fill="url(#cgMark)"/>
+      <circle cx="6"  cy="24" r="4.4" fill="url(#cgMark)"/>
+      <circle cx="42" cy="24" r="4.4" fill="url(#cgMark)"/>
+      <circle cx="24" cy="42" r="4.4" fill="url(#cgMark)"/>
     </svg>
   )
 }

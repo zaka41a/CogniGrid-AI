@@ -74,3 +74,17 @@
 .typing-dot:nth-child(1) { animation: blink 1.4s infinite 0s; }
 .typing-dot:nth-child(2) { animation: blink 1.4s infinite 0.2s; }
 .typing-dot:nth-child(3) { animation: blink 1.4s infinite 0.4s; }
+
+@keyframes pulse-a {
+  0%, 100% { opacity: 0.07; }
+  50%       { opacity: 0.28; }
+}
+@keyframes pulse-b {
+  0%, 100% { opacity: 0.07; }
+  50%       { opacity: 0.28; }
+}
+
+@layer utilities {
+  .cg-pulse-a { animation: pulse-a 3.4s ease-in-out infinite; }
+  .cg-pulse-b { animation: pulse-b 3.4s ease-in-out infinite 1.7s; }
+}

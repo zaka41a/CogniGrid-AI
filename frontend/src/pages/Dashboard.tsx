@@ -40,7 +40,7 @@ export default function Dashboard() {
       {anomalyCount > 2 && (
         <div className="flex items-center gap-3 px-4 py-3 bg-yellow-500/10 border border-yellow-500/30 rounded-xl">
           <AlertTriangle size={16} className="text-yellow-400 flex-shrink-0" />
-          <p className="text-sm text-yellow-300">
+          <p className="text-sm text-yellow-700 dark:text-yellow-300">
             <span className="font-semibold">{anomalyCount} critical anomalies</span> detected across monitored systems. Immediate review recommended.
           </p>
         </div>

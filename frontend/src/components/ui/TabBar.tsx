@@ -19,7 +19,7 @@ export default function TabBar({ tabs, active, onChange }: Props) {
           className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
             active === tab.key
               ? 'bg-cg-surface text-cg-txt shadow-sm border border-cg-border'
-              : 'text-cg-muted hover:text-cg-muted'
+              : 'text-cg-muted hover:text-cg-txt'
           }`}
         >
           {tab.label}
