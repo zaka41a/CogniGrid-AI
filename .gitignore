@@ -1,0 +1,43 @@
+# Environment
+.env
+!.env.example
+
+# Java
+**/target/
+**/.mvn/
+**/target/
+*.class
+*.jar
+*.war
+
+# Python
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/.venv/
+**/venv/
+**/.env
+**/*.egg-info/
+
+# Node
+**/node_modules/
+**/dist/
+**/.next/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+**/docker-data/
+
+# Logs
+**/*.log
+**/logs/

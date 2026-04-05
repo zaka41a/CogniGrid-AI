@@ -1,0 +1,381 @@
+version: '3.9'
+
+networks:
+  cognigrid-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  neo4j_data:
+  neo4j_logs:
+  neo4j_plugins:
+  redis_data:
+  qdrant_data:
+  minio_data:
+  ollama_data:
+  prometheus_data:
+  grafana_data:
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DATABASES & STORES
+# ─────────────────────────────────────────────────────────────────────────────
+services:
+
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: cg-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cognigrid-net
+
+  # ── Neo4j ───────────────────────────────────────────────────────────────────
+  neo4j:
+    image: neo4j:5.18-community
+    container_name: cg-neo4j
+    restart: unless-stopped
+    environment:
+      NEO4J_AUTH: ${NEO4J_AUTH}
+      NEO4J_PLUGINS: '["apoc", "graph-data-science"]'
+      NEO4J_dbms_security_procedures_unrestricted: apoc.*,gds.*
+      NEO4J_dbms_memory_heap_initial__size: 512m
+      NEO4J_dbms_memory_heap_max__size: 2G
+      NEO4J_dbms_memory_pagecache_size: 512m
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+      - neo4j_plugins:/plugins
+    ports:
+      - "7474:7474"   # Browser UI
+      - "7687:7687"   # Bolt
+    healthcheck:
+      test: ["CMD", "neo4j", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - cognigrid-net
+
+  # ── Redis ───────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: cg-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - cognigrid-net
+
+  # ── Qdrant (Vector Store) ───────────────────────────────────────────────────
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: cg-qdrant
+    restart: unless-stopped
+    volumes:
+      - qdrant_data:/qdrant/storage
+    ports:
+      - "6333:6333"   # REST API
+      - "6334:6334"   # gRPC
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cognigrid-net
+
+  # ── MinIO (File Storage S3-compatible) ──────────────────────────────────────
+  minio:
+    image: minio/minio:latest
+    container_name: cg-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"   # API
+      - "9001:9001"   # Console UI
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cognigrid-net
+
+  # ── Ollama (Local LLM) ──────────────────────────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    container_name: cg-ollama
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    networks:
+      - cognigrid-net
+    # Pour GPU (décommenter si disponible) :
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BACKEND SERVICES
+# ─────────────────────────────────────────────────────────────────────────────
+
+  # ── Gateway + Auth (Spring Boot) ────────────────────────────────────────────
+  gateway:
+    build:
+      context: ./backend/gateway
+      dockerfile: Dockerfile
+    container_name: cg-gateway
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SPRING_DATA_REDIS_HOST: ${REDIS_HOST}
+      SPRING_DATA_REDIS_PORT: ${REDIS_PORT}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS}
+      JWT_REFRESH_EXPIRATION_MS: ${JWT_REFRESH_EXPIRATION_MS}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+    ports:
+      - "${GATEWAY_PORT}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - cognigrid-net
+
+  # ── Ingestion Service (Python FastAPI) ──────────────────────────────────────
+  ingestion:
+    build:
+      context: ./backend/ingestion
+      dockerfile: Dockerfile
+    container_name: cg-ingestion
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: ${REDIS_URL}
+      MINIO_URL: ${MINIO_URL}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET: ${MINIO_BUCKET}
+      GRAPH_SERVICE_URL: http://graph:8002
+      QDRANT_URL: ${QDRANT_URL}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL}
+    volumes:
+      - ./backend/ingestion:/app
+    ports:
+      - "${INGESTION_PORT}:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    networks:
+      - cognigrid-net
+
+  # ── Graph Service (Python FastAPI + Neo4j) ───────────────────────────────────
+  graph:
+    build:
+      context: ./backend/graph
+      dockerfile: Dockerfile
+    container_name: cg-graph
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NEO4J_URI: ${NEO4J_URI}
+      NEO4J_USER: ${NEO4J_USER}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      QDRANT_URL: ${QDRANT_URL}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL}
+    volumes:
+      - ./backend/graph:/app
+    ports:
+      - "${GRAPH_PORT}:8002"
+    depends_on:
+      neo4j:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    networks:
+      - cognigrid-net
+
+  # ── AI Engine (Python FastAPI) ──────────────────────────────────────────────
+  ai-engine:
+    build:
+      context: ./backend/ai-engine
+      dockerfile: Dockerfile
+    container_name: cg-ai-engine
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      NEO4J_URI: ${NEO4J_URI}
+      NEO4J_USER: ${NEO4J_USER}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD}
+      MINIO_URL: ${MINIO_URL}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      REDIS_URL: ${REDIS_URL}
+    volumes:
+      - ./backend/ai-engine:/app
+    ports:
+      - "${AI_ENGINE_PORT}:8003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+    networks:
+      - cognigrid-net
+
+  # ── GraphRAG Service (Python FastAPI) ───────────────────────────────────────
+  graphrag:
+    build:
+      context: ./backend/graphrag
+      dockerfile: Dockerfile
+    container_name: cg-graphrag
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NEO4J_URI: ${NEO4J_URI}
+      NEO4J_USER: ${NEO4J_USER}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD}
+      QDRANT_URL: ${QDRANT_URL}
+      REDIS_URL: ${REDIS_URL}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      DEFAULT_LLM_PROVIDER: ${DEFAULT_LLM_PROVIDER}
+      DEFAULT_LLM_MODEL: ${DEFAULT_LLM_MODEL}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL}
+    volumes:
+      - ./backend/graphrag:/app
+    ports:
+      - "${GRAPHRAG_PORT}:8004"
+    depends_on:
+      neo4j:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - cognigrid-net
+
+  # ── Agent Service (Python FastAPI + LangGraph) ──────────────────────────────
+  agent:
+    build:
+      context: ./backend/agent
+      dockerfile: Dockerfile
+    container_name: cg-agent
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      REDIS_URL: ${REDIS_URL}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      DEFAULT_LLM_PROVIDER: ${DEFAULT_LLM_PROVIDER}
+      DEFAULT_LLM_MODEL: ${DEFAULT_LLM_MODEL}
+      GRAPH_SERVICE_URL: http://graph:8002
+      RAG_SERVICE_URL: http://graphrag:8004
+      AI_ENGINE_URL: http://ai-engine:8003
+      INGESTION_SERVICE_URL: http://ingestion:8001
+    volumes:
+      - ./backend/agent:/app
+    ports:
+      - "${AGENT_PORT}:8005"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - cognigrid-net
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MONITORING
+# ─────────────────────────────────────────────────────────────────────────────
+
+  # ── Prometheus ──────────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: cg-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+    networks:
+      - cognigrid-net
+
+  # ── Grafana ─────────────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:latest
+    container_name: cg-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: cognigrid2024
+      GF_USERS_ALLOW_SIGN_UP: false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - cognigrid-net
