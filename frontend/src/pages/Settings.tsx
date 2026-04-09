@@ -66,7 +66,7 @@ export default function Settings() {
               <input
                 value={platformName}
                 onChange={(e) => setPlatformName(e.target.value)}
-                className="w-full bg-cg-bg border border-cg-border rounded-lg px-4 py-2.5 text-sm text-cg-txt focus:outline-none focus:border-blue-500 transition-colors"
+                className="w-full bg-cg-bg border border-cg-border rounded-lg px-4 py-2.5 text-sm text-cg-txt focus:outline-none focus:border-cg-primary transition-all"
               />
             </div>
             <div className="space-y-2">
@@ -91,8 +91,8 @@ export default function Settings() {
             </div>
             <button
               onClick={handleSave}
-              className={`px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                saved ? 'bg-green-500 text-white' : 'bg-blue-500 hover:bg-blue-600 text-white'
+              className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                saved ? 'bg-emerald-500 text-white' : 'gradient-primary text-white shadow-cg hover:opacity-90'
               }`}
             >
               {saved ? '✓ Saved' : 'Save Changes'}
@@ -121,13 +121,13 @@ export default function Settings() {
                     <input
                       type="range" min={0} max={1} step={0.05} value={model.threshold}
                       onChange={(e) => setThreshold(model.id, Number(e.target.value))}
-                      className="w-full accent-blue-500 h-1.5"
+                      className="w-full accent-indigo-500 h-1.5 cursor-pointer"
                     />
                   </div>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => toggleModel(model.id)}
-                      className={`w-11 h-6 rounded-full transition-all relative ${model.enabled ? 'bg-gradient-to-r from-blue-500 to-green-500' : 'bg-cg-border'}`}
+                      className={`w-11 h-6 rounded-full transition-all relative ${model.enabled ? 'gradient-primary' : 'bg-cg-border'}`}
                     >
                       <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${model.enabled ? 'left-6' : 'left-1'}`} />
                     </button>
@@ -159,10 +159,10 @@ export default function Settings() {
                   <span className={`text-xs font-medium ${int.connected ? 'text-green-400' : 'text-cg-faint'}`}>
                     {int.connected ? 'Connected' : 'Not connected'}
                   </span>
-                  <button className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                  <button className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-all ${
                     int.connected
-                      ? 'border-red-500/30 text-red-400 hover:bg-red-500/10'
-                      : 'border-blue-500/30 text-blue-400 hover:bg-blue-500/10'
+                      ? 'border-red-500/30 text-red-500 hover:bg-red-500/10'
+                      : 'border-cg-primary/30 text-cg-primary hover:bg-cg-primary-s'
                   }`}>
                     {int.connected ? 'Disconnect' : 'Connect'}
                   </button>
@@ -198,7 +198,7 @@ export default function Settings() {
                           type="checkbox"
                           checked={r.permissions[perm] ?? false}
                           readOnly
-                          className="w-3.5 h-3.5 accent-blue-500 cursor-default"
+                          className="w-3.5 h-3.5 accent-indigo-500 cursor-default"
                         />
                       </td>
                     ))}

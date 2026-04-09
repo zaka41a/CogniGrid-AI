@@ -1,13 +1,19 @@
 import { useState, useRef, useEffect } from 'react'
-import { Send, Paperclip, MessageSquare, Plus, Wrench } from 'lucide-react'
+import { Send, Paperclip, MessageSquare, Plus, Wrench, Bot } from 'lucide-react'
+import { agentApi } from '../lib/api'
 import { mockConversations } from '../mock'
 import type { ChatMessage } from '../types'
 
-const QUICK_PROMPTS = ['Detect anomalies', 'Show critical nodes', 'Predict next 24h']
+const QUICK_PROMPTS = [
+  'Detect anomalies in energy grid',
+  'Show critical nodes',
+  'Predict load next 24h',
+  'Summarize recent alerts',
+]
 
 function ToolChip({ name }: { name: string }) {
   return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-cg-s2 border border-cg-border rounded-full text-[10px] text-cg-muted">
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-cg-primary-s border border-cg-primary/20 rounded-full text-[10px] text-cg-primary font-medium">
       <Wrench size={9} />
       {name}
     </span>
@@ -17,39 +23,37 @@ function ToolChip({ name }: { name: string }) {
 function MessageBubble({ msg }: { msg: ChatMessage }) {
   const isUser = msg.role === 'user'
   return (
-    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} gap-3`}>
+    <div className={`flex gap-3 ${isUser ? 'justify-end' : 'justify-start'}`}>
       {!isUser && (
-        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-green-400 flex items-center justify-center text-xs font-bold text-white flex-shrink-0 mt-1">
-          AI
+        <div className="w-8 h-8 rounded-xl gradient-primary flex items-center justify-center text-xs font-bold text-white shrink-0 mt-0.5 shadow-cg">
+          <Bot size={14} />
         </div>
       )}
-      <div className={`max-w-[70%] space-y-1.5`}>
-        <div className={`
-          px-4 py-3 rounded-2xl text-sm leading-relaxed
-          ${isUser
-            ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-tr-sm'
-            : 'bg-cg-s2 border border-green-500/20 text-cg-txt rounded-tl-sm'
-          }
-        `}>
+      <div className={`max-w-[72%] space-y-1.5 ${isUser ? 'items-end' : 'items-start'} flex flex-col`}>
+        <div className={[
+          'px-4 py-3 rounded-2xl text-sm leading-relaxed',
+          isUser
+            ? 'gradient-primary text-white rounded-tr-sm'
+            : 'bg-cg-s2 border border-cg-border text-cg-txt rounded-tl-sm',
+        ].join(' ')}>
           {msg.content.split('\n').map((line, i) => {
-            if (line.startsWith('**') && line.endsWith('**')) {
-              return <p key={i} className="font-bold text-cg-txt">{line.replace(/\*\*/g, '')}</p>
-            }
-            if (line.startsWith('- ')) {
-              return <p key={i} className="ml-3">• {line.slice(2)}</p>
-            }
-            return line ? <p key={i}>{line}</p> : <br key={i} />
+            if (!line) return <br key={i} />
+            if (line.startsWith('**') && line.endsWith('**'))
+              return <p key={i} className="font-semibold">{line.replace(/\*\*/g, '')}</p>
+            if (line.startsWith('- '))
+              return <p key={i} className="ml-3 flex items-start gap-1.5"><span className="mt-1 text-cg-primary">•</span>{line.slice(2)}</p>
+            return <p key={i}>{line}</p>
           })}
         </div>
         {msg.tools && msg.tools.length > 0 && (
           <div className="flex flex-wrap gap-1.5 px-1">
-            {msg.tools.map((t) => <ToolChip key={t} name={t} />)}
+            {msg.tools.map(t => <ToolChip key={t} name={t} />)}
           </div>
         )}
         <p className={`text-[10px] text-cg-faint px-1 ${isUser ? 'text-right' : ''}`}>{msg.timestamp}</p>
       </div>
       {isUser && (
-        <div className="w-7 h-7 rounded-full bg-cg-border flex items-center justify-center text-xs font-bold text-cg-txt flex-shrink-0 mt-1">
+        <div className="w-8 h-8 rounded-xl bg-cg-s2 border border-cg-border flex items-center justify-center text-xs font-bold text-cg-txt shrink-0 mt-0.5">
           AM
         </div>
       )}
@@ -59,12 +63,14 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
 
 function TypingIndicator() {
   return (
-    <div className="flex gap-3 justify-start">
-      <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-green-400 flex items-center justify-center text-xs font-bold text-white flex-shrink-0 mt-1">AI</div>
-      <div className="px-4 py-3 bg-cg-s2 border border-green-500/20 rounded-2xl rounded-tl-sm flex items-center gap-1.5">
-        <span className="typing-dot w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />
-        <span className="typing-dot w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />
-        <span className="typing-dot w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />
+    <div className="flex gap-3">
+      <div className="w-8 h-8 rounded-xl gradient-primary flex items-center justify-center shrink-0 shadow-cg">
+        <Bot size={14} className="text-white" />
+      </div>
+      <div className="px-4 py-3 bg-cg-s2 border border-cg-border rounded-2xl rounded-tl-sm flex items-center gap-1.5">
+        <span className="typing-dot w-1.5 h-1.5 rounded-full bg-cg-primary inline-block" />
+        <span className="typing-dot w-1.5 h-1.5 rounded-full bg-cg-primary inline-block" />
+        <span className="typing-dot w-1.5 h-1.5 rounded-full bg-cg-primary inline-block" />
       </div>
     </div>
   )
@@ -72,70 +78,85 @@ function TypingIndicator() {
 
 export default function Agent() {
   const [activeConvId, setActiveConvId] = useState('c1')
-  const [messages, setMessages] = useState<ChatMessage[]>(mockConversations[0].messages)
-  const [input, setInput] = useState('')
-  const [thinking, setThinking] = useState(false)
+  const [messages, setMessages]         = useState<ChatMessage[]>(mockConversations[0].messages)
+  const [input, setInput]               = useState('')
+  const [thinking, setThinking]         = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
 
-  const activeConv = mockConversations.find((c) => c.id === activeConvId)
+  const activeConv = mockConversations.find(c => c.id === activeConvId)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, thinking])
 
-  const sendMessage = (text: string) => {
+  const sendMessage = async (text: string) => {
     if (!text.trim() || thinking) return
-    const userMsg: ChatMessage = {
-      id: `u-${Date.now()}`,
-      role: 'user',
-      content: text.trim(),
-      timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-    }
-    setMessages((prev) => [...prev, userMsg])
+    const ts = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+    const userMsg: ChatMessage = { id: `u-${Date.now()}`, role: 'user', content: text.trim(), timestamp: ts }
+    setMessages(prev => [...prev, userMsg])
     setInput('')
     setThinking(true)
-    setTimeout(() => {
+    try {
+      const { data } = await agentApi.chat({
+        message: text.trim(),
+        history: messages.map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.content })),
+      })
       const aiMsg: ChatMessage = {
         id: `ai-${Date.now()}`,
         role: 'ai',
-        content: `Analyzing your query: "${text.trim()}"\n\nI've processed the request against the current knowledge graph and AI models. The data shows nominal patterns with 2 points of interest flagged for review. Would you like me to run a deeper analysis or generate a report?`,
+        content: data.response,
+        timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+        tools: data.toolsUsed,
+      }
+      setMessages(prev => [...prev, aiMsg])
+    } catch {
+      // Fallback mock when backend is not running
+      const aiMsg: ChatMessage = {
+        id: `ai-${Date.now()}`,
+        role: 'ai',
+        content: `Analyzing: "${text.trim()}"\n\nI've processed your request against the knowledge graph and AI models. The analysis shows nominal patterns with 2 points of interest flagged for review.\n\n- Entity graph contains 3 relevant nodes\n- Anomaly model confidence: 0.87\n- Recommended action: schedule inspection\n\nWould you like me to run a deeper analysis or generate a report?\n\n*(Backend not available — showing demo response)*`,
         timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
         tools: ['graph_query', 'anomaly_model'],
       }
-      setMessages((prev) => [...prev, aiMsg])
+      setMessages(prev => [...prev, aiMsg])
+    } finally {
       setThinking(false)
-    }, 1800)
+    }
   }
 
   const switchConversation = (id: string) => {
     setActiveConvId(id)
-    const conv = mockConversations.find((c) => c.id === id)
-    setMessages(conv?.messages ?? [])
+    setMessages(mockConversations.find(c => c.id === id)?.messages ?? [])
   }
 
   return (
     <div className="flex h-[calc(100vh-8rem)] gap-4">
-      {/* Conversation list sidebar */}
-      <div className="w-56 flex-shrink-0 flex flex-col bg-cg-surface border border-cg-border rounded-xl overflow-hidden">
+
+      {/* Conversation list */}
+      <div className="w-56 shrink-0 flex flex-col card overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-cg-border">
           <p className="text-xs font-semibold text-cg-txt">Conversations</p>
-          <button className="p-1 rounded hover:bg-cg-s2 text-cg-muted hover:text-cg-txt transition-colors">
-            <Plus size={14} />
+          <button
+            onClick={() => { switchConversation('c1'); setMessages([]) }}
+            className="p-1.5 rounded-lg hover:bg-cg-s2 text-cg-muted hover:text-cg-txt transition-colors"
+            title="New conversation"
+          >
+            <Plus size={13} />
           </button>
         </div>
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
-          {mockConversations.map((conv) => (
+          {mockConversations.map(conv => (
             <button
               key={conv.id}
               onClick={() => switchConversation(conv.id)}
-              className={`w-full text-left px-3 py-2.5 rounded-lg transition-colors ${
+              className={`w-full text-left px-3 py-2.5 rounded-xl transition-all ${
                 conv.id === activeConvId
-                  ? 'bg-blue-500/15 border border-blue-500/30 text-blue-300'
-                  : 'text-cg-muted hover:bg-cg-s2 hover:text-cg-muted'
+                  ? 'bg-cg-primary-s border border-cg-primary/30 text-cg-primary'
+                  : 'text-cg-muted hover:bg-cg-s2 hover:text-cg-txt'
               }`}
             >
               <div className="flex items-start gap-2">
-                <MessageSquare size={12} className="flex-shrink-0 mt-0.5" />
+                <MessageSquare size={11} className="shrink-0 mt-0.5" />
                 <div className="min-w-0">
                   <p className="text-xs font-medium truncate">{conv.title}</p>
                   <p className="text-[10px] text-cg-faint mt-0.5">{conv.date}</p>
@@ -147,60 +168,90 @@ export default function Agent() {
       </div>
 
       {/* Chat area */}
-      <div className="flex-1 flex flex-col bg-cg-surface border border-cg-border rounded-xl overflow-hidden">
+      <div className="flex-1 flex flex-col card overflow-hidden">
         {/* Header */}
-        <div className="px-5 py-3.5 border-b border-cg-border flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse shadow-sm shadow-green-400/50" />
-          <p className="text-sm font-semibold text-cg-txt">{activeConv?.title ?? 'New Conversation'}</p>
+        <div className="px-5 py-3.5 border-b border-cg-border flex items-center gap-3 shrink-0">
+          <div className="w-8 h-8 rounded-xl gradient-primary flex items-center justify-center shadow-cg">
+            <Bot size={15} className="text-white" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-cg-txt">{activeConv?.title ?? 'New Conversation'}</p>
+            <p className="text-[10px] text-cg-faint">ReAct agent · graph_query · anomaly_model · risk_propagation</p>
+          </div>
+          <div className="ml-auto flex items-center gap-1.5 text-xs text-emerald-500 font-medium">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            Online
+          </div>
         </div>
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
           {messages.length === 0 && (
-            <div className="h-full flex items-center justify-center">
-              <div className="text-center space-y-2">
-                <div className="w-12 h-12 rounded-full bg-blue-500/15 flex items-center justify-center mx-auto">
-                  <MessageSquare size={20} className="text-blue-400" />
-                </div>
-                <p className="text-sm text-cg-muted">Start a conversation with the AI agent</p>
+            <div className="h-full flex flex-col items-center justify-center text-center space-y-5">
+              <div className="w-14 h-14 rounded-2xl gradient-primary flex items-center justify-center shadow-cg">
+                <Bot size={26} className="text-white" />
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-cg-txt mb-1.5">AI Agent Ready</h3>
+                <p className="text-sm text-cg-muted max-w-sm">
+                  I can query the knowledge graph, run anomaly models, predict failures,
+                  and generate insights from your data.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-2 w-full max-w-xs">
+                {QUICK_PROMPTS.map(p => (
+                  <button
+                    key={p}
+                    onClick={() => sendMessage(p)}
+                    className="text-left px-3 py-2.5 bg-cg-s2 hover:bg-cg-primary-s hover:border-cg-primary/30
+                      border border-cg-border rounded-xl text-xs text-cg-muted hover:text-cg-primary transition-all"
+                  >
+                    {p}
+                  </button>
+                ))}
               </div>
             </div>
           )}
-          {messages.map((msg) => <MessageBubble key={msg.id} msg={msg} />)}
+          {messages.map(msg => <MessageBubble key={msg.id} msg={msg} />)}
           {thinking && <TypingIndicator />}
           <div ref={bottomRef} />
         </div>
 
         {/* Quick prompts */}
-        <div className="px-5 pb-2 flex flex-wrap gap-2">
-          {QUICK_PROMPTS.map((p) => (
-            <button
-              key={p}
-              onClick={() => sendMessage(p)}
-              className="px-3 py-1.5 bg-cg-s2 border border-cg-border hover:border-blue-500/50 text-cg-muted text-xs rounded-full transition-colors"
-            >
-              {p}
-            </button>
-          ))}
-        </div>
+        {messages.length > 0 && (
+          <div className="px-5 pb-2 flex flex-wrap gap-2">
+            {QUICK_PROMPTS.map(p => (
+              <button
+                key={p}
+                onClick={() => sendMessage(p)}
+                className="px-3 py-1.5 bg-cg-s2 border border-cg-border hover:border-cg-primary/40
+                  hover:bg-cg-primary-s hover:text-cg-primary text-cg-muted text-xs rounded-full transition-all"
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Input bar */}
-        <div className="px-4 pb-4">
-          <div className="flex items-center gap-2 bg-cg-bg border border-cg-border rounded-xl px-4 py-3 focus-within:border-blue-500 transition-colors">
-            <button className="text-cg-muted hover:text-cg-muted transition-colors">
-              <Paperclip size={16} />
+        <div className="px-4 pb-4 shrink-0">
+          <div className="flex items-center gap-2 bg-cg-bg border border-cg-border rounded-xl px-4 py-3
+            focus-within:border-cg-primary focus-within:ring-2 focus-within:ring-cg-primary/10 transition-all">
+            <button className="text-cg-muted hover:text-cg-txt transition-colors" title="Attach file">
+              <Paperclip size={15} />
             </button>
             <input
               value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage(input)}
-              placeholder="Ask the AI agent anything..."
-              className="flex-1 bg-transparent text-sm text-cg-txt placeholder-gray-500 focus:outline-none"
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessage(input)}
+              placeholder="Ask the AI agent anything…"
+              className="flex-1 bg-transparent text-sm text-cg-txt placeholder:text-cg-faint focus:outline-none"
             />
             <button
               onClick={() => sendMessage(input)}
               disabled={!input.trim() || thinking}
-              className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-green-500 hover:from-blue-600 hover:to-green-600 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+              className="w-8 h-8 rounded-lg gradient-primary hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed
+                flex items-center justify-center transition-all"
             >
               <Send size={14} className="text-white" />
             </button>

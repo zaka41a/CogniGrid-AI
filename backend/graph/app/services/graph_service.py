@@ -1,0 +1,261 @@
+"""
+GraphService — core business logic for Knowledge Graph operations.
+
+Operations:
+  - ingest_document: creates Document node + Entity nodes + MENTIONS/RELATED_TO edges
+  - get_document: fetch document with its entities
+  - search_nodes: full-text search by label or text
+  - get_graph_stats: counts per label/type
+  - get_neighbors: expand N hops from a node
+  - find_path: shortest path between two nodes
+  - delete_document: remove doc + orphaned entities
+"""
+import logging
+from app.core.neo4j_client import run_query
+from app.models.schemas import (
+    ExtractedDocument,
+    IngestResponse,
+    NodeResponse,
+    GraphStats,
+    SearchResult,
+    PathResult,
+)
+
+logger = logging.getLogger(__name__)
+
+
+class GraphService:
+
+    # ── Ingest ─────────────────────────────────────────────────────────────
+
+    async def ingest_document(self, doc: ExtractedDocument) -> IngestResponse:
+        nodes_created = 0
+        rels_created  = 0
+
+        # 1. MERGE Document node
+        await run_query(
+            """
+            MERGE (d:Document {doc_id: $doc_id})
+            SET d.file_name  = $file_name,
+                d.file_type  = $file_type,
+                d.title      = $title,
+                d.content    = $content,
+                d.metadata   = $metadata
+            """,
+            {
+                "doc_id":    doc.doc_id,
+                "file_name": doc.file_name,
+                "file_type": doc.file_type,
+                "title":     doc.title,
+                "content":   doc.content[:2000],   # store excerpt only
+                "metadata":  str(doc.metadata),
+            },
+        )
+        nodes_created += 1
+
+        # 2. MERGE Entity nodes + MENTIONS relationship
+        for entity in doc.entities:
+            cypher = f"""
+            MERGE (e:Entity:{entity.label} {{entity_id: $entity_id}})
+            SET e.label = $label,
+                e.text  = $text,
+                e += $properties
+            WITH e
+            MATCH (d:Document {{doc_id: $doc_id}})
+            MERGE (d)-[r:MENTIONS]->(e)
+            RETURN e
+            """
+            result = await run_query(
+                cypher,
+                {
+                    "entity_id":  entity.id,
+                    "label":      entity.label,
+                    "text":       entity.text,
+                    "properties": entity.properties,
+                    "doc_id":     doc.doc_id,
+                },
+            )
+            if result:
+                nodes_created += 1
+                rels_created  += 1
+
+        # 3. Create RELATED_TO edges between entities
+        for rel in doc.relations:
+            cypher = """
+            MATCH (a:Entity {entity_id: $source_id})
+            MATCH (b:Entity {entity_id: $target_id})
+            MERGE (a)-[r:RELATED_TO {relation_type: $rel_type}]->(b)
+            SET r += $properties
+            RETURN r
+            """
+            result = await run_query(
+                cypher,
+                {
+                    "source_id":  rel.source_id,
+                    "target_id":  rel.target_id,
+                    "rel_type":   rel.relation_type,
+                    "properties": rel.properties,
+                },
+            )
+            if result:
+                rels_created += 1
+
+        logger.info(
+            "Ingested doc %s: +%d nodes, +%d rels",
+            doc.doc_id, nodes_created, rels_created,
+        )
+        return IngestResponse(
+            doc_id=doc.doc_id,
+            nodes_created=nodes_created,
+            relationships_created=rels_created,
+        )
+
+    # ── Query ──────────────────────────────────────────────────────────────
+
+    async def get_document(self, doc_id: str) -> dict | None:
+        result = await run_query(
+            """
+            MATCH (d:Document {doc_id: $doc_id})
+            OPTIONAL MATCH (d)-[:MENTIONS]->(e:Entity)
+            RETURN d, collect(e) AS entities
+            """,
+            {"doc_id": doc_id},
+        )
+        if not result:
+            return None
+        row = result[0]
+        doc_props = dict(row["d"])
+        doc_props["entities"] = [dict(e) for e in row["entities"]]
+        return doc_props
+
+    async def list_documents(self, skip: int = 0, limit: int = 20) -> list[dict]:
+        result = await run_query(
+            """
+            MATCH (d:Document)
+            RETURN d
+            ORDER BY d.file_name
+            SKIP $skip LIMIT $limit
+            """,
+            {"skip": skip, "limit": limit},
+        )
+        return [dict(r["d"]) for r in result]
+
+    async def search_nodes(self, query: str, limit: int = 20) -> SearchResult:
+        result = await run_query(
+            """
+            MATCH (e:Entity)
+            WHERE toLower(e.text) CONTAINS toLower($query)
+               OR toLower(e.label) CONTAINS toLower($query)
+            RETURN e
+            LIMIT $limit
+            """,
+            {"query": query, "limit": limit},
+        )
+        nodes = [
+            NodeResponse(
+                id=r["e"].get("entity_id", ""),
+                label=r["e"].get("label", ""),
+                properties=dict(r["e"]),
+            )
+            for r in result
+        ]
+        return SearchResult(nodes=nodes, total=len(nodes))
+
+    async def get_neighbors(self, node_id: str, hops: int = 1) -> list[dict]:
+        cypher = """
+        MATCH path = (start {entity_id: $node_id})-[*1..$hops]-(neighbor)
+        RETURN DISTINCT neighbor, labels(neighbor) AS labels
+        LIMIT 50
+        """
+        result = await run_query(cypher, {"node_id": node_id, "hops": hops})
+        return [
+            {"node": dict(r["neighbor"]), "labels": r["labels"]}
+            for r in result
+        ]
+
+    async def find_path(self, source_id: str, target_id: str) -> PathResult:
+        result = await run_query(
+            """
+            MATCH (a {entity_id: $source_id}), (b {entity_id: $target_id})
+            MATCH path = shortestPath((a)-[*]-(b))
+            RETURN [n IN nodes(path) | {id: n.entity_id, text: n.text, label: n.label}] AS path,
+                   length(path) AS length
+            """,
+            {"source_id": source_id, "target_id": target_id},
+        )
+        if not result:
+            return PathResult(path=[], length=0)
+        row = result[0]
+        return PathResult(path=row["path"], length=row["length"])
+
+    async def get_graph_stats(self) -> GraphStats:
+        # Node counts per label
+        label_result = await run_query(
+            "MATCH (n) UNWIND labels(n) AS lbl RETURN lbl, count(*) AS cnt ORDER BY cnt DESC"
+        )
+        node_labels = {r["lbl"]: r["cnt"] for r in label_result}
+        total_nodes = sum(node_labels.values())
+
+        # Relationship counts per type
+        rel_result = await run_query(
+            "MATCH ()-[r]->() RETURN type(r) AS rel_type, count(*) AS cnt ORDER BY cnt DESC"
+        )
+        rel_types = {r["rel_type"]: r["cnt"] for r in rel_result}
+        total_rels = sum(rel_types.values())
+
+        return GraphStats(
+            total_nodes=total_nodes,
+            total_relationships=total_rels,
+            node_labels=node_labels,
+            relationship_types=rel_types,
+        )
+
+    async def delete_document(self, doc_id: str) -> dict:
+        # Delete document and detach all relationships
+        result = await run_query(
+            """
+            MATCH (d:Document {doc_id: $doc_id})
+            OPTIONAL MATCH (d)-[:MENTIONS]->(e:Entity)
+            WHERE NOT (e)<-[:MENTIONS]-(:Document {doc_id: $doc_id})
+                  AND NOT (e)<-[:MENTIONS]-(:Document)
+            DETACH DELETE d
+            RETURN count(d) AS deleted
+            """,
+            {"doc_id": doc_id},
+        )
+        return {"doc_id": doc_id, "deleted": result[0]["deleted"] if result else 0}
+
+    async def get_subgraph(self, doc_id: str) -> dict:
+        """Return nodes + edges for graph visualisation."""
+        nodes_result = await run_query(
+            """
+            MATCH (d:Document {doc_id: $doc_id})-[:MENTIONS]->(e:Entity)
+            RETURN d, collect(e) AS entities
+            """,
+            {"doc_id": doc_id},
+        )
+        if not nodes_result:
+            return {"nodes": [], "edges": []}
+
+        row = nodes_result[0]
+        doc_node = dict(row["d"])
+        entity_nodes = [dict(e) for e in row["entities"]]
+
+        edges_result = await run_query(
+            """
+            MATCH (d:Document {doc_id: $doc_id})-[:MENTIONS]->(e:Entity)
+            OPTIONAL MATCH (e)-[r:RELATED_TO]->(e2:Entity)<-[:MENTIONS]-(d)
+            RETURN collect(DISTINCT {source: e.entity_id, target: e2.entity_id, type: r.relation_type}) AS rels
+            """,
+            {"doc_id": doc_id},
+        )
+        edges = [
+            e for e in (edges_result[0]["rels"] if edges_result else [])
+            if e["source"] and e["target"]
+        ]
+
+        return {
+            "nodes": [{"id": doc_node.get("doc_id"), "type": "Document", **doc_node}]
+                    + [{"id": e.get("entity_id"), "type": "Entity", **e} for e in entity_nodes],
+            "edges": edges,
+        }

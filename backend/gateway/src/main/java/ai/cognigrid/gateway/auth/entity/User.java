@@ -29,7 +29,7 @@ public class User {
     private String fullName;
 
     @Enumerated(EnumType.STRING)
-    @Column(columnDefinition = "user_role")
+    @Column(length = 50)
     @Builder.Default
     private Role role = Role.ANALYST;
 

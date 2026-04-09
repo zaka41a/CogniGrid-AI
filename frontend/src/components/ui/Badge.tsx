@@ -1,43 +1,69 @@
-import type { ReactNode } from 'react'
+type BadgeVariant = 'success' | 'warning' | 'danger' | 'info' | 'neutral' | 'primary' | 'accent'
 
-type Variant = 'success' | 'warning' | 'error' | 'info' | 'neutral' | 'critical'
-
-const STYLES: Record<Variant, string> = {
-  success:  'bg-green-500/15 text-green-400 border border-green-500/30',
-  warning:  'bg-yellow-500/15 text-yellow-400 border border-yellow-500/30',
-  error:    'bg-red-500/15 text-red-400 border border-red-500/30',
-  critical: 'bg-red-500/15 text-red-400 border border-red-500/30',
-  info:     'bg-blue-500/15 text-blue-400 border border-blue-500/30',
-  neutral:  'bg-gray-500/15 text-cg-muted border border-gray-500/30',
-}
-
-interface Props {
-  variant?: Variant
-  children: ReactNode
+interface BadgeProps {
+  variant?:   BadgeVariant
+  children:   React.ReactNode
+  dot?:       boolean
   className?: string
 }
 
-export function severityVariant(s: string): Variant {
-  if (s === 'Critical') return 'critical'
-  if (s === 'Medium')   return 'warning'
-  if (s === 'Low')      return 'success'
-  return 'neutral'
+const styles: Record<BadgeVariant, string> = {
+  success: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+  warning: 'bg-amber-100  text-amber-700  dark:bg-amber-900/30  dark:text-amber-400',
+  danger:  'bg-red-100    text-red-700    dark:bg-red-900/30    dark:text-red-400',
+  info:    'bg-blue-100   text-blue-700   dark:bg-blue-900/30   dark:text-blue-400',
+  neutral: 'bg-cg-s2      text-cg-muted',
+  primary: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400',
+  accent:  'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400',
 }
 
-export function statusVariant(s: string): Variant {
-  if (s === 'Success')      return 'success'
-  if (s === 'Processing')   return 'warning'
-  if (s === 'Error')        return 'error'
-  if (s === 'Open')         return 'error'
-  if (s === 'Acknowledged') return 'warning'
-  if (s === 'Resolved')     return 'success'
-  return 'neutral'
+const dotColors: Record<BadgeVariant, string> = {
+  success: 'bg-emerald-500',
+  warning: 'bg-amber-500',
+  danger:  'bg-red-500',
+  info:    'bg-blue-500',
+  neutral: 'bg-slate-400',
+  primary: 'bg-indigo-500',
+  accent:  'bg-violet-500',
 }
 
-export default function Badge({ variant = 'neutral', children, className = '' }: Props) {
+export function Badge({ variant = 'neutral', children, dot = false, className = '' }: BadgeProps) {
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${STYLES[variant]} ${className}`}>
+    <span className={[
+      'inline-flex items-center gap-1.5 px-2 py-0.5',
+      'rounded-full text-xs font-medium whitespace-nowrap',
+      styles[variant],
+      className,
+    ].join(' ')}>
+      {dot && <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotColors[variant]}`} />}
       {children}
     </span>
   )
 }
+
+export function statusBadge(status: string): BadgeVariant {
+  const map: Record<string, BadgeVariant> = {
+    completed: 'success', done: 'success', active: 'success', healthy: 'success', up: 'success',
+    processing: 'primary', running: 'primary', indexing: 'primary',
+    pending: 'warning', queued: 'warning',
+    failed: 'danger', error: 'danger', down: 'danger',
+    inactive: 'neutral', idle: 'neutral',
+    info: 'info',
+  }
+  return map[status.toLowerCase()] ?? 'neutral'
+}
+
+export function severityBadge(sev: string): BadgeVariant {
+  const map: Record<string, BadgeVariant> = {
+    critical: 'danger', high: 'danger',
+    warning: 'warning', medium: 'warning',
+    info: 'info', low: 'info',
+    success: 'success',
+  }
+  return map[sev.toLowerCase()] ?? 'neutral'
+}
+
+// Backwards-compatible aliases
+export const severityVariant = severityBadge
+export const statusVariant   = statusBadge
+export default Badge
