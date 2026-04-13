@@ -2,25 +2,23 @@ import { useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   Bell, ChevronDown, AlertTriangle, Info, CheckCircle2,
-  Sun, Moon, Search, Settings, LogOut, User,
+  Search, Settings, LogOut, User,
   LayoutDashboard, Upload, FileText, GitBranch,
-  Cpu, Bot, BarChart2,
+  Bot, Sparkles,
 } from 'lucide-react'
 import { useAppStore } from '../../store'
 import { Avatar } from '../ui'
 import { Badge } from '../ui/Badge'
 
 const PAGE_META: Record<string, { label: string; icon: React.ReactNode; section: string }> = {
-  '/app/dashboard': { label: 'Dashboard',     icon: <LayoutDashboard size={15}/>, section: 'Platform' },
-  '/app/ingestion': { label: 'Data Ingestion', icon: <Upload          size={15}/>, section: 'Platform' },
-  '/app/documents': { label: 'Documents',      icon: <FileText        size={15}/>, section: 'Platform' },
-  '/app/graph':     { label: 'Graph Explorer', icon: <GitBranch       size={15}/>, section: 'Intelligence' },
-  '/app/rag':       { label: 'GraphRAG Chat',  icon: <Bot             size={15}/>, section: 'Intelligence' },
-  '/app/ai-engine': { label: 'AI Engine',      icon: <Cpu             size={15}/>, section: 'Intelligence' },
-  '/app/agent':     { label: 'AI Agent',       icon: <Bot             size={15}/>, section: 'Intelligence' },
-  '/app/reports':   { label: 'Reports',        icon: <BarChart2       size={15}/>, section: 'Insights' },
-  '/app/alerts':    { label: 'Alerts',         icon: <Bell            size={15}/>, section: 'Insights' },
-  '/app/settings':  { label: 'Settings',       icon: <Settings        size={15}/>, section: 'Admin' },
+  '/app/dashboard': { label: 'Dashboard',     icon: <LayoutDashboard size={15}/>, section: 'Platform'      },
+  '/app/ingestion': { label: 'Data Ingestion', icon: <Upload          size={15}/>, section: 'Platform'      },
+  '/app/documents': { label: 'Documents',      icon: <FileText        size={15}/>, section: 'Platform'      },
+  '/app/graph':     { label: 'Graph Explorer', icon: <GitBranch       size={15}/>, section: 'Intelligence'  },
+  '/app/rag':       { label: 'GraphRAG Chat',  icon: <Sparkles        size={15}/>, section: 'Intelligence'  },
+  '/app/agent':     { label: 'AI Agent',       icon: <Bot             size={15}/>, section: 'Intelligence'  },
+  '/app/alerts':    { label: 'Alerts',         icon: <Bell            size={15}/>, section: 'Admin'         },
+  '/app/settings':  { label: 'Settings',       icon: <Settings        size={15}/>, section: 'Admin'         },
 }
 
 const NOTIF_ICONS: Record<string, React.ReactNode> = {
@@ -33,7 +31,7 @@ const NOTIF_ICONS: Record<string, React.ReactNode> = {
 export default function Navbar() {
   const location  = useLocation()
   const navigate  = useNavigate()
-  const { currentUser, notifications, markNotificationRead, theme, toggleTheme, clearAuth } = useAppStore()
+  const { currentUser, notifications, markNotificationRead, clearAuth } = useAppStore()
 
   const [notifOpen, setNotifOpen] = useState(false)
   const [userOpen,  setUserOpen]  = useState(false)
@@ -86,15 +84,6 @@ export default function Navbar() {
           <kbd className="ml-1 px-1.5 py-0.5 rounded-md bg-cg-surface border border-cg-border text-[10px] font-mono">⌘K</kbd>
         </button>
 
-        {/* Theme toggle */}
-        <button
-          onClick={toggleTheme}
-          className="p-2 rounded-xl text-cg-muted hover:text-cg-txt hover:bg-cg-s2 transition-colors"
-          title={theme === 'light' ? 'Dark mode' : 'Light mode'}
-        >
-          {theme === 'light' ? <Moon size={17} /> : <Sun size={17} />}
-        </button>
-
         {/* Notifications */}
         <div className="relative">
           <button
@@ -120,7 +109,7 @@ export default function Navbar() {
                   <button
                     key={n.id}
                     onClick={() => { markNotificationRead(n.id) }}
-                    className={`w-full text-left flex gap-3 px-4 py-3 hover:bg-cg-s2 transition-colors ${!n.read ? 'bg-indigo-500/5' : ''}`}
+                    className={`w-full text-left flex gap-3 px-4 py-3 hover:bg-cg-s2 transition-colors ${!n.read ? 'bg-cg-primary-s' : ''}`}
                   >
                     <span className="mt-0.5 shrink-0">{NOTIF_ICONS[n.type] ?? NOTIF_ICONS.info}</span>
                     <div className="flex-1 min-w-0">
@@ -143,22 +132,14 @@ export default function Navbar() {
         <div className="relative">
           <button
             onClick={() => { setUserOpen(p => !p); setNotifOpen(false) }}
-            className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-xl hover:bg-cg-s2 transition-colors"
+            className="flex items-center gap-1.5 pl-1 pr-2 py-1 rounded-xl hover:bg-cg-s2 transition-colors"
           >
             <Avatar name={currentUser.name} size="sm" status="online" />
-            <div className="text-left hidden sm:block">
-              <p className="text-xs font-semibold text-cg-txt leading-tight">{currentUser.name}</p>
-              <p className="text-[10px] text-cg-muted">{currentUser.role}</p>
-            </div>
-            <ChevronDown size={13} className="text-cg-faint ml-0.5" />
+            <ChevronDown size={13} className="text-cg-faint" />
           </button>
 
           {userOpen && (
             <div className="absolute right-0 top-12 w-52 card shadow-cg-lg anim-fade-slide-down overflow-hidden z-50">
-              <div className="px-4 py-3 border-b border-cg-border bg-cg-s2">
-                <p className="text-sm font-semibold text-cg-txt">{currentUser.name}</p>
-                <p className="text-xs text-cg-muted">{currentUser.role}</p>
-              </div>
               <div className="p-1">
                 {[
                   { label: 'Profile',   icon: <User     size={14}/>, action: () => navigate('/app/settings') },
@@ -176,7 +157,7 @@ export default function Navbar() {
                 <div className="mx-2 my-1 h-px bg-cg-border" />
                 <button
                   onClick={() => { clearAuth(); navigate('/login'); closeAll() }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-red-500 hover:bg-red-50 transition-colors"
                 >
                   <LogOut size={14} />
                   Sign out

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ─────────────────────────────────────────────────────────────────────────────
-# CogniGrid AI — Start Platform
+# CogniGrid AI  Start Platform
 # Usage: ./start.sh
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -28,7 +28,7 @@ sep
 
 # ── Check .env ────────────────────────────────────────────────────────────────
 if [ ! -f "$ROOT_DIR/.env" ]; then
-  err ".env not found — copy .env.example and fill in your values"
+  err ".env not found copy .env.example and fill in your values"
   exit 1
 fi
 
@@ -107,6 +107,10 @@ JWT_REF_EXP=$(grep ^JWT_REFRESH_EXPIRATION_MS "$ROOT_DIR/.env" | cut -d= -f2)
 CORS_VAL=$(grep ^CORS_ORIGINS "$ROOT_DIR/.env" | cut -d= -f2)
 
 info "Starting Gateway (java -jar)..."
+# NOTE: must cd into the target dir — colons in the project path would be
+# interpreted as classpath separators by the JVM if we used the full path.
+GATEWAY_JAR_NAME=$(basename "$GATEWAY_JAR")
+cd "$GATEWAY_DIR/target"
 java \
   -DSPRING_DATASOURCE_URL="jdbc:postgresql://localhost:5433/${PG_DB}" \
   -DSPRING_DATASOURCE_USERNAME="${PG_USER}" \
@@ -117,7 +121,7 @@ java \
   -DJWT_EXPIRATION_MS="${JWT_EXP}" \
   -DJWT_REFRESH_EXPIRATION_MS="${JWT_REF_EXP}" \
   -DCORS_ORIGINS="${CORS_VAL}" \
-  -jar "$GATEWAY_JAR" \
+  -jar "$GATEWAY_JAR_NAME" \
   > "$ROOT_DIR/logs/gateway.log" 2>&1 &
 GATEWAY_PID=$!
 echo $GATEWAY_PID > "$ROOT_DIR/logs/gateway.pid"

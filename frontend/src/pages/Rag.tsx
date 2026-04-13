@@ -3,17 +3,17 @@ import { Send, BookOpen, Network, Cpu, Sparkles, ChevronRight } from 'lucide-rea
 import { ragApi } from '../lib/api'
 import type { ChatMessage } from '../types'
 
+const LLM_PROVIDERS = [
+  { id: 'ollama',    label: 'Ollama',   sub: 'Local',         color: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/30' },
+  { id: 'openai',   label: 'OpenAI',   sub: 'GPT-4o',        color: 'text-blue-500    bg-blue-500/10    border-blue-500/30'    },
+  { id: 'anthropic', label: 'Claude',  sub: 'Anthropic',     color: 'text-violet-500  bg-violet-500/10  border-violet-500/30'  },
+]
+
 const EXAMPLE_QUERIES = [
   'What entities are connected to Substation A?',
   'Summarize the anomalies in the energy grid',
   'Which sensors have the highest fault probability?',
   'Explain the relationship between SCADA-03 and Grid Zone 1',
-]
-
-const MOCK_SOURCES = [
-  { title: 'grid_sensors_march.csv', chunk: 'Row 4412: EG-447 voltage deviation 15.3%…' },
-  { title: 'cim_schema_v3.xml',      chunk: 'Substation EG-447 → ConnectedTo → Sensor EG-01' },
-  { title: 'Annual_Report_2024.pdf', chunk: 'Section 4.2: Grid Zone 1 capacity thresholds…' },
 ]
 
 function SourceChip({ title, chunk }: { title: string; chunk: string }) {
@@ -57,10 +57,10 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
           })}
         </div>
 
-        {showSources && (
+        {showSources && msg.sources && msg.sources.length > 0 && (
           <div className="w-full space-y-1.5">
             <p className="text-[10px] text-cg-faint font-medium uppercase tracking-wide px-1">Sources</p>
-            {MOCK_SOURCES.map((s, i) => <SourceChip key={i} {...s} />)}
+            {msg.sources.map((s, i) => <SourceChip key={i} {...s} />)}
           </div>
         )}
 
@@ -95,6 +95,7 @@ export default function Rag() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [thinking, setThinking] = useState(false)
+  const [provider, setProvider] = useState('ollama')
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -109,23 +110,28 @@ export default function Rag() {
     setInput('')
     setThinking(true)
     try {
-      const { data } = await ragApi.chat({ question: text.trim() })
+      const { data } = await ragApi.chat({ question: text.trim(), provider })
       const aiMsg: ChatMessage = {
         id: `ai-${Date.now()}`,
         role: 'ai',
         content: data.answer,
         timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
         tools: ['qdrant_search', 'neo4j_query'],
+        sources: data.sources?.map(s => ({
+          title: s.documentId ?? 'Document',
+          chunk: s.text ? (s.text.slice(0, 100) + (s.text.length > 100 ? '…' : '')) : '',
+        })),
       }
       setMessages(prev => [...prev, aiMsg])
-    } catch {
-      // Fallback mock when backend is not running
+    } catch (err: unknown) {
+      const errMsg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+        ?? 'Backend not reachable. Make sure the GraphRAG service is running.'
       const aiMsg: ChatMessage = {
         id: `ai-${Date.now()}`,
         role: 'ai',
-        content: `Based on my analysis of your knowledge graph and retrieved document chunks:\n\n**Key Findings:**\n- Query relates to: ${text.length > 40 ? text.slice(0, 40) + '…' : text}\n- 3 relevant chunks retrieved from vector store\n- 2 graph nodes directly related\n\nThe semantic search identified high-confidence matches (>0.85) in your indexed documents. The knowledge graph shows direct connections between entities.\n\n*(Backend not available — showing demo response)*`,
+        content: `Sorry, I could not process your request.\n\n${errMsg}`,
         timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-        tools: ['qdrant_search', 'neo4j_query'],
+        tools: [],
       }
       setMessages(prev => [...prev, aiMsg])
     } finally {
@@ -181,12 +187,29 @@ export default function Rag() {
 
         {/* Model selector */}
         <div className="card p-4">
-          <p className="text-xs font-semibold text-cg-txt uppercase tracking-wide mb-2">LLM Provider</p>
-          <select className="w-full bg-cg-bg border border-cg-border rounded-lg text-xs text-cg-txt px-2.5 py-2 focus:outline-none focus:border-cg-primary">
-            <option>Ollama (local)</option>
-            <option>OpenAI GPT-4o</option>
-            <option>Anthropic Claude</option>
-          </select>
+          <p className="text-xs font-semibold text-cg-txt uppercase tracking-wide mb-2.5">LLM Provider</p>
+          <div className="space-y-1.5">
+            {LLM_PROVIDERS.map(p => (
+              <button
+                key={p.id}
+                onClick={() => setProvider(p.id)}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl border text-left transition-all ${
+                  provider === p.id
+                    ? p.color
+                    : 'border-cg-border text-cg-muted hover:bg-cg-s2 hover:text-cg-txt'
+                }`}
+              >
+                <Cpu size={12} className={provider === p.id ? '' : 'text-cg-faint'} />
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold leading-none">{p.label}</p>
+                  <p className="text-[10px] opacity-70 mt-0.5">{p.sub}</p>
+                </div>
+                {provider === p.id && (
+                  <span className="ml-auto text-[9px] font-bold uppercase tracking-wide opacity-80">Active</span>
+                )}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -199,7 +222,9 @@ export default function Rag() {
           </div>
           <div>
             <p className="text-sm font-semibold text-cg-txt">GraphRAG Chat</p>
-            <p className="text-[10px] text-cg-faint">Semantic search + Knowledge graph context</p>
+            <p className="text-[10px] text-cg-faint">
+              Semantic search + Knowledge graph · {LLM_PROVIDERS.find(p => p.id === provider)?.label ?? 'Ollama'}
+            </p>
           </div>
           <div className="ml-auto flex items-center gap-1.5 text-xs text-emerald-500">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />

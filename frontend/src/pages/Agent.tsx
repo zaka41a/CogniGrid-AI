@@ -1,8 +1,14 @@
 import { useState, useRef, useEffect } from 'react'
 import { Send, Paperclip, MessageSquare, Plus, Wrench, Bot } from 'lucide-react'
 import { agentApi } from '../lib/api'
-import { mockConversations } from '../mock'
 import type { ChatMessage } from '../types'
+
+interface Conversation {
+  id: string
+  title: string
+  date: string
+  messages: ChatMessage[]
+}
 
 const QUICK_PROMPTS = [
   'Detect anomalies in energy grid',
@@ -77,13 +83,14 @@ function TypingIndicator() {
 }
 
 export default function Agent() {
-  const [activeConvId, setActiveConvId] = useState('c1')
-  const [messages, setMessages]         = useState<ChatMessage[]>(mockConversations[0].messages)
-  const [input, setInput]               = useState('')
-  const [thinking, setThinking]         = useState(false)
+  const [conversations, setConversations] = useState<Conversation[]>([])
+  const [activeConvId, setActiveConvId]   = useState<string>('new')
+  const [messages, setMessages]           = useState<ChatMessage[]>([])
+  const [input, setInput]                 = useState('')
+  const [thinking, setThinking]           = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
 
-  const activeConv = mockConversations.find(c => c.id === activeConvId)
+  const activeConv = conversations.find(c => c.id === activeConvId)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -91,6 +98,21 @@ export default function Agent() {
 
   const sendMessage = async (text: string) => {
     if (!text.trim() || thinking) return
+
+    // Create conversation if none active
+    let convId = activeConvId
+    if (!conversations.find(c => c.id === convId)) {
+      convId = `c-${Date.now()}`
+      const conv: Conversation = {
+        id: convId,
+        title: text.trim().slice(0, 40),
+        date: new Date().toLocaleDateString(),
+        messages: [],
+      }
+      setConversations(prev => [conv, ...prev])
+      setActiveConvId(convId)
+    }
+
     const ts = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
     const userMsg: ChatMessage = { id: `u-${Date.now()}`, role: 'user', content: text.trim(), timestamp: ts }
     setMessages(prev => [...prev, userMsg])
@@ -109,14 +131,15 @@ export default function Agent() {
         tools: data.toolsUsed,
       }
       setMessages(prev => [...prev, aiMsg])
-    } catch {
-      // Fallback mock when backend is not running
+    } catch (err: unknown) {
+      const errMsg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+        ?? 'Backend not reachable. Make sure the agent service is running.'
       const aiMsg: ChatMessage = {
         id: `ai-${Date.now()}`,
         role: 'ai',
-        content: `Analyzing: "${text.trim()}"\n\nI've processed your request against the knowledge graph and AI models. The analysis shows nominal patterns with 2 points of interest flagged for review.\n\n- Entity graph contains 3 relevant nodes\n- Anomaly model confidence: 0.87\n- Recommended action: schedule inspection\n\nWould you like me to run a deeper analysis or generate a report?\n\n*(Backend not available — showing demo response)*`,
+        content: `Sorry, I could not process your request.\n\n${errMsg}`,
         timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-        tools: ['graph_query', 'anomaly_model'],
+        tools: [],
       }
       setMessages(prev => [...prev, aiMsg])
     } finally {
@@ -124,9 +147,17 @@ export default function Agent() {
     }
   }
 
+  const newConversation = () => {
+    const id = `c-${Date.now()}`
+    const conv: Conversation = { id, title: 'New Conversation', date: new Date().toLocaleDateString(), messages: [] }
+    setConversations(prev => [conv, ...prev])
+    setActiveConvId(id)
+    setMessages([])
+  }
+
   const switchConversation = (id: string) => {
     setActiveConvId(id)
-    setMessages(mockConversations.find(c => c.id === id)?.messages ?? [])
+    setMessages(conversations.find(c => c.id === id)?.messages ?? [])
   }
 
   return (
@@ -137,7 +168,7 @@ export default function Agent() {
         <div className="flex items-center justify-between px-4 py-3 border-b border-cg-border">
           <p className="text-xs font-semibold text-cg-txt">Conversations</p>
           <button
-            onClick={() => { switchConversation('c1'); setMessages([]) }}
+            onClick={newConversation}
             className="p-1.5 rounded-lg hover:bg-cg-s2 text-cg-muted hover:text-cg-txt transition-colors"
             title="New conversation"
           >
@@ -145,7 +176,10 @@ export default function Agent() {
           </button>
         </div>
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
-          {mockConversations.map(conv => (
+          {conversations.length === 0 && (
+            <p className="text-[10px] text-cg-faint text-center py-6 px-3">Start a conversation to see it here</p>
+          )}
+          {conversations.map(conv => (
             <button
               key={conv.id}
               onClick={() => switchConversation(conv.id)}

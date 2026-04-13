@@ -96,7 +96,7 @@ services:
       - "6333:6333"   # REST API
       - "6334:6334"   # gRPC
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:6333/health"]
+      test: ["CMD-SHELL", "timeout 1 bash -c 'cat < /dev/null > /dev/tcp/localhost/6333' && echo ok || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -201,10 +201,6 @@ services:
       GRAPH_SERVICE_URL: http://graph:8002
       QDRANT_URL: ${QDRANT_URL}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL}
-    volumes:
-      - type: bind
-        source: ./backend/ingestion
-        target: /app
     ports:
       - "${INGESTION_PORT}:8001"
     depends_on:
@@ -234,10 +230,6 @@ services:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       QDRANT_URL: ${QDRANT_URL}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL}
-    volumes:
-      - type: bind
-        source: ./backend/graph
-        target: /app
     ports:
       - "${GRAPH_PORT}:8002"
     depends_on:
@@ -265,10 +257,6 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
       REDIS_URL: ${REDIS_URL}
-    volumes:
-      - type: bind
-        source: ./backend/ai-engine
-        target: /app
     ports:
       - "${AI_ENGINE_PORT}:8003"
     depends_on:
@@ -299,10 +287,6 @@ services:
       DEFAULT_LLM_PROVIDER: ${DEFAULT_LLM_PROVIDER}
       DEFAULT_LLM_MODEL: ${DEFAULT_LLM_MODEL}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL}
-    volumes:
-      - type: bind
-        source: ./backend/graphrag
-        target: /app
     ports:
       - "${GRAPHRAG_PORT}:8004"
     depends_on:
@@ -334,10 +318,6 @@ services:
       RAG_SERVICE_URL: http://graphrag:8004
       AI_ENGINE_URL: http://ai-engine:8003
       INGESTION_SERVICE_URL: http://ingestion:8001
-    volumes:
-      - type: bind
-        source: ./backend/agent
-        target: /app
     ports:
       - "${AGENT_PORT}:8005"
     depends_on:

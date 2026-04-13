@@ -1,45 +1,57 @@
 import axios from 'axios'
 
-// ─── Axios instance ────────────────────────────────────────────────────────────
-export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL ?? 'http://localhost:8080',
-  headers: { 'Content-Type': 'application/json' },
-  timeout: 30_000,
-})
+// ─── Service base URLs ─────────────────────────────────────────────────────────
+const GATEWAY_URL   = import.meta.env.VITE_GATEWAY_URL   ?? 'http://localhost:8080'
+const GRAPH_URL     = import.meta.env.VITE_GRAPH_URL     ?? 'http://localhost:8002'
+const INGESTION_URL = import.meta.env.VITE_INGESTION_URL ?? 'http://localhost:8001'
+const RAG_URL       = import.meta.env.VITE_RAG_URL       ?? 'http://localhost:8004'
+const AGENT_URL     = import.meta.env.VITE_AGENT_URL     ?? 'http://localhost:8005'
 
-// ─── Request interceptor: attach JWT ──────────────────────────────────────────
-api.interceptors.request.use(config => {
-  const token = localStorage.getItem('cg_token')
-  if (token) config.headers.Authorization = `Bearer ${token}`
-  return config
-})
-
-// ─── Response interceptor: handle 401 ────────────────────────────────────────
-api.interceptors.response.use(
-  res => res,
-  err => {
-    if (err.response?.status === 401) {
-      localStorage.removeItem('cg_token')
-      localStorage.removeItem('cg_user')
-      // Redirect to login — avoid circular import with router
-      if (!window.location.pathname.startsWith('/login')) {
-        window.location.href = '/login'
+// ─── Shared request interceptor ───────────────────────────────────────────────
+function withAuth(instance: ReturnType<typeof axios.create>) {
+  instance.interceptors.request.use(config => {
+    const token = localStorage.getItem('cg_token')
+    if (token) config.headers.Authorization = `Bearer ${token}`
+    return config
+  })
+  instance.interceptors.response.use(
+    res => res,
+    err => {
+      if (err.response?.status === 401) {
+        localStorage.removeItem('cg_token')
+        localStorage.removeItem('cg_user')
+        if (!window.location.pathname.startsWith('/login')) {
+          window.location.href = '/login'
+        }
       }
-    }
-    return Promise.reject(err)
-  },
-)
+      return Promise.reject(err)
+    },
+  )
+  return instance
+}
 
-// ─── Auth endpoints ───────────────────────────────────────────────────────────
+// ─── Axios instances per service ──────────────────────────────────────────────
+export const api         = withAuth(axios.create({ baseURL: GATEWAY_URL,   timeout: 30_000, headers: { 'Content-Type': 'application/json' } }))
+export const graphHttp   = withAuth(axios.create({ baseURL: GRAPH_URL,     timeout: 30_000, headers: { 'Content-Type': 'application/json' } }))
+export const ingestHttp  = withAuth(axios.create({ baseURL: INGESTION_URL, timeout: 60_000, headers: { 'Content-Type': 'application/json' } }))
+export const ragHttp     = withAuth(axios.create({ baseURL: RAG_URL,       timeout: 60_000, headers: { 'Content-Type': 'application/json' } }))
+export const agentHttp   = withAuth(axios.create({ baseURL: AGENT_URL,     timeout: 60_000, headers: { 'Content-Type': 'application/json' } }))
+
+// ─── Auth endpoints (gateway) ─────────────────────────────────────────────────
 export interface LoginRequest    { email: string; password: string }
 export interface RegisterRequest { fullName: string; email: string; password: string }
 
 export interface AuthResponse {
-  token:    string
-  userId:   string
-  name:     string
-  email:    string
-  role:     string
+  accessToken:   string
+  refreshToken:  string
+  tokenType:     string
+  expiresIn:     number
+  user: {
+    id:       string
+    email:    string
+    fullName: string
+    role:     string
+  }
 }
 
 export const authApi = {
@@ -48,82 +60,70 @@ export const authApi = {
   me:       ()                      => api.get<AuthResponse>('/api/auth/me'),
 }
 
-// ─── Graph endpoints ──────────────────────────────────────────────────────────
-export interface GraphStats {
-  nodeCount:    number
-  edgeCount:    number
-  rdfTriples:   number
-  documentCount: number
-}
-
-export interface GraphNode {
-  id: string; label: string; type: string
-  properties?: Record<string, string>
-}
-
-export interface SearchResult {
-  id: string; label: string; type: string; score: number
-}
+// ─── Graph endpoints (graph service :8002) ────────────────────────────────────
+export interface GraphStats    { nodeCount: number; edgeCount: number; rdfTriples: number; documentCount: number }
+export interface GraphNode     { id: string; label: string; type: string; properties?: Record<string, string> }
+export interface SearchResult  { id: string; label: string; type: string; score: number }
 
 export const graphApi = {
-  stats:      ()                    => api.get<GraphStats>('/api/graph/stats'),
-  search:     (q: string)           => api.get<SearchResult[]>('/api/graph/search', { params: { q } }),
-  neighbors:  (id: string)          => api.get<GraphNode[]>(`/api/graph/nodes/${id}/neighbors`),
-  documents:  ()                    => api.get('/api/graph/documents'),
-  deleteDoc:  (id: string)          => api.delete(`/api/graph/documents/${id}`),
+  stats:     ()           => graphHttp.get<GraphStats>('/api/graph/stats'),
+  search:    (q: string)  => graphHttp.get<SearchResult[]>('/api/graph/search', { params: { q } }),
+  neighbors: (id: string) => graphHttp.get<GraphNode[]>(`/api/graph/nodes/${id}/neighbors`),
+  documents: ()           => graphHttp.get('/api/graph/documents'),
+  deleteDoc: (id: string) => graphHttp.delete(`/api/graph/documents/${id}`),
 }
 
-// ─── Ingestion endpoints ──────────────────────────────────────────────────────
+// ─── Ingestion endpoints (ingestion service :8001) ────────────────────────────
 export interface IngestJob {
-  jobId:    string
-  filename: string
-  status:   'queued' | 'processing' | 'done' | 'error'
-  progress: number
+  jobId:     string
+  filename:  string
+  status:    'queued' | 'processing' | 'done' | 'error'
+  progress:  number
   createdAt: string
 }
 
 export const ingestionApi = {
-  upload:   (file: File, onProgress?: (pct: number) => void) => {
+  upload: (file: File, onProgress?: (pct: number) => void) => {
     const form = new FormData()
     form.append('file', file)
-    return api.post<IngestJob>('/api/ingestion/upload', form, {
+    return ingestHttp.post<IngestJob>('/api/ingestion/upload', form, {
       headers: { 'Content-Type': 'multipart/form-data' },
       onUploadProgress: e => onProgress?.(Math.round((e.loaded * 100) / (e.total ?? 1))),
     })
   },
-  jobs:     ()         => api.get<IngestJob[]>('/api/ingestion/jobs'),
-  jobById:  (id: string) => api.get<IngestJob>(`/api/ingestion/jobs/${id}`),
+  jobs:    ()           => ingestHttp.get<IngestJob[]>('/api/ingestion/jobs'),
+  jobById: (id: string) => ingestHttp.get<IngestJob>(`/api/ingestion/jobs/${id}`),
 }
 
-// ─── RAG / GraphRAG endpoints ─────────────────────────────────────────────────
+// ─── RAG / GraphRAG endpoints (graphrag service :8004) ────────────────────────
 export interface RagRequest  { question: string; llmProvider?: string; llmModel?: string }
 export interface RagResponse { answer: string; sources: RagSource[]; graphContext: GraphCtx[] }
 export interface RagSource   { chunkId: string; documentId: string; text: string; score: number }
 export interface GraphCtx    { nodeId: string; label: string; type: string; properties: Record<string, string> }
 
 export const ragApi = {
-  chat:   (data: RagRequest) => api.post<RagResponse>('/api/rag/chat', data),
-  search: (q: string)        => api.post('/api/rag/search', { query: q }),
+  chat:   (data: RagRequest) => ragHttp.post<RagResponse>('/api/rag/chat', data),
+  search: (q: string)        => ragHttp.post('/api/rag/search', { query: q }),
 }
 
-// ─── Agent endpoints ──────────────────────────────────────────────────────────
-export interface AgentMessage { role: 'user' | 'assistant'; content: string }
-export interface AgentRequest { message: string; history?: AgentMessage[]; llmProvider?: string }
+// ─── Agent endpoints (agent service :8005) ────────────────────────────────────
+export interface AgentMessage  { role: 'user' | 'assistant'; content: string }
+export interface AgentRequest  { message: string; history?: AgentMessage[]; llmProvider?: string }
 export interface AgentResponse {
-  response: string
-  steps:    { thought: string; action?: string; observation?: string }[]
+  response:  string
+  steps:     { thought: string; action?: string; observation?: string }[]
   toolsUsed: string[]
 }
 
 export const agentApi = {
-  chat:  (data: AgentRequest) => api.post<AgentResponse>('/api/agent/chat', data),
-  tools: ()                   => api.get<{ name: string; description: string }[]>('/api/agent/tools'),
+  chat:  (data: AgentRequest) => agentHttp.post<AgentResponse>('/api/agent/chat', data),
+  tools: ()                   => agentHttp.get<{ name: string; description: string }[]>('/api/agent/tools'),
 }
 
-// ─── AI Engine endpoints ──────────────────────────────────────────────────────
+// ─── AI Engine endpoints (ai-engine service :8003) ────────────────────────────
 export const aiEngineApi = {
-  similar:    (docId: string)          => api.get(`/api/ai/documents/${docId}/similar`),
-  insights:   (docId: string)          => api.get(`/api/ai/documents/${docId}/insights`),
-  cluster:    (k: number)              => api.post('/api/ai/documents/cluster', { k }),
-  knowledgeGaps: ()                    => api.get('/api/ai/knowledge-gaps'),
+  similar:       (docId: string) => api.get(`/api/ai/documents/${docId}/similar`),
+  insights:      (docId: string) => api.get(`/api/ai/documents/${docId}/insights`),
+  cluster:       (k: number)     => api.post('/api/ai/documents/cluster', { k }),
+  knowledgeGaps: ()              => api.get('/api/ai/knowledge-gaps'),
 }

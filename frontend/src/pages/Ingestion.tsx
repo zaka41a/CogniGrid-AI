@@ -1,59 +1,133 @@
-import { useState } from 'react'
-import { Upload, FileText, Search, Filter, CloudUpload } from 'lucide-react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { Upload, FileText, Search, Filter, CloudUpload, RefreshCw, X } from 'lucide-react'
 import Card from '../components/ui/Card'
 import { Badge, statusBadge } from '../components/ui/Badge'
 import { StatCard } from '../components/ui/StatCard'
-import { mockIngestionRecords } from '../mock'
-import type { FileFormat, IngestionStatus } from '../types'
+import { ingestionApi } from '../lib/api'
+import type { IngestJob } from '../lib/api'
 
-const FORMATS: FileFormat[] = ['CSV', 'Excel', 'JSON', 'XML']
-const STATUSES: IngestionStatus[] = ['Processing', 'Success', 'Error']
-
-const FORMAT_COLORS: Record<FileFormat, string> = {
+const FORMAT_COLORS: Record<string, string> = {
   CSV:   'bg-emerald-500/15 text-emerald-500 border border-emerald-500/30',
   Excel: 'bg-green-500/15   text-green-500   border border-green-500/30',
   JSON:  'bg-amber-500/15   text-amber-500   border border-amber-500/30',
   XML:   'bg-violet-500/15  text-violet-500  border border-violet-500/30',
+  PDF:   'bg-red-500/15     text-red-500     border border-red-500/30',
+  Other: 'bg-cg-s2          text-cg-muted    border border-cg-border',
+}
+
+function guessFormat(filename: string): string {
+  const ext = filename.split('.').pop()?.toUpperCase() ?? 'Other'
+  if (['CSV'].includes(ext))        return 'CSV'
+  if (['XLS', 'XLSX'].includes(ext)) return 'Excel'
+  if (['JSON'].includes(ext))       return 'JSON'
+  if (['XML'].includes(ext))        return 'XML'
+  if (['PDF'].includes(ext))        return 'PDF'
+  return 'Other'
+}
+
+interface UploadState {
+  file: File
+  progress: number
+  status: 'uploading' | 'done' | 'error'
+  error?: string
 }
 
 export default function Ingestion() {
-  const [search, setSearch]             = useState('')
-  const [formatFilter, setFormatFilter] = useState<FileFormat | 'All'>('All')
-  const [statusFilter, setStatusFilter] = useState<IngestionStatus | 'All'>('All')
-  const [dragging, setDragging]         = useState(false)
+  const [jobs, setJobs]           = useState<IngestJob[]>([])
+  const [loading, setLoading]     = useState(true)
+  const [search, setSearch]       = useState('')
+  const [statusFilter, setStatusFilter] = useState<string>('All')
+  const [dragging, setDragging]   = useState(false)
+  const [uploads, setUploads]     = useState<UploadState[]>([])
+  const fileInputRef              = useRef<HTMLInputElement>(null)
+  const pollRef                   = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  const filtered = mockIngestionRecords.filter(r => {
-    const matchSearch = r.filename.toLowerCase().includes(search.toLowerCase())
-    const matchFormat = formatFilter === 'All' || r.format === formatFilter
-    const matchStatus = statusFilter === 'All' || r.status === statusFilter
-    return matchSearch && matchFormat && matchStatus
+  const loadJobs = useCallback(async () => {
+    try {
+      const { data } = await ingestionApi.jobs()
+      setJobs(data)
+    } catch { /* ignore */ }
+    finally { setLoading(false) }
+  }, [])
+
+  // Poll while any job is in-progress
+  useEffect(() => {
+    loadJobs()
+    pollRef.current = setInterval(() => {
+      if (jobs.some(j => j.status === 'queued' || j.status === 'processing')) {
+        loadJobs()
+      }
+    }, 4000)
+    return () => { if (pollRef.current) clearInterval(pollRef.current) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const uploadFiles = async (files: FileList | File[]) => {
+    const fileArr = Array.from(files)
+    for (const file of fileArr) {
+      const idx = uploads.length
+      setUploads(prev => [...prev, { file, progress: 0, status: 'uploading' }])
+      try {
+        await ingestionApi.upload(file, (pct) => {
+          setUploads(prev => prev.map((u, i) => i === idx ? { ...u, progress: pct } : u))
+        })
+        setUploads(prev => prev.map((u, i) => i === idx ? { ...u, status: 'done', progress: 100 } : u))
+        await loadJobs()
+      } catch (err: unknown) {
+        const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? 'Upload failed'
+        setUploads(prev => prev.map((u, i) => i === idx ? { ...u, status: 'error', error: msg } : u))
+      }
+    }
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragging(false)
+    if (e.dataTransfer.files.length > 0) uploadFiles(e.dataTransfer.files)
+  }
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) uploadFiles(e.target.files)
+  }
+
+  const filtered = jobs.filter(j => {
+    const matchSearch = j.filename.toLowerCase().includes(search.toLowerCase())
+    const matchStatus = statusFilter === 'All' || j.status === statusFilter
+    return matchSearch && matchStatus
   })
 
-  const success = mockIngestionRecords.filter(r => r.status === 'Success').length
-  const errors  = mockIngestionRecords.filter(r => r.status === 'Error').length
-  const totalRows  = mockIngestionRecords
-    .filter(r => r.rowsIngested)
-    .reduce((s, r) => s + (r.rowsIngested ?? 0), 0)
+  const success = jobs.filter(j => j.status === 'done').length
+  const errors  = jobs.filter(j => j.status === 'error').length
 
   return (
     <div className="space-y-6">
 
       {/* Stats */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard label="Total Ingested" value={mockIngestionRecords.length} icon={<Upload   size={17}/>} iconColor="#6366F1" />
-        <StatCard label="Rows Processed" value={totalRows.toLocaleString()} icon={<FileText size={17}/>} iconColor="#10B981" />
-        <StatCard label="Successful"     value={success}    icon={<Upload   size={17}/>} iconColor="#10B981" />
-        <StatCard label="Errors"         value={errors}     icon={<FileText size={17}/>} iconColor="#EF4444" />
+        <StatCard label="Total Jobs"   value={loading ? '…' : jobs.length}   icon={<Upload   size={17}/>} iconColor="#6366F1" />
+        <StatCard label="Completed"    value={loading ? '…' : success}        icon={<FileText size={17}/>} iconColor="#10B981" />
+        <StatCard label="In Progress"  value={loading ? '…' : jobs.filter(j => j.status === 'processing' || j.status === 'queued').length}
+          icon={<Upload size={17}/>} iconColor="#F59E0B" />
+        <StatCard label="Errors"       value={loading ? '…' : errors}         icon={<FileText size={17}/>} iconColor="#EF4444" />
       </div>
 
       {/* Drop zone */}
       <Card title="Upload Data">
         <div className="p-5">
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            className="hidden"
+            onChange={handleFileChange}
+            accept=".pdf,.csv,.json,.xml,.xlsx,.xls,.docx,.txt,.md,.png,.jpg,.jpeg"
+          />
           <div
             onDragEnter={() => setDragging(true)}
             onDragLeave={() => setDragging(false)}
             onDragOver={e => e.preventDefault()}
-            onDrop={e => { e.preventDefault(); setDragging(false) }}
+            onDrop={handleDrop}
+            onClick={() => fileInputRef.current?.click()}
             className={`
               border-2 border-dashed rounded-xl p-10 flex flex-col items-center justify-center gap-4
               cursor-pointer transition-all duration-200
@@ -72,20 +146,57 @@ export default function Ingestion() {
               <p className="text-sm font-semibold text-cg-txt">
                 {dragging ? 'Drop to upload' : 'Drop files here or click to upload'}
               </p>
-              <p className="text-xs text-cg-muted mt-1">Maximum file size: 500 MB per file</p>
+              <p className="text-xs text-cg-muted mt-1">PDF, CSV, JSON, XML, Excel, images · Max 500 MB</p>
             </div>
-            {/* Format badges */}
             <div className="flex flex-wrap gap-2 justify-center">
-              {FORMATS.map(fmt => (
+              {['PDF', 'CSV', 'JSON', 'XML', 'Excel'].map(fmt => (
                 <span key={fmt} className={`px-3 py-1 rounded-full text-xs font-medium ${FORMAT_COLORS[fmt]}`}>
                   {fmt}
                 </span>
               ))}
             </div>
-            <button className="px-5 py-2 rounded-xl text-sm font-semibold gradient-primary text-white shadow-cg hover:opacity-90 transition-all">
+            <button
+              onClick={e => { e.stopPropagation(); fileInputRef.current?.click() }}
+              className="px-5 py-2 rounded-xl text-sm font-semibold gradient-primary text-white shadow-cg hover:opacity-90 transition-all"
+            >
               Browse Files
             </button>
           </div>
+
+          {/* Upload progress */}
+          {uploads.length > 0 && (
+            <div className="mt-4 space-y-2">
+              {uploads.map((u, i) => (
+                <div key={i} className="flex items-center gap-3 px-4 py-3 bg-cg-bg border border-cg-border rounded-xl">
+                  <FileText size={14} className="text-cg-muted shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-cg-txt truncate">{u.file.name}</p>
+                    {u.status === 'uploading' && (
+                      <div className="mt-1.5 h-1 bg-cg-border rounded-full overflow-hidden">
+                        <div className="h-full bg-cg-primary rounded-full transition-all" style={{ width: `${u.progress}%` }} />
+                      </div>
+                    )}
+                    {u.status === 'error' && (
+                      <p className="text-[10px] text-red-500 mt-0.5">{u.error}</p>
+                    )}
+                  </div>
+                  <span className={`text-[10px] font-medium ${
+                    u.status === 'done' ? 'text-emerald-500' :
+                    u.status === 'error' ? 'text-red-500' :
+                    'text-amber-500'
+                  }`}>
+                    {u.status === 'uploading' ? `${u.progress}%` : u.status}
+                  </span>
+                  <button
+                    onClick={() => setUploads(prev => prev.filter((_, j) => j !== i))}
+                    className="text-cg-faint hover:text-cg-muted transition-colors"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </Card>
 
@@ -107,26 +218,24 @@ export default function Ingestion() {
           <div className="flex items-center gap-2">
             <Filter size={13} className="text-cg-muted shrink-0" />
             <select
-              value={formatFilter}
-              onChange={e => setFormatFilter(e.target.value as FileFormat | 'All')}
-              className="bg-cg-bg border border-cg-border rounded-lg text-sm text-cg-txt px-3 py-2
-                focus:outline-none focus:border-cg-primary transition-all"
-            >
-              <option value="All">All Formats</option>
-              {FORMATS.map(f => <option key={f} value={f}>{f}</option>)}
-            </select>
-            <select
               value={statusFilter}
-              onChange={e => setStatusFilter(e.target.value as IngestionStatus | 'All')}
+              onChange={e => setStatusFilter(e.target.value)}
               className="bg-cg-bg border border-cg-border rounded-lg text-sm text-cg-txt px-3 py-2
                 focus:outline-none focus:border-cg-primary transition-all"
             >
               <option value="All">All Statuses</option>
-              {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+              {['queued', 'processing', 'done', 'error'].map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
+          <button
+            onClick={loadJobs}
+            className="p-2 rounded-lg text-cg-muted hover:text-cg-txt hover:bg-cg-s2 transition-colors"
+            title="Refresh"
+          >
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+          </button>
           <span className="ml-auto text-xs text-cg-faint self-center">
-            {filtered.length} of {mockIngestionRecords.length} records
+            {filtered.length} of {jobs.length} records
           </span>
         </div>
 
@@ -135,39 +244,55 @@ export default function Ingestion() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-cg-border">
-                {['Filename', 'Format', 'Size', 'Status', 'Date', 'Rows Ingested'].map(h => (
+                {['Filename', 'Format', 'Status', 'Progress', 'Date'].map(h => (
                   <th key={h} className="text-left px-5 py-3 text-xs font-semibold text-cg-muted whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {filtered.map(row => (
-                <tr key={row.id} className="border-b border-cg-border/50 hover:bg-cg-s2 transition-colors">
+              {loading && (
+                <tr>
+                  <td colSpan={5} className="px-5 py-12 text-center text-cg-faint text-sm">Loading…</td>
+                </tr>
+              )}
+              {!loading && filtered.map(job => (
+                <tr key={job.jobId} className="border-b border-cg-border/50 hover:bg-cg-s2 transition-colors">
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-2.5">
                       <FileText size={14} className="text-cg-muted shrink-0" />
-                      <span className="text-cg-txt font-medium text-sm">{row.filename}</span>
+                      <span className="text-cg-txt font-medium text-sm">{job.filename}</span>
                     </div>
                   </td>
                   <td className="px-5 py-3.5">
-                    <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium ${FORMAT_COLORS[row.format]}`}>
-                      {row.format}
+                    <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium ${FORMAT_COLORS[guessFormat(job.filename)]}`}>
+                      {guessFormat(job.filename)}
                     </span>
                   </td>
-                  <td className="px-5 py-3.5 text-cg-muted text-xs">{row.size}</td>
                   <td className="px-5 py-3.5">
-                    <Badge variant={statusBadge(row.status)} dot>{row.status}</Badge>
+                    <Badge variant={statusBadge(
+                      job.status === 'done' ? 'Success' : job.status === 'error' ? 'Error' : 'Processing'
+                    )} dot>{job.status}</Badge>
                   </td>
-                  <td className="px-5 py-3.5 text-cg-muted whitespace-nowrap text-xs">{row.date}</td>
-                  <td className="px-5 py-3.5 text-cg-muted font-mono text-xs">
-                    {row.rowsIngested !== null ? row.rowsIngested.toLocaleString() : '—'}
+                  <td className="px-5 py-3.5">
+                    <div className="flex items-center gap-2">
+                      <div className="w-20 h-1.5 bg-cg-border rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full ${job.status === 'done' ? 'bg-emerald-500' : job.status === 'error' ? 'bg-red-500' : 'bg-amber-500'}`}
+                          style={{ width: `${job.progress}%` }}
+                        />
+                      </div>
+                      <span className="text-[10px] text-cg-faint font-mono">{job.progress}%</span>
+                    </div>
+                  </td>
+                  <td className="px-5 py-3.5 text-cg-muted whitespace-nowrap text-xs">
+                    {new Date(job.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                   </td>
                 </tr>
               ))}
-              {filtered.length === 0 && (
+              {!loading && filtered.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-5 py-12 text-center text-cg-faint text-sm">
-                    No records match your filters.
+                  <td colSpan={5} className="px-5 py-12 text-center text-cg-faint text-sm">
+                    {jobs.length === 0 ? 'No uploads yet. Drop a file above to get started.' : 'No records match your filters.'}
                   </td>
                 </tr>
               )}

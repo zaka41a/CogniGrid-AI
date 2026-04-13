@@ -100,6 +100,7 @@ export interface ChatMessage {
   content: string
   timestamp: string
   tools?: string[]
+  sources?: { title: string; chunk: string }[]
 }
 
 export interface Conversation {
@@ -154,6 +155,7 @@ export interface Notification {
 
 export interface CurrentUser {
   name: string
+  email?: string
   role: string
   initials: string
 }

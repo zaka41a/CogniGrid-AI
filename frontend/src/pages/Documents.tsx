@@ -1,9 +1,10 @@
-import { useState } from 'react'
-import { FileText, FileSpreadsheet, File, Image, Code, Search, Upload, Trash2, Eye, FolderOpen } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { FileText, FileSpreadsheet, File, Image, Code, Search, Upload, Trash2, RefreshCw, FolderOpen } from 'lucide-react'
 import Card from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { StatCard } from '../components/ui/StatCard'
 import { EmptyState } from '../components/ui/EmptyState'
+import { graphApi, ingestionApi } from '../lib/api'
 
 interface Document {
   id: string
@@ -15,16 +16,15 @@ interface Document {
   uploadedAt: string
 }
 
-const MOCK_DOCS: Document[] = [
-  { id: '1', name: 'Annual_Report_2024.pdf',    type: 'pdf',   size: '4.2 MB', status: 'processed',  nodes: 312, uploadedAt: '2026-04-04' },
-  { id: '2', name: 'Sales_Data_Q1.csv',          type: 'csv',   size: '1.8 MB', status: 'processed',  nodes: 890, uploadedAt: '2026-04-04' },
-  { id: '3', name: 'Technical_Specs.docx',       type: 'docx',  size: '890 KB', status: 'processed',  nodes: 145, uploadedAt: '2026-04-03' },
-  { id: '4', name: 'Architecture_Diagram.png',   type: 'image', size: '2.1 MB', status: 'processing', nodes: 0,   uploadedAt: '2026-04-03' },
-  { id: '5', name: 'backend_src.zip',            type: 'code',  size: '5.6 MB', status: 'processed',  nodes: 534, uploadedAt: '2026-04-02' },
-  { id: '6', name: 'Contracts_March_2026.pdf',   type: 'pdf',   size: '3.3 MB', status: 'failed',     nodes: 0,   uploadedAt: '2026-04-02' },
-  { id: '7', name: 'Customer_Feedback.csv',      type: 'csv',   size: '720 KB', status: 'processed',  nodes: 241, uploadedAt: '2026-04-01' },
-  { id: '8', name: 'Product_Roadmap_2026.docx',  type: 'docx',  size: '1.1 MB', status: 'processed',  nodes: 198, uploadedAt: '2026-04-01' },
-]
+function guessType(name: string): Document['type'] {
+  const ext = name.split('.').pop()?.toLowerCase() ?? ''
+  if (ext === 'pdf')  return 'pdf'
+  if (['csv', 'xls', 'xlsx'].includes(ext)) return 'csv'
+  if (['doc', 'docx', 'txt', 'md'].includes(ext)) return 'docx'
+  if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(ext)) return 'image'
+  if (['js', 'ts', 'py', 'go', 'java', 'zip'].includes(ext)) return 'code'
+  return 'other'
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const FILE_ICONS: Record<Document['type'], any> = {
@@ -48,16 +48,85 @@ const STATUS_VARIANT: Record<Document['status'], 'success' | 'warning' | 'danger
 }
 
 export default function Documents() {
-  const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState<'all' | Document['status']>('all')
+  const [docs, setDocs]       = useState<Document[]>([])
+  const [loading, setLoading] = useState(true)
+  const [deleting, setDeleting] = useState<string | null>(null)
+  const [search, setSearch]   = useState('')
+  const [filter, setFilter]   = useState<'all' | Document['status']>('all')
 
-  const filtered = MOCK_DOCS.filter(d => {
+  const loadDocs = useCallback(async () => {
+    setLoading(true)
+    try {
+      // Load from graph service (processed docs) and ingestion jobs simultaneously
+      const [graphRes, jobsRes] = await Promise.allSettled([
+        graphApi.documents(),
+        ingestionApi.jobs(),
+      ])
+
+      const docMap = new Map<string, Document>()
+
+      // Graph docs (fully processed)
+      if (graphRes.status === 'fulfilled') {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const items: any[] = Array.isArray(graphRes.value.data) ? graphRes.value.data : []
+        items.forEach((d: any) => {
+          docMap.set(d.id ?? d.documentId, {
+            id:         d.id ?? d.documentId,
+            name:       d.name ?? d.filename ?? d.title ?? d.id,
+            type:       guessType(d.name ?? d.filename ?? ''),
+            size:       d.size ? `${(d.size / 1024 / 1024).toFixed(1)} MB` : '—',
+            status:     'processed',
+            nodes:      d.nodeCount ?? d.nodes ?? 0,
+            uploadedAt: d.createdAt ? new Date(d.createdAt).toISOString().slice(0, 10) : '—',
+          })
+        })
+      }
+
+      // Ingestion jobs (may include in-progress / failed)
+      if (jobsRes.status === 'fulfilled') {
+        jobsRes.value.data.forEach(j => {
+          if (!docMap.has(j.jobId)) {
+            docMap.set(j.jobId, {
+              id:         j.jobId,
+              name:       j.filename,
+              type:       guessType(j.filename),
+              size:       '—',
+              status:     j.status === 'done' ? 'processed' : j.status === 'error' ? 'failed' : 'processing',
+              nodes:      0,
+              uploadedAt: j.createdAt ? new Date(j.createdAt).toISOString().slice(0, 10) : '—',
+            })
+          }
+        })
+      }
+
+      setDocs([...docMap.values()])
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { loadDocs() }, [loadDocs])
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Delete this document from the knowledge graph?')) return
+    setDeleting(id)
+    try {
+      await graphApi.deleteDoc(id)
+      setDocs(prev => prev.filter(d => d.id !== id))
+    } catch {
+      alert('Failed to delete document.')
+    } finally {
+      setDeleting(null)
+    }
+  }
+
+  const filtered = docs.filter(d => {
     const matchSearch = d.name.toLowerCase().includes(search.toLowerCase())
     const matchFilter = filter === 'all' || d.status === filter
     return matchSearch && matchFilter
   })
 
-  const processed  = MOCK_DOCS.filter(d => d.status === 'processed')
+  const processed  = docs.filter(d => d.status === 'processed')
   const totalNodes = processed.reduce((s, d) => s + d.nodes, 0)
 
   return (
@@ -65,10 +134,14 @@ export default function Documents() {
 
       {/* KPI row */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard label="Total Documents" value={MOCK_DOCS.length}     icon={<FileText size={17}/>}        iconColor="#6366F1" />
-        <StatCard label="Graph Nodes"     value={totalNodes.toLocaleString()} icon={<FolderOpen size={17}/>} iconColor="#10B981" />
-        <StatCard label="Processed"       value={processed.length}            icon={<FileText size={17}/>}        iconColor="#10B981" />
-        <StatCard label="Pending / Failed" value={MOCK_DOCS.length - processed.length} icon={<File size={17}/>} iconColor="#F59E0B" />
+        <StatCard label="Total Documents" value={loading ? '…' : docs.length}
+          icon={<FileText size={17}/>} iconColor="#6366F1" />
+        <StatCard label="Graph Nodes" value={loading ? '…' : totalNodes.toLocaleString()}
+          icon={<FolderOpen size={17}/>} iconColor="#10B981" />
+        <StatCard label="Processed" value={loading ? '…' : processed.length}
+          icon={<FileText size={17}/>} iconColor="#10B981" />
+        <StatCard label="Pending / Failed" value={loading ? '…' : docs.length - processed.length}
+          icon={<File size={17}/>} iconColor="#F59E0B" />
       </div>
 
       {/* Table card */}
@@ -102,8 +175,18 @@ export default function Documents() {
               </button>
             ))}
           </div>
-          <button className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold
-            gradient-primary text-white shadow-cg hover:opacity-90 transition-all ml-auto">
+          <button
+            onClick={loadDocs}
+            className="p-2 rounded-lg text-cg-muted hover:text-cg-txt hover:bg-cg-s2 transition-colors"
+            title="Refresh"
+          >
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+          </button>
+          <button
+            onClick={() => window.location.href = '/app/ingestion'}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold
+              gradient-primary text-white shadow-cg hover:opacity-90 transition-all ml-auto"
+          >
             <Upload size={14} /> Upload
           </button>
         </div>
@@ -119,7 +202,12 @@ export default function Documents() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map(doc => {
+              {loading && (
+                <tr>
+                  <td colSpan={7} className="px-5 py-12 text-center text-cg-faint text-sm">Loading…</td>
+                </tr>
+              )}
+              {!loading && filtered.map(doc => {
                 const Icon = FILE_ICONS[doc.type]
                 return (
                   <tr key={doc.id} className="border-b border-cg-border/50 hover:bg-cg-s2 transition-colors group">
@@ -144,10 +232,12 @@ export default function Documents() {
                     <td className="px-5 py-3.5 text-cg-faint text-xs whitespace-nowrap">{doc.uploadedAt}</td>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button className="p-1.5 rounded-lg text-cg-muted hover:text-cg-txt hover:bg-cg-border transition-colors" title="Preview">
-                          <Eye size={13} />
-                        </button>
-                        <button className="p-1.5 rounded-lg text-cg-muted hover:text-red-500 hover:bg-red-500/10 transition-colors" title="Delete">
+                        <button
+                          onClick={() => handleDelete(doc.id)}
+                          disabled={deleting === doc.id}
+                          className="p-1.5 rounded-lg text-cg-muted hover:text-red-500 hover:bg-red-500/10 transition-colors disabled:opacity-40"
+                          title="Delete"
+                        >
                           <Trash2 size={13} />
                         </button>
                       </div>
@@ -158,17 +248,17 @@ export default function Documents() {
             </tbody>
           </table>
 
-          {filtered.length === 0 && (
+          {!loading && filtered.length === 0 && (
             <EmptyState
               icon={<Search size={28} />}
               title="No documents found"
-              description="Try adjusting your search or filter."
+              description={docs.length === 0 ? 'Upload a document in Data Ingestion to get started.' : 'Try adjusting your search or filter.'}
             />
           )}
         </div>
 
         <div className="px-5 py-3 border-t border-cg-border flex items-center justify-between">
-          <p className="text-xs text-cg-faint">{filtered.length} of {MOCK_DOCS.length} documents</p>
+          <p className="text-xs text-cg-faint">{filtered.length} of {docs.length} documents</p>
           <p className="text-xs text-cg-faint">{totalNodes.toLocaleString()} total nodes extracted</p>
         </div>
       </Card>

@@ -9,7 +9,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Install PyTorch CPU-only first (easyocr + sentence-transformers both need it)
+RUN pip install --no-cache-dir --timeout=300 \
+    torch==2.1.2 --index-url https://download.pytorch.org/whl/cpu
+RUN pip install --no-cache-dir --timeout=120 -r requirements.txt
 
 # Télécharge le modèle SpaCy
 RUN python -m spacy download en_core_web_sm

@@ -1,14 +1,14 @@
 import { useState } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
-import { Mail, Eye, EyeOff, ArrowRight, Zap, Shield, Brain, Network, CheckCircle2 } from 'lucide-react'
+import { Mail, Eye, EyeOff, ArrowRight, ArrowLeft, Brain, Network, Shield, Zap, CheckCircle2 } from 'lucide-react'
 import { authApi } from '../lib/api'
 import { useAppStore } from '../store'
 
 const FEATURES = [
-  { icon: <Brain size={16} />,   text: 'AI-powered knowledge graph intelligence' },
-  { icon: <Network size={16} />, text: 'Multi-hop GraphRAG semantic search'       },
-  { icon: <Shield size={16} />,  text: 'Enterprise-grade security & compliance'   },
-  { icon: <Zap size={16} />,     text: 'Real-time analytics & AI insights'        },
+  { icon: <Brain size={16} />,   text: 'AI-powered knowledge graph intelligence', bg: 'bg-blue-500/30',    fg: 'text-blue-200'    },
+  { icon: <Network size={16} />, text: 'Multi-hop GraphRAG semantic search',       bg: 'bg-indigo-500/30', fg: 'text-indigo-200'  },
+  { icon: <Shield size={16} />,  text: 'Enterprise-grade security & compliance',   bg: 'bg-emerald-500/30',fg: 'text-emerald-200' },
+  { icon: <Zap size={16} />,     text: 'Real-time analytics & AI insights',        bg: 'bg-violet-500/30', fg: 'text-violet-200'  },
 ]
 
 export default function Login() {
@@ -21,6 +21,7 @@ export default function Login() {
   const [form,    setForm]    = useState({ email: '', password: '' })
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState('')
+  const [success, setSuccess] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -29,87 +30,92 @@ export default function Login() {
     try {
       const { data } = await authApi.login({ email: form.email, password: form.password })
       setAuth(
-        { name: data.name, role: data.role, initials: data.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() },
-        data.token,
+        { name: data.user.fullName, role: data.user.role, initials: data.user.fullName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() },
+        data.accessToken,
       )
-      navigate(from, { replace: true })
+      setSuccess(true)
+      setTimeout(() => navigate(from, { replace: true }), 1000)
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })
         ?.response?.data?.message
-      setError(msg ?? 'Invalid credentials. Please try again.')
+      setError(msg ?? 'Invalid email or password. Please try again.')
     } finally {
       setLoading(false)
     }
   }
-
-  const fillDemo = () => setForm({ email: 'admin@cognigrid.ai', password: 'demo1234' })
 
   return (
     <div className="min-h-screen flex">
 
       {/* ── Left branding panel ── */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden flex-col justify-between p-12
-        bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700">
+        bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-950">
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full bg-white/10 blur-3xl animate-float" />
-          <div className="absolute top-1/2 -right-24 w-80 h-80 rounded-full bg-indigo-300/20 blur-3xl animate-float"
+          <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full bg-blue-500/15 blur-3xl animate-float" />
+          <div className="absolute top-1/2 -right-24 w-80 h-80 rounded-full bg-indigo-500/20 blur-3xl animate-float"
             style={{ animationDelay: '1.5s' }} />
-          <div className="absolute -bottom-24 left-1/3 w-72 h-72 rounded-full bg-purple-300/15 blur-3xl animate-float"
+          <div className="absolute -bottom-24 left-1/3 w-72 h-72 rounded-full bg-blue-400/10 blur-3xl animate-float"
             style={{ animationDelay: '3s' }} />
         </div>
 
-        <div className="relative flex items-center gap-3">
-          <img src="/favicon.AI.png" alt="" className="w-10 h-10" />
-          <img src="/CogniGrid.AI.png" alt="CogniGrid AI" className="h-7 brightness-0 invert" />
+        <div className="relative flex items-center gap-2">
+          <img src="/favicon.AI.png" alt="CogniGrid AI" className="w-9 h-9" />
+          <span className="font-bold text-lg tracking-tight">
+            <span className="text-blue-300">CogniGrid</span> <span className="text-emerald-400">AI</span>
+          </span>
         </div>
 
         <div className="relative">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/15 backdrop-blur-sm
-            border border-white/20 text-white/90 text-xs font-medium mb-6">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            Knowledge Graph Platform
-          </div>
           <h1 className="text-4xl font-bold text-white leading-tight mb-4">
             Turn your data into<br />
-            <span className="text-indigo-200">actionable intelligence</span>
+            <span className="text-blue-300">actionable intelligence</span>
           </h1>
-          <p className="text-indigo-100/80 text-base leading-relaxed mb-8 max-w-sm">
+          <p className="text-slate-300/80 text-base leading-relaxed mb-8 max-w-sm">
             CogniGrid AI transforms unstructured documents into a living knowledge graph
             you can query, explore, and reason over.
           </p>
           <ul className="space-y-3">
             {FEATURES.map((f, i) => (
               <li key={i} className="flex items-center gap-3 text-white/85 text-sm">
-                <span className="shrink-0 w-7 h-7 rounded-lg bg-white/15 flex items-center justify-center">{f.icon}</span>
+                <span className={`shrink-0 w-8 h-8 rounded-xl ${f.bg} ${f.fg} flex items-center justify-center`}>{f.icon}</span>
                 {f.text}
               </li>
             ))}
           </ul>
         </div>
 
-        <div className="relative bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl p-5">
-          <p className="text-white/90 text-sm leading-relaxed italic mb-3">
-            "CogniGrid helped us connect 50,000 documents into a single queryable knowledge graph.
-            Our analysts now get answers in seconds instead of hours."
-          </p>
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-300 to-purple-300 flex items-center justify-center text-xs font-bold text-white">S</div>
-            <div>
-              <p className="text-white text-xs font-semibold">Sarah Chen</p>
-              <p className="text-white/60 text-[10px]">Data Architect, TechCorp</p>
+        <div className="relative grid grid-cols-3 gap-4">
+          {[
+            { value: '50K+',   label: 'Documents' },
+            { value: '99.9%',  label: 'Uptime'    },
+            { value: '<200ms', label: 'Query time' },
+          ].map(s => (
+            <div key={s.label} className="bg-white/5 rounded-xl p-3 text-center border border-white/10">
+              <p className="text-blue-200 font-bold text-lg">{s.value}</p>
+              <p className="text-white/50 text-xs mt-0.5">{s.label}</p>
             </div>
-            <div className="ml-auto flex gap-0.5">
-              {[...Array(5)].map((_, i) => <CheckCircle2 key={i} size={11} className="text-emerald-400" />)}
-            </div>
-          </div>
+          ))}
         </div>
       </div>
 
       {/* ── Right form panel ── */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-12 bg-cg-bg">
+
+        {/* Back to home */}
+        <div className="w-full max-w-sm mb-6">
+          <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-cg-muted hover:text-cg-txt transition-colors">
+            <ArrowLeft size={14} />
+            Back to home
+          </Link>
+        </div>
+
+        {/* Mobile logo */}
         <div className="lg:hidden flex items-center gap-2 mb-8">
-          <img src="/favicon.AI.png" alt="" className="w-8 h-8" />
-          <img src="/CogniGrid.AI.png" alt="CogniGrid AI" className="h-6 object-contain" />
+          <img src="/favicon.AI.png" alt="CogniGrid AI" className="w-8 h-8" />
+          <span className="font-bold text-base tracking-tight">
+            <span style={{ color: '#3B82F6' }}>CogniGrid</span>
+            <span style={{ color: '#10B981' }}> AI</span>
+          </span>
         </div>
 
         <div className="w-full max-w-sm anim-slide-up">
@@ -118,7 +124,13 @@ export default function Login() {
             <p className="text-sm text-cg-muted">Sign in to your CogniGrid workspace</p>
           </div>
 
-          {error && (
+          {success && (
+            <div className="mb-5 px-4 py-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-sm text-emerald-600 flex items-center gap-2">
+              <CheckCircle2 size={16} /> Signed in successfully! Redirecting…
+            </div>
+          )}
+
+          {error && !success && (
             <div className="mb-5 px-4 py-3 bg-red-500/10 border border-red-500/20 rounded-xl text-sm text-red-400 flex items-center gap-2">
               <span className="shrink-0">⚠</span> {error}
             </div>
@@ -164,7 +176,7 @@ export default function Login() {
             </div>
 
             <button
-              type="submit" disabled={loading}
+              type="submit" disabled={loading || success}
               className="w-full flex items-center justify-center gap-2 h-11 rounded-xl font-semibold text-sm
                 gradient-primary text-white shadow-cg hover:opacity-90 active:scale-[0.99]
                 disabled:opacity-60 transition-all duration-150 mt-2"
@@ -175,19 +187,6 @@ export default function Login() {
               }
             </button>
           </form>
-
-          {/* Demo shortcut */}
-          <div className="mt-4 p-3 bg-cg-surface border border-cg-border rounded-xl">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-cg-txt">Demo credentials</p>
-                <p className="text-[11px] text-cg-faint mt-0.5">admin@cognigrid.ai / demo1234</p>
-              </div>
-              <button onClick={fillDemo} className="text-xs text-cg-primary hover:underline font-medium">
-                Use demo
-              </button>
-            </div>
-          </div>
 
           <p className="text-center text-sm text-cg-muted mt-6">
             No account?{' '}

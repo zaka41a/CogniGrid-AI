@@ -30,8 +30,17 @@ export function StatCard({ label, value, icon, iconColor, iconBg, trend, trendLa
       ? { background: `${iconColor}18`, color: iconColor }
       : { background: 'var(--cg-primary-s)', color: 'var(--cg-primary)' }
 
+  // Border always uses the logo blue regardless of icon color
+  const LOGO_BLUE = '#3B82F6'
+
   return (
-    <div className={`card card-hover p-4 ${className}`}>
+    <div
+      className={`card card-hover p-4 relative overflow-hidden ${className}`}
+      style={{
+        border: `1.5px solid ${LOGO_BLUE}30`,
+        borderTop: `3px solid ${LOGO_BLUE}`,
+      }}
+    >
       <div className="flex items-start justify-between mb-3">
         <p className="text-xs font-medium text-cg-muted uppercase tracking-wide">{label}</p>
         {icon && (
