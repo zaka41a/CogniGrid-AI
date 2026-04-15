@@ -172,7 +172,7 @@ export default function Settings() {
             <div className="p-6 space-y-6">
               {/* Avatar + name header */}
               <div className="flex items-center gap-4 pb-5 border-b border-cg-border">
-                <Avatar name={currentUser.name} size="lg" status="online" />
+                <Avatar name={currentUser.name} src={currentUser.avatar} size="lg" status="online" />
                 <div>
                   <p className="text-base font-semibold text-cg-txt">{currentUser.name}</p>
                   <p className="text-xs text-cg-muted mt-0.5">{currentUser.role}</p>

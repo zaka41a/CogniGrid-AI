@@ -25,7 +25,7 @@ const NAV_GROUPS = [
     ],
   },
   {
-    label: 'Admin',
+    label: 'Operations',
     items: [
       { to: '/app/alerts',   icon: <Bell     size={17} />, label: 'Alerts'   },
       { to: '/app/settings', icon: <Settings size={17} />, label: 'Settings' },
@@ -135,7 +135,7 @@ export default function Sidebar() {
         {/* User card */}
         {sidebarOpen ? (
           <div className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl hover:bg-cg-s2 transition-colors group cursor-default">
-            <Avatar name={currentUser.name} size="sm" status="online" />
+            <Avatar name={currentUser.name} src={currentUser.avatar} size="sm" status="online" />
             <div className="flex-1 min-w-0">
               <p className="text-[12px] font-semibold text-cg-txt truncate leading-snug">{currentUser.name}</p>
               <p className="text-[10px] text-cg-muted truncate">{currentUser.role}</p>
@@ -150,7 +150,7 @@ export default function Sidebar() {
           </div>
         ) : (
           <div className="flex justify-center py-1 group relative">
-            <Avatar name={currentUser.name} size="sm" status="online" />
+            <Avatar name={currentUser.name} src={currentUser.avatar} size="sm" status="online" />
             <button
               onClick={handleSignOut}
               title="Sign out"

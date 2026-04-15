@@ -1,7 +1,18 @@
 import { useState, useRef, useEffect } from 'react'
-import { Send, Paperclip, MessageSquare, Plus, Wrench, Bot } from 'lucide-react'
+import { Send, MessageSquare, Plus, Wrench, Bot, Trash2, Paperclip, AlertTriangle } from 'lucide-react'
 import { agentApi } from '../lib/api'
 import type { ChatMessage } from '../types'
+import { useAppStore } from '../store'
+import { Avatar } from '../components/ui'
+
+function UserBubble() {
+  const { currentUser } = useAppStore()
+  return (
+    <div className="shrink-0 mt-0.5">
+      <Avatar name={currentUser.name} src={currentUser.avatar} size="sm" />
+    </div>
+  )
+}
 
 interface Conversation {
   id: string
@@ -59,9 +70,7 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
         <p className={`text-[10px] text-cg-faint px-1 ${isUser ? 'text-right' : ''}`}>{msg.timestamp}</p>
       </div>
       {isUser && (
-        <div className="w-8 h-8 rounded-xl bg-cg-s2 border border-cg-border flex items-center justify-center text-xs font-bold text-cg-txt shrink-0 mt-0.5">
-          AM
-        </div>
+        <UserBubble />
       )}
     </div>
   )
@@ -87,7 +96,8 @@ export default function Agent() {
   const [activeConvId, setActiveConvId]   = useState<string>('new')
   const [messages, setMessages]           = useState<ChatMessage[]>([])
   const [input, setInput]                 = useState('')
-  const [thinking, setThinking]           = useState(false)
+  const [thinking, setThinking]   = useState(false)
+  const [offline,  setOffline]    = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const activeConv = conversations.find(c => c.id === activeConvId)
@@ -101,8 +111,10 @@ export default function Agent() {
 
     // Create conversation if none active
     let convId = activeConvId
+    let isNewConv = false
     if (!conversations.find(c => c.id === convId)) {
       convId = `c-${Date.now()}`
+      isNewConv = true
       const conv: Conversation = {
         id: convId,
         title: text.trim().slice(0, 40),
@@ -123,6 +135,7 @@ export default function Agent() {
         message: text.trim(),
         history: messages.map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.content })),
       })
+      setOffline(false)
       const aiMsg: ChatMessage = {
         id: `ai-${Date.now()}`,
         role: 'ai',
@@ -131,17 +144,14 @@ export default function Agent() {
         tools: data.toolsUsed,
       }
       setMessages(prev => [...prev, aiMsg])
-    } catch (err: unknown) {
-      const errMsg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-        ?? 'Backend not reachable. Make sure the agent service is running.'
-      const aiMsg: ChatMessage = {
-        id: `ai-${Date.now()}`,
-        role: 'ai',
-        content: `Sorry, I could not process your request.\n\n${errMsg}`,
-        timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-        tools: [],
+    } catch {
+      setOffline(true)
+      setMessages(prev => prev.filter(m => m.id !== userMsg.id))
+      // Remove the empty conversation that was just created
+      if (isNewConv) {
+        setConversations(prev => prev.filter(c => c.id !== convId))
+        setActiveConvId('new')
       }
-      setMessages(prev => [...prev, aiMsg])
     } finally {
       setThinking(false)
     }
@@ -180,23 +190,35 @@ export default function Agent() {
             <p className="text-[10px] text-cg-faint text-center py-6 px-3">Start a conversation to see it here</p>
           )}
           {conversations.map(conv => (
-            <button
+            <div
               key={conv.id}
-              onClick={() => switchConversation(conv.id)}
-              className={`w-full text-left px-3 py-2.5 rounded-xl transition-all ${
+              className={`group flex items-start gap-2 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
                 conv.id === activeConvId
                   ? 'bg-cg-primary-s border border-cg-primary/30 text-cg-primary'
                   : 'text-cg-muted hover:bg-cg-s2 hover:text-cg-txt'
               }`}
+              onClick={() => switchConversation(conv.id)}
             >
-              <div className="flex items-start gap-2">
-                <MessageSquare size={11} className="shrink-0 mt-0.5" />
-                <div className="min-w-0">
-                  <p className="text-xs font-medium truncate">{conv.title}</p>
-                  <p className="text-[10px] text-cg-faint mt-0.5">{conv.date}</p>
-                </div>
+              <MessageSquare size={11} className="shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium truncate">{conv.title || 'Conversation'}</p>
+                <p className="text-[10px] text-cg-faint mt-0.5">{conv.date}</p>
               </div>
-            </button>
+              <button
+                onClick={e => {
+                  e.stopPropagation()
+                  setConversations(prev => prev.filter(c => c.id !== conv.id))
+                  if (activeConvId === conv.id) {
+                    const remaining = conversations.filter(c => c.id !== conv.id)
+                    if (remaining.length > 0) { setActiveConvId(remaining[0].id); setMessages(remaining[0].messages) }
+                    else { setActiveConvId('new'); setMessages([]) }
+                  }
+                }}
+                className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:text-red-500 transition-all shrink-0"
+              >
+                <Trash2 size={10} />
+              </button>
+            </div>
           ))}
         </div>
       </div>
@@ -217,6 +239,15 @@ export default function Agent() {
             Online
           </div>
         </div>
+
+        {/* Offline banner */}
+        {offline && (
+          <div className="flex items-center gap-3 mx-5 mt-4 px-4 py-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-sm text-amber-600 dark:text-amber-400">
+            <AlertTriangle size={15} className="shrink-0" />
+            <span>Agent service is not running. Start the <code className="font-mono text-xs">cg-agent</code> container or run it locally on port 8005.</span>
+            <button onClick={() => setOffline(false)} className="ml-auto text-xs underline opacity-70 hover:opacity-100">Dismiss</button>
+          </div>
+        )}
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-5 space-y-4">

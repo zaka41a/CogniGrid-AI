@@ -4,7 +4,7 @@ import Card from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { StatCard } from '../components/ui/StatCard'
 import { EmptyState } from '../components/ui/EmptyState'
-import { graphApi, ingestionApi } from '../lib/api'
+import { ingestionApi } from '../lib/api'
 
 interface Document {
   id: string
@@ -57,49 +57,19 @@ export default function Documents() {
   const loadDocs = useCallback(async () => {
     setLoading(true)
     try {
-      // Load from graph service (processed docs) and ingestion jobs simultaneously
-      const [graphRes, jobsRes] = await Promise.allSettled([
-        graphApi.documents(),
-        ingestionApi.jobs(),
-      ])
-
-      const docMap = new Map<string, Document>()
-
-      // Graph docs (fully processed)
-      if (graphRes.status === 'fulfilled') {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const items: any[] = Array.isArray(graphRes.value.data) ? graphRes.value.data : []
-        items.forEach((d: any) => {
-          docMap.set(d.id ?? d.documentId, {
-            id:         d.id ?? d.documentId,
-            name:       d.name ?? d.filename ?? d.title ?? d.id,
-            type:       guessType(d.name ?? d.filename ?? ''),
-            size:       d.size ? `${(d.size / 1024 / 1024).toFixed(1)} MB` : '—',
-            status:     'processed',
-            nodes:      d.nodeCount ?? d.nodes ?? 0,
-            uploadedAt: d.createdAt ? new Date(d.createdAt).toISOString().slice(0, 10) : '—',
-          })
-        })
-      }
-
-      // Ingestion jobs (may include in-progress / failed)
-      if (jobsRes.status === 'fulfilled') {
-        jobsRes.value.data.forEach(j => {
-          if (!docMap.has(j.jobId)) {
-            docMap.set(j.jobId, {
-              id:         j.jobId,
-              name:       j.filename,
-              type:       guessType(j.filename),
-              size:       '—',
-              status:     j.status === 'done' ? 'processed' : j.status === 'error' ? 'failed' : 'processing',
-              nodes:      0,
-              uploadedAt: j.createdAt ? new Date(j.createdAt).toISOString().slice(0, 10) : '—',
-            })
-          }
-        })
-      }
-
-      setDocs([...docMap.values()])
+      const { data } = await ingestionApi.jobs()
+      const jobs = data.jobs ?? []
+      setDocs(jobs.map(j => ({
+        id:         j.id,
+        name:       j.file_name,
+        type:       guessType(j.file_name),
+        size:       j.file_size ? `${(j.file_size / 1024 / 1024).toFixed(1)} MB` : '—',
+        status:     j.status === 'completed' ? 'processed' : j.status === 'failed' ? 'failed' : 'processing',
+        nodes:      j.nodes_extracted ?? 0,
+        uploadedAt: '—',
+      })))
+    } catch {
+      setDocs([])
     } finally {
       setLoading(false)
     }
@@ -108,10 +78,10 @@ export default function Documents() {
   useEffect(() => { loadDocs() }, [loadDocs])
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this document from the knowledge graph?')) return
+    if (!confirm('Delete this document?')) return
     setDeleting(id)
     try {
-      await graphApi.deleteDoc(id)
+      await ingestionApi.deleteJob(id)
       setDocs(prev => prev.filter(d => d.id !== id))
     } catch {
       alert('Failed to delete document.')
@@ -136,7 +106,7 @@ export default function Documents() {
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         <StatCard label="Total Documents" value={loading ? '…' : docs.length}
           icon={<FileText size={17}/>} iconColor="#6366F1" />
-        <StatCard label="Graph Nodes" value={loading ? '…' : totalNodes.toLocaleString()}
+        <StatCard label="Total Nodes" value={loading ? '…' : totalNodes.toLocaleString()}
           icon={<FolderOpen size={17}/>} iconColor="#10B981" />
         <StatCard label="Processed" value={loading ? '…' : processed.length}
           icon={<FileText size={17}/>} iconColor="#10B981" />

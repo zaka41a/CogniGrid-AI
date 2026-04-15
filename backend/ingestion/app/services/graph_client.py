@@ -30,8 +30,8 @@ class GraphClient:
                 resp.raise_for_status()
                 return resp.json()
             except httpx.HTTPError as e:
-                logger.error(f"Graph service error: {e}")
-                raise
+                logger.warning(f"Graph service unavailable — continuing without graph push: {e}")
+                return {"nodes_created": 0, "warning": "graph_service_unavailable"}
 
 
 class QdrantClient:
@@ -69,5 +69,4 @@ class QdrantClient:
                     json={"points": points},
                 )
             except Exception as e:
-                logger.error(f"Qdrant error: {e}")
-                raise
+                logger.warning(f"Qdrant unavailable — continuing without vector indexing: {e}")

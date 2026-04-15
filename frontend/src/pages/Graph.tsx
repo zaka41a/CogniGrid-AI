@@ -70,7 +70,10 @@ export default function Graph() {
     try {
       const { data } = await graphApi.stats()
       setStats(data)
-    } catch { /* backend may not be running */ }
+    } catch {
+      // Graph service not running — show zeros
+      setStats({ nodeCount: 0, edgeCount: 0, rdfTriples: 0, documentCount: 0 })
+    }
   }, [])
 
   const searchGraph = useCallback(async (q: string) => {

@@ -1,20 +1,39 @@
 """
-Image Parser — utilise EasyOCR pour extraire le texte des images.
-Supporte JPEG, PNG, TIFF, BMP, WEBP.
-EasyOCR supporte + de 80 langues sans configuration.
+Image Parser — uses EasyOCR to extract text from images.
+Supports JPEG, PNG, TIFF, BMP, WEBP.
+If easyocr or PIL are not installed, returns empty text gracefully.
 """
-import easyocr
-from PIL import Image
+import logging
 from .base import BaseParser, ParseResult
 
-# Initialisation du reader EasyOCR (fait une seule fois au démarrage)
+logger = logging.getLogger(__name__)
+
+try:
+    import easyocr
+    _EASYOCR_AVAILABLE = True
+except ImportError:
+    _EASYOCR_AVAILABLE = False
+    logger.warning("easyocr not installed — image OCR disabled")
+
+try:
+    from PIL import Image
+    _PIL_AVAILABLE = True
+except ImportError:
+    _PIL_AVAILABLE = False
+    logger.warning("Pillow not installed — image metadata disabled")
+
 _reader = None
 
 
-def get_reader() -> easyocr.Reader:
+def get_reader():
     global _reader
+    if not _EASYOCR_AVAILABLE:
+        return None
     if _reader is None:
-        _reader = easyocr.Reader(["en", "fr"], gpu=False)
+        try:
+            _reader = easyocr.Reader(["en", "fr"], gpu=False)
+        except Exception as e:
+            logger.warning(f"EasyOCR init failed: {e}")
     return _reader
 
 
@@ -24,27 +43,34 @@ class ImageParser(BaseParser):
         return [".jpg", ".jpeg", ".png", ".tiff", ".tif", ".bmp", ".webp"]
 
     def parse(self, file_path: str) -> ParseResult:
-        # Métadonnées image
-        with Image.open(file_path) as img:
-            metadata = {
-                "width":  img.width,
-                "height": img.height,
-                "mode":   img.mode,
-                "format": img.format,
-            }
+        metadata = {}
 
-        # Extraction de texte par OCR
-        reader  = get_reader()
-        results = reader.readtext(file_path)
+        if _PIL_AVAILABLE:
+            try:
+                with Image.open(file_path) as img:
+                    metadata = {
+                        "width":  img.width,
+                        "height": img.height,
+                        "mode":   img.mode,
+                        "format": img.format,
+                    }
+            except Exception as e:
+                logger.warning(f"Image metadata extraction failed: {e}")
 
-        # Concatène les textes avec leur confidence
-        lines = [text for (_, text, conf) in results if conf > 0.3]
-        full_text = "\n".join(lines)
+        full_text = ""
+        reader = get_reader()
+        if reader is not None:
+            try:
+                results  = reader.readtext(file_path)
+                lines    = [text for (_, text, conf) in results if conf > 0.3]
+                full_text = "\n".join(lines)
+            except Exception as e:
+                logger.warning(f"OCR failed: {e}")
 
         return ParseResult(
             text=full_text,
             metadata=metadata,
-            pages=[full_text],
+            pages=[full_text] if full_text else [],
             tables=[],
-            images_text=[full_text],
+            images_text=[full_text] if full_text else [],
         )

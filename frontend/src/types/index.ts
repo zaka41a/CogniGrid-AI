@@ -143,6 +143,46 @@ export interface RBACRole {
   permissions: Record<string, boolean>
 }
 
+// ─── Subscription ─────────────────────────────────────────────────────────────
+export type PlanId = 'free' | 'pro' | 'ultra'
+
+export interface Plan {
+  id:          PlanId
+  name:        string
+  price:       number        // EUR / month, 0 = free
+  uploadsPerMonth: number    // -1 = unlimited
+  features:    string[]
+}
+
+export const PLANS: Plan[] = [
+  {
+    id: 'free', name: 'Free', price: 0, uploadsPerMonth: 7,
+    features: ['7 uploads / month', 'GraphRAG Chat', 'Knowledge Graph', 'Community support'],
+  },
+  {
+    id: 'pro', name: 'Pro', price: 11.99, uploadsPerMonth: 100,
+    features: ['100 uploads / month', 'All Free features', 'AI Agent', 'Priority support', 'API access'],
+  },
+  {
+    id: 'ultra', name: 'Ultra', price: 24.99, uploadsPerMonth: -1,
+    features: ['Unlimited uploads', 'All Pro features', 'Custom models', 'Dedicated support', 'SLA 99.9%'],
+  },
+]
+
+// ─── Admin ────────────────────────────────────────────────────────────────────
+export interface AdminUser {
+  id:          string
+  name:        string
+  email:       string
+  role:        string
+  plan:        PlanId
+  uploadsUsed: number
+  status:      'active' | 'suspended'
+  createdAt:   string
+  lastLogin:   string
+  avatar?:     string
+}
+
 // ─── Global State ─────────────────────────────────────────────────────────────
 export interface Notification {
   id: string
@@ -150,12 +190,16 @@ export interface Notification {
   message: string
   time: string
   read: boolean
-  type: 'info' | 'warning' | 'critical'
+  type: 'info' | 'warning' | 'critical' | 'success'
 }
 
 export interface CurrentUser {
-  name: string
-  email?: string
-  role: string
-  initials: string
+  id?:          string
+  name:         string
+  email?:       string
+  role:         string
+  initials:     string
+  avatar?:      string       // base64 data URL or remote URL
+  plan?:        PlanId
+  uploadsUsed?: number
 }

@@ -10,11 +10,6 @@ import { Badge } from '../components/ui/Badge'
 import { useChartColors } from '../hooks/useChartColors'
 import { graphApi, ingestionApi } from '../lib/api'
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleString('en-US', {
-    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-  })
-}
 
 interface DashStats {
   nodeCount: number
@@ -29,7 +24,7 @@ export default function Dashboard() {
   const { grid, tick, tooltip } = useChartColors()
   const [stats, setStats]         = useState<DashStats | null>(null)
   const [jobSeries, setJobSeries] = useState<JobPoint[]>([])
-  const [recentJobs, setRecentJobs] = useState<{ jobId: string; filename: string; status: string; createdAt: string }[]>([])
+  const [recentJobs, setRecentJobs] = useState<{ id: string; file_name: string; status: string }[]>([])
   const [loading, setLoading]     = useState(true)
 
   useEffect(() => {
@@ -41,7 +36,7 @@ export default function Dashboard() {
         setStats(statsRes.value.data)
       }
       if (jobsRes.status === 'fulfilled') {
-        const jobs = jobsRes.value.data
+        const jobs = jobsRes.value.data.jobs ?? []
         setRecentJobs(jobs.slice(0, 6))
 
         // Build a simple area chart: count jobs per day over the last 14 days
@@ -53,8 +48,8 @@ export default function Dashboard() {
           const key = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
           dayMap[key] = 0
         }
-        jobs.forEach(j => {
-          const key = new Date(j.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        jobs.forEach(() => {
+          const key = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
           if (key in dayMap) dayMap[key]++
         })
         setJobSeries(Object.entries(dayMap).map(([date, value]) => ({ date, value })))
@@ -180,30 +175,29 @@ export default function Dashboard() {
           )}
           {recentJobs.map(job => {
             const statusColor: Record<string, { icon: string; bg: string }> = {
-              done:       { icon: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+              completed:  { icon: 'text-emerald-500', bg: 'bg-emerald-500/10' },
               processing: { icon: 'text-amber-500',   bg: 'bg-amber-500/10' },
-              queued:     { icon: 'text-indigo-400',  bg: 'bg-indigo-500/10' },
-              error:      { icon: 'text-red-500',     bg: 'bg-red-500/10' },
+              pending:    { icon: 'text-indigo-400',  bg: 'bg-indigo-500/10' },
+              failed:     { icon: 'text-red-500',     bg: 'bg-red-500/10' },
             }
-            const { icon: iconCls, bg } = statusColor[job.status] ?? statusColor.queued
-            const Icon = job.status === 'done' ? CheckCircle
-              : job.status === 'error' ? AlertTriangle
+            const { icon: iconCls, bg } = statusColor[job.status] ?? statusColor.pending
+            const Icon = job.status === 'completed' ? CheckCircle
+              : job.status === 'failed' ? AlertTriangle
               : job.status === 'processing' ? Activity
               : Upload
             return (
-              <div key={job.jobId} className="flex items-start gap-3.5 px-5 py-3.5 hover:bg-cg-s2 transition-colors">
+              <div key={job.id} className="flex items-start gap-3.5 px-5 py-3.5 hover:bg-cg-s2 transition-colors">
                 <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${bg}`}>
                   <Icon size={13} className={iconCls} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-cg-txt leading-snug truncate">{job.filename}</p>
-                  <p className="text-xs text-cg-muted mt-0.5">Job {job.jobId.slice(0, 8)}</p>
+                  <p className="text-sm font-medium text-cg-txt leading-snug truncate">{job.file_name}</p>
+                  <p className="text-xs text-cg-muted mt-0.5">Job {job.id.slice(0, 8)}</p>
                 </div>
                 <div className="text-right shrink-0">
-                  <span className="text-[11px] text-cg-faint">{formatDate(job.createdAt)}</span>
                   <div className="mt-1">
                     <Badge variant={
-                      job.status === 'done' ? 'success' : job.status === 'error' ? 'danger' : 'warning'
+                      job.status === 'completed' ? 'success' : job.status === 'failed' ? 'danger' : 'warning'
                     } dot>{job.status}</Badge>
                   </div>
                 </div>
