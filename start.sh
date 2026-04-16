@@ -7,7 +7,7 @@
 
 set -e
 
-ROOT_DIRgit ="$(cd "$(dirname "$0")" && pwd)"
+ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 FRONTEND_DIR="$ROOT_DIR/frontend"
 GATEWAY_DIR="$ROOT_DIR/backend/gateway"
 

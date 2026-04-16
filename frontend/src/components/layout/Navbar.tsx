@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   Bell, ChevronDown, AlertTriangle, Info, CheckCircle2,
-  Settings, LogOut, User,
+  Settings, LogOut, User, Zap,
   LayoutDashboard, Upload, FileText, GitBranch,
   Bot, Sparkles,
 } from 'lucide-react'
@@ -14,8 +14,9 @@ const PAGE_META: Record<string, { label: string; icon: React.ReactNode; section:
   '/app/dashboard': { label: 'Dashboard',     icon: <LayoutDashboard size={15}/>, section: 'Platform'     },
   '/app/ingestion': { label: 'Data Ingestion', icon: <Upload          size={15}/>, section: 'Platform'     },
   '/app/documents': { label: 'Documents',      icon: <FileText        size={15}/>, section: 'Platform'     },
-  '/app/graph':     { label: 'Graph Explorer', icon: <GitBranch       size={15}/>, section: 'Intelligence' },
-  '/app/rag':       { label: 'GraphRAG Chat',  icon: <Sparkles        size={15}/>, section: 'Intelligence' },
+  '/app/graph':     { label: 'Graph Explorer',   icon: <GitBranch size={15}/>, section: 'Intelligence' },
+  '/app/network':   { label: 'Network Topology', icon: <Zap       size={15}/>, section: 'Intelligence' },
+  '/app/rag':       { label: 'GraphRAG Chat',     icon: <Sparkles  size={15}/>, section: 'Intelligence' },
   '/app/agent':     { label: 'AI Agent',       icon: <Bot             size={15}/>, section: 'Intelligence' },
   '/app/alerts':    { label: 'Alerts',         icon: <Bell            size={15}/>, section: 'Operations'   },
   '/app/settings':  { label: 'Settings',       icon: <Settings        size={15}/>, section: 'Operations'   },

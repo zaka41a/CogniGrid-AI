@@ -39,7 +39,7 @@ export default function Dashboard() {
         const jobs = jobsRes.value.data.jobs ?? []
         setRecentJobs(jobs.slice(0, 6))
 
-        // Build a simple area chart: count jobs per day over the last 14 days
+        // Build area chart: count jobs per day over the last 14 days
         const dayMap: Record<string, number> = {}
         const today = new Date()
         for (let i = 13; i >= 0; i--) {
@@ -48,8 +48,14 @@ export default function Dashboard() {
           const key = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
           dayMap[key] = 0
         }
-        jobs.forEach(() => {
-          const key = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        // Use job created_at if available, otherwise distribute today
+        jobs.forEach((job: { created_at?: string }) => {
+          let key: string
+          if (job.created_at) {
+            key = new Date(job.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+          } else {
+            key = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+          }
           if (key in dayMap) dayMap[key]++
         })
         setJobSeries(Object.entries(dayMap).map(([date, value]) => ({ date, value })))

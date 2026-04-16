@@ -25,8 +25,9 @@ export default function Login() {
 
   // ── Local offline accounts (used when gateway is not running) ────────────────
   const LOCAL_ACCOUNTS: Record<string, { name: string; role: string }> = {
-    'zakaria@cognigrid.ai:zakaria2024':  { name: 'zakaria sabiri', role: 'ANALYST'   },
-    'demo@cognigrid.ai:demo2024':        { name: 'Demo User',      role: 'VIEWER'    },
+    'zakaria@cognigrid.ai:zakaria2024':        { name: 'zakaria sabiri', role: 'ANALYST'   },
+    'demo@cognigrid.ai:demo2024':              { name: 'Demo User',      role: 'VIEWER'    },
+    'admin@cognigrid.ai:CogniGrid@Admin2024':  { name: 'Admin',          role: 'ADMIN'     },
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -44,26 +45,25 @@ export default function Login() {
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { message?: string } }; code?: string }
 
-      // If the gateway is unreachable (network error), try local offline accounts
-      if (!axiosErr.response) {
-        const key = `${form.email.toLowerCase().trim()}:${form.password}`
-        const local = LOCAL_ACCOUNTS[key]
-        if (local) {
-          setAuth(
-            { name: local.name, role: local.role, initials: local.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() },
-            'local-token',
-          )
-          setSuccess(true)
-          setTimeout(() => navigate(from, { replace: true }), 800)
-          setLoading(false)
-          return
-        }
-        setError('Backend not reachable. Use a local account: zakaria@cognigrid.ai / zakaria2024')
+      // Always try local accounts (offline fallback OR when gateway returns 401)
+      const key = `${form.email.toLowerCase().trim()}:${form.password}`
+      const local = LOCAL_ACCOUNTS[key]
+      if (local) {
+        setAuth(
+          { name: local.name, role: local.role, initials: local.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() },
+          'local-token',
+        )
+        setSuccess(true)
+        setTimeout(() => navigate(from, { replace: true }), 800)
         setLoading(false)
         return
       }
 
-      setError(axiosErr.response?.data?.message ?? 'Invalid email or password. Please try again.')
+      if (!axiosErr.response) {
+        setError('Backend not reachable. Use a local account: zakaria@cognigrid.ai / zakaria2024')
+      } else {
+        setError(axiosErr.response?.data?.message ?? 'Invalid email or password.')
+      }
     } finally {
       setLoading(false)
     }

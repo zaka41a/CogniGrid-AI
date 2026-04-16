@@ -139,9 +139,9 @@ export default function Agent() {
       const aiMsg: ChatMessage = {
         id: `ai-${Date.now()}`,
         role: 'ai',
-        content: data.response,
+        content: data.answer,
         timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-        tools: data.toolsUsed,
+        tools: data.tool_calls?.map(tc => tc.tool) ?? [],
       }
       setMessages(prev => [...prev, aiMsg])
     } catch {

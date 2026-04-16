@@ -1,16 +1,21 @@
 """
 Graph query routes.
 
-GET  /api/graph/stats                   → global graph statistics
-GET  /api/graph/documents               → list all documents
-GET  /api/graph/documents/{doc_id}      → document + entities
+GET  /api/graph/stats                        → global graph statistics
+GET  /api/graph/visualization                → all nodes + edges for graph canvas
+GET  /api/graph/alerts                       → auto-generated alerts from graph data
+GET  /api/graph/export                       → export graph as JSON/CSV
+GET  /api/graph/documents                    → list all documents
+GET  /api/graph/documents/{doc_id}           → document + entities
 GET  /api/graph/documents/{doc_id}/subgraph  → nodes + edges for visualisation
-DELETE /api/graph/documents/{doc_id}    → delete document
-GET  /api/graph/search?q=...            → full-text entity search
-GET  /api/graph/nodes/{node_id}/neighbors   → expand neighbors
-GET  /api/graph/path?from=...&to=...    → shortest path
+DELETE /api/graph/documents/{doc_id}         → delete document
+GET  /api/graph/search?q=...                 → full-text entity search
+GET  /api/graph/nodes/{node_id}/neighbors    → expand neighbors
+GET  /api/graph/path?from=...&to=...         → shortest path
 """
+import json
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import Response
 from app.models.schemas import GraphStats, SearchResult, PathResult
 from app.services.graph_service import GraphService
 
@@ -21,6 +26,29 @@ service = GraphService()
 @router.get("/stats", response_model=GraphStats)
 async def graph_stats():
     return await service.get_graph_stats()
+
+
+@router.get("/visualization")
+async def get_visualization(limit: int = Query(150, ge=1, le=500)):
+    """Return all nodes and edges for the graph canvas (Cytoscape)."""
+    return await service.get_visualization(limit=limit)
+
+
+@router.get("/alerts")
+async def get_graph_alerts():
+    """Auto-generate alerts from graph data (isolated nodes, overloaded lines, etc.)."""
+    return await service.get_alerts()
+
+
+@router.get("/export")
+async def export_graph(fmt: str = Query("json", regex="^(json|csv)$")):
+    """Export graph as JSON or CSV."""
+    data = await service.export_graph(fmt=fmt)
+    if fmt == "csv":
+        return Response(content=data, media_type="text/csv",
+                        headers={"Content-Disposition": "attachment; filename=graph_export.csv"})
+    return Response(content=data, media_type="application/json",
+                    headers={"Content-Disposition": "attachment; filename=graph_export.json"})
 
 
 @router.get("/documents")

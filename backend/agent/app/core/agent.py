@@ -30,39 +30,53 @@ Be concise and accurate. Cite document sources when available.
 """
 
 
-async def _call_llm(prompt: str, provider: str, model: str) -> str:
-    """Call the appropriate LLM provider."""
+async def _call_llm(prompt: str, provider: str, model: str) -> str | None:
+    """
+    Call the appropriate LLM provider.
+    Returns None if no LLM is available (caller uses tool-only fallback).
+    """
     provider = provider or settings.default_llm_provider
     model    = model    or settings.default_llm_model
 
-    if provider == "openai":
+    if provider == "openai" and settings.openai_api_key:
         import openai
         client = openai.AsyncOpenAI(api_key=settings.openai_api_key)
         resp = await client.chat.completions.create(
-            model=model,
+            model=model or "gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.1,
         )
         return resp.choices[0].message.content or ""
 
-    elif provider == "anthropic":
+    elif provider == "anthropic" and settings.anthropic_api_key:
         import anthropic
         client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
         resp = await client.messages.create(
-            model=model,
+            model=model or "claude-haiku-4-5-20251001",
             max_tokens=2048,
             messages=[{"role": "user", "content": prompt}],
         )
         return resp.content[0].text if resp.content else ""
 
-    else:  # ollama
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            resp = await client.post(
-                f"{settings.ollama_base_url}/api/generate",
-                json={"model": model, "prompt": prompt, "stream": False},
-            )
-            resp.raise_for_status()
-            return resp.json().get("response", "")
+    elif provider not in ("openai", "anthropic"):
+        # Auto-select: try Anthropic → OpenAI → Ollama
+        if settings.anthropic_api_key:
+            return await _call_llm(prompt, "anthropic", "claude-haiku-4-5-20251001")
+        if settings.openai_api_key:
+            return await _call_llm(prompt, "openai", "gpt-4o-mini")
+        # Try Ollama
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.post(
+                    f"{settings.ollama_base_url}/api/generate",
+                    json={"model": model, "prompt": prompt, "stream": False},
+                )
+                resp.raise_for_status()
+                return resp.json().get("response", "")
+        except Exception:
+            return None  # No LLM available
+
+    return None  # API key not configured
 
 
 def _parse_action(text: str) -> tuple[str, dict] | None:
@@ -84,6 +98,54 @@ def _parse_action(text: str) -> tuple[str, dict] | None:
 def _parse_final_answer(text: str) -> str | None:
     match = re.search(r"FINAL ANSWER:\s*(.*)", text, re.DOTALL)
     return match.group(1).strip() if match else None
+
+
+async def _no_llm_fallback(message: str) -> str:
+    """
+    When no LLM is configured, run relevant tools based on keywords in the message
+    and return a structured summary of the results.
+    """
+    msg = message.lower()
+    results = []
+
+    try:
+        if any(k in msg for k in ("stat", "graph", "node", "edge", "count")):
+            stats_fn = TOOLS.get("get_graph_stats")
+            if stats_fn:
+                data = await stats_fn()
+                results.append(f"**Graph Statistics:**\n{json.dumps(data, indent=2)}")
+
+        if any(k in msg for k in ("search", "find", "show", "list", "document", "anomal", "critical", "substation", "line", "bus")):
+            query = message.strip()
+            search_fn = TOOLS.get("search_graph")
+            if search_fn:
+                data = await search_fn(query=query[:100], limit=10)
+                if data and data.get("nodes"):
+                    nodes_text = "\n".join([f"• {n.get('label','?')} ({n.get('id','')})" for n in data["nodes"][:10]])
+                    results.append(f"**Search results for '{query[:50]}':**\n{nodes_text}")
+
+        if any(k in msg for k in ("rag", "question", "explain", "summarize", "what", "why", "how")):
+            rag_fn = TOOLS.get("ask_knowledge_base")
+            if rag_fn:
+                data = await rag_fn(query=message, use_graph=True)
+                if isinstance(data, dict) and data.get("answer"):
+                    results.append(f"**Knowledge Base:**\n{data['answer'][:500]}")
+    except Exception as e:
+        logger.warning("No-LLM fallback tool error: %s", e)
+
+    if results:
+        answer = "\n\n".join(results)
+        answer += "\n\n*Note: No LLM configured. Set ANTHROPIC_API_KEY or OPENAI_API_KEY for AI-generated responses.*"
+    else:
+        answer = (
+            "I can help you explore the CogniGrid knowledge graph.\n\n"
+            "Available capabilities:\n"
+            "• Graph statistics (nodes, edges, relationships)\n"
+            "• Entity search across the knowledge graph\n"
+            "• Semantic search over indexed documents\n\n"
+            "*Configure ANTHROPIC_API_KEY or OPENAI_API_KEY for full AI agent capabilities.*"
+        )
+    return answer
 
 
 async def run_agent(req: AgentRequest) -> AgentResponse:
@@ -109,44 +171,51 @@ async def run_agent(req: AgentRequest) -> AgentResponse:
     final_answer = ""
     reasoning_parts = []
 
-    for step in range(max_steps):
-        # Add previous observations to prompt
-        if observations:
-            prompt += "\n".join(observations) + "\n\nContinue reasoning:"
+    # Try one LLM call to check availability
+    test_output = await _call_llm(prompt, req.llm_provider, req.llm_model)
 
-        llm_output = await _call_llm(prompt, req.llm_provider, req.llm_model)
-        reasoning_parts.append(llm_output)
+    if test_output is None:
+        # No LLM available — run inferred tools directly and format output
+        final_answer = await _no_llm_fallback(req.message)
+    else:
+        llm_output = test_output
+        for step in range(max_steps):
+            reasoning_parts.append(llm_output)
 
-        # Check for final answer
-        final = _parse_final_answer(llm_output)
-        if final:
-            final_answer = final
-            break
+            final = _parse_final_answer(llm_output)
+            if final:
+                final_answer = final
+                break
 
-        # Check for tool call
-        action = _parse_action(llm_output)
-        if action:
-            tool_name, args = action
-            tool_fn = TOOLS.get(tool_name)
-            if tool_fn:
-                try:
-                    result = await tool_fn(**args)
-                    tc = ToolCall(tool=tool_name, args=args, result=result)
-                    tool_calls.append(tc)
-                    observations.append(
-                        f"\nOBSERVATION (from {tool_name}):\n{json.dumps(result, indent=2)[:1000]}\n"
-                    )
-                except Exception as e:
-                    observations.append(f"\nOBSERVATION: Tool {tool_name} failed: {e}\n")
+            action = _parse_action(llm_output)
+            if action:
+                tool_name, args = action
+                tool_fn = TOOLS.get(tool_name)
+                if tool_fn:
+                    try:
+                        result = await tool_fn(**args)
+                        tc = ToolCall(tool=tool_name, args=args, result=result)
+                        tool_calls.append(tc)
+                        observations.append(
+                            f"\nOBSERVATION (from {tool_name}):\n{json.dumps(result, indent=2)[:1000]}\n"
+                        )
+                    except Exception as e:
+                        observations.append(f"\nOBSERVATION: Tool {tool_name} failed: {e}\n")
+                else:
+                    observations.append(f"\nOBSERVATION: Unknown tool '{tool_name}'\n")
             else:
-                observations.append(f"\nOBSERVATION: Unknown tool '{tool_name}'\n")
-        else:
-            # No action and no final answer — use output as answer
-            final_answer = llm_output
-            break
+                final_answer = llm_output
+                break
 
-    if not final_answer:
-        final_answer = reasoning_parts[-1] if reasoning_parts else "I could not generate a response."
+            if step < max_steps - 1:
+                next_prompt = prompt + "\n".join(observations) + "\n\nContinue reasoning:"
+                next_output = await _call_llm(next_prompt, req.llm_provider, req.llm_model)
+                if next_output is None:
+                    break
+                llm_output = next_output
+
+        if not final_answer:
+            final_answer = reasoning_parts[-1] if reasoning_parts else "I could not generate a response."
 
     return AgentResponse(
         answer=final_answer,

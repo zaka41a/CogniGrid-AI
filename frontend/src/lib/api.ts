@@ -65,8 +65,22 @@ export interface GraphStats    { nodeCount: number; edgeCount: number; rdfTriple
 export interface GraphNode     { id: string; label: string; type: string; properties?: Record<string, string> }
 export interface SearchResult  { id: string; label: string; type: string; score: number }
 
+// Raw shape returned by the backend
+interface _RawGraphStats { total_nodes: number; total_relationships: number; node_labels: Record<string, number>; relationship_types: Record<string, number> }
+
 export const graphApi = {
-  stats:     ()           => graphHttp.get<GraphStats>('/api/graph/stats'),
+  stats: async (): Promise<{ data: GraphStats }> => {
+    const res = await graphHttp.get<_RawGraphStats>('/api/graph/stats')
+    const r = res.data
+    const documentCount = (r.node_labels?.Document ?? 0)
+    const data: GraphStats = {
+      nodeCount:     r.total_nodes,
+      edgeCount:     r.total_relationships,
+      rdfTriples:    r.total_nodes + r.total_relationships,
+      documentCount,
+    }
+    return { data }
+  },
   search:    (q: string)  => graphHttp.get<SearchResult[]>('/api/graph/search', { params: { q } }),
   neighbors: (id: string) => graphHttp.get<GraphNode[]>(`/api/graph/nodes/${id}/neighbors`),
   documents: ()           => graphHttp.get('/api/graph/documents'),
@@ -102,10 +116,10 @@ export const ingestionApi = {
 }
 
 // ─── RAG / GraphRAG endpoints (graphrag service :8004) ────────────────────────
-export interface RagRequest  { question: string; provider?: string; llmProvider?: string; llmModel?: string }
-export interface RagResponse { answer: string; sources: RagSource[]; graphContext: GraphCtx[] }
-export interface RagSource   { chunkId: string; documentId: string; text: string; score: number }
-export interface GraphCtx    { nodeId: string; label: string; type: string; properties: Record<string, string> }
+export interface RagRequest  { query: string; provider?: string; llm_provider?: string; llm_model?: string; history?: { role: string; content: string }[]; use_graph_context?: boolean }
+export interface RagSource   { doc_id: string; file_name: string; text: string; score: number; chunk_idx: number }
+export interface GraphCtx    { entity_id: string; label: string; text: string; relations: string[] }
+export interface RagResponse { answer: string; sources: RagSource[]; graph_context: GraphCtx[]; conversation_id: string; tokens_used: number }
 
 export const ragApi = {
   chat:   (data: RagRequest) => ragHttp.post<RagResponse>('/api/rag/chat', data),
@@ -114,11 +128,14 @@ export const ragApi = {
 
 // ─── Agent endpoints (agent service :8005) ────────────────────────────────────
 export interface AgentMessage  { role: 'user' | 'assistant'; content: string }
-export interface AgentRequest  { message: string; history?: AgentMessage[]; llmProvider?: string }
+export interface AgentRequest  { message: string; history?: AgentMessage[]; llm_provider?: string; llm_model?: string }
+export interface AgentToolCall { tool: string; args: Record<string, unknown>; result: unknown }
 export interface AgentResponse {
-  response:  string
-  steps:     { thought: string; action?: string; observation?: string }[]
-  toolsUsed: string[]
+  answer:      string
+  session_id:  string
+  tool_calls:  AgentToolCall[]
+  reasoning:   string
+  tokens_used: number
 }
 
 export const agentApi = {

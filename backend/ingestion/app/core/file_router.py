@@ -8,7 +8,8 @@ from .parsers.pdf_parser   import PDFParser
 from .parsers.docx_parser  import DocxParser
 from .parsers.csv_parser   import CSVParser, ExcelParser
 from .parsers.image_parser import ImageParser
-from .parsers.text_parser  import TextParser, JSONParser, XMLParser
+from .parsers.text_parser  import TextParser, JSONParser
+from .parsers.cim_xml_parser import CIMXMLParser
 
 
 class FileRouter:
@@ -22,7 +23,7 @@ class FileRouter:
             ExcelParser(),
             ImageParser(),
             JSONParser(),
-            XMLParser(),
+            CIMXMLParser(),  # handles both CIM/RDF and generic XML
             TextParser(),    # fallback
         ]
 

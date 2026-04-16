@@ -10,6 +10,9 @@ Operations:
   - find_path: shortest path between two nodes
   - delete_document: remove doc + orphaned entities
 """
+import csv
+import io
+import json
 import logging
 from app.core.neo4j_client import run_query
 from app.models.schemas import (
@@ -224,6 +227,169 @@ class GraphService:
             {"doc_id": doc_id},
         )
         return {"doc_id": doc_id, "deleted": result[0]["deleted"] if result else 0}
+
+    async def get_visualization(self, limit: int = 150) -> dict:
+        """Return all nodes + edges for Cytoscape visualization."""
+        # Get all entity nodes
+        nodes_result = await run_query(
+            """
+            MATCH (n)
+            RETURN n, labels(n) AS lbls
+            LIMIT $limit
+            """,
+            {"limit": limit},
+        )
+        nodes = []
+        for r in nodes_result:
+            props = dict(r["n"])
+            labels = r["lbls"]
+            node_id = props.get("entity_id") or props.get("doc_id") or props.get("id", "")
+            label   = props.get("text") or props.get("label") or props.get("file_name") or node_id
+            ntype   = next((l for l in labels if l not in ("Entity", "Document")), labels[0] if labels else "Entity")
+            nodes.append({
+                "id":         node_id,
+                "label":      label,
+                "type":       ntype,
+                "group":      "Document" if "Document" in labels else "Entity",
+                "properties": {k: str(v) for k, v in props.items()},
+            })
+
+        # Get all edges
+        edges_result = await run_query(
+            """
+            MATCH (a)-[r]->(b)
+            RETURN
+              coalesce(a.entity_id, a.doc_id) AS src,
+              coalesce(b.entity_id, b.doc_id) AS tgt,
+              type(r) AS rel_type
+            LIMIT $limit
+            """,
+            {"limit": limit * 2},
+        )
+        edges = [
+            {"source": r["src"], "target": r["tgt"], "label": r["rel_type"]}
+            for r in edges_result
+            if r["src"] and r["tgt"]
+        ]
+        return {"nodes": nodes, "edges": edges}
+
+    async def get_alerts(self) -> list[dict]:
+        """Auto-generate alerts from graph data."""
+        alerts = []
+
+        # 1. Isolated entities (no relationships)
+        isolated = await run_query(
+            """
+            MATCH (e:Entity)
+            WHERE NOT (e)-[]-()
+            RETURN e LIMIT 20
+            """
+        )
+        for r in isolated:
+            props = dict(r["e"])
+            alerts.append({
+                "id":        f"iso-{props.get('entity_id', '')}",
+                "system":    props.get("text", "Unknown"),
+                "type":      "Isolated Node",
+                "severity":  "Low",
+                "message":   f"Entity '{props.get('text', '')}' ({props.get('label', '')}) has no relationships in the graph.",
+                "timestamp": "auto-detected",
+                "status":    "Open",
+                "timeline":  [{"time": "now", "event": "Detected by graph analysis"}],
+            })
+
+        # 2. Lines with very low resistance (potential short circuits)
+        line_issues = await run_query(
+            """
+            MATCH (e:LINE_SEGMENT)
+            WHERE e.r IS NOT NULL AND toFloat(e.r) < 0.001
+            RETURN e LIMIT 10
+            """
+        )
+        for r in line_issues:
+            props = dict(r["e"])
+            alerts.append({
+                "id":        f"line-{props.get('entity_id', '')}",
+                "system":    props.get("text", "Unknown Line"),
+                "type":      "Low Resistance",
+                "severity":  "Medium",
+                "message":   f"Line '{props.get('text', '')}' has very low resistance (r={props.get('r', 'N/A')}). Possible short circuit risk.",
+                "timestamp": "auto-detected",
+                "status":    "Open",
+                "timeline":  [{"time": "now", "event": "Detected by impedance analysis"}],
+            })
+
+        # 3. Substations with no voltage levels
+        orphan_subs = await run_query(
+            """
+            MATCH (s:SUBSTATION)
+            WHERE NOT (s)-[:SUBSTATION]->(:VOLTAGE_LEVEL) AND NOT (:VOLTAGE_LEVEL)-[:SUBSTATION]->(s)
+            RETURN s LIMIT 10
+            """
+        )
+        for r in orphan_subs:
+            props = dict(r["s"])
+            alerts.append({
+                "id":        f"sub-{props.get('entity_id', '')}",
+                "system":    props.get("text", "Unknown Substation"),
+                "type":      "Missing Voltage Level",
+                "severity":  "Medium",
+                "message":   f"Substation '{props.get('text', '')}' has no associated voltage levels.",
+                "timestamp": "auto-detected",
+                "status":    "Open",
+                "timeline":  [{"time": "now", "event": "Detected by topology analysis"}],
+            })
+
+        # 4. Documents with very few entities (poor extraction)
+        sparse_docs = await run_query(
+            """
+            MATCH (d:Document)
+            OPTIONAL MATCH (d)-[:MENTIONS]->(e:Entity)
+            WITH d, count(e) AS entity_count
+            WHERE entity_count < 2
+            RETURN d, entity_count LIMIT 10
+            """
+        )
+        for r in sparse_docs:
+            props = dict(r["d"])
+            cnt = r["entity_count"]
+            alerts.append({
+                "id":        f"doc-{props.get('doc_id', '')}",
+                "system":    props.get("file_name", "Unknown Document"),
+                "type":      "Sparse Extraction",
+                "severity":  "Low",
+                "message":   f"Document '{props.get('file_name', '')}' only has {cnt} extracted entities. Consider re-processing.",
+                "timestamp": "auto-detected",
+                "status":    "Open",
+                "timeline":  [{"time": "now", "event": "Detected by extraction quality check"}],
+            })
+
+        return alerts
+
+    async def export_graph(self, fmt: str = "json") -> str:
+        """Export all nodes and edges in the requested format."""
+        nodes_result = await run_query(
+            "MATCH (n) RETURN n, labels(n) AS lbls LIMIT 5000"
+        )
+        edges_result = await run_query(
+            "MATCH (a)-[r]->(b) RETURN coalesce(a.entity_id, a.doc_id) AS src, coalesce(b.entity_id, b.doc_id) AS tgt, type(r) AS rel_type, properties(r) AS props LIMIT 10000"
+        )
+
+        nodes = [{"id": dict(r["n"]).get("entity_id") or dict(r["n"]).get("doc_id", ""), "labels": r["lbls"], **dict(r["n"])} for r in nodes_result]
+        edges = [{"source": r["src"], "target": r["tgt"], "type": r["rel_type"], **r["props"]} for r in edges_result if r["src"] and r["tgt"]]
+
+        if fmt == "csv":
+            out = io.StringIO()
+            w = csv.writer(out)
+            w.writerow(["id", "type", "label", "text"])
+            for n in nodes:
+                w.writerow([n.get("id"), ",".join(n.get("labels", [])), n.get("label", ""), n.get("text", "")])
+            out.write("\n# Edges\nsource,target,type\n")
+            for e in edges:
+                out.write(f"{e['source']},{e['target']},{e['type']}\n")
+            return out.getvalue()
+
+        return json.dumps({"nodes": nodes, "edges": edges}, default=str, indent=2)
 
     async def get_subgraph(self, doc_id: str) -> dict:
         """Return nodes + edges for graph visualisation."""

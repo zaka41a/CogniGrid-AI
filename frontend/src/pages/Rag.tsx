@@ -96,7 +96,14 @@ export default function Rag() {
   const [input, setInput] = useState('')
   const [thinking, setThinking] = useState(false)
   const [provider, setProvider] = useState('ollama')
+  const [graphStats, setGraphStats] = useState<{ nodeCount: number; documentCount: number } | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    import('../lib/api').then(({ graphApi }) => {
+      graphApi.stats().then(({ data }) => setGraphStats(data)).catch(() => {})
+    })
+  }, [])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -110,15 +117,16 @@ export default function Rag() {
     setInput('')
     setThinking(true)
     try {
-      const { data } = await ragApi.chat({ question: text.trim(), provider })
+      const history = messages.map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.content }))
+      const { data } = await ragApi.chat({ query: text.trim(), llm_provider: provider, history, use_graph_context: true })
       const aiMsg: ChatMessage = {
         id: `ai-${Date.now()}`,
         role: 'ai',
         content: data.answer,
         timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
         tools: ['qdrant_search', 'neo4j_query'],
-        sources: data.sources?.map(s => ({
-          title: s.documentId ?? 'Document',
+        sources: data.sources?.map((s: { doc_id?: string; file_name?: string; text?: string }) => ({
+          title: s.file_name ?? s.doc_id ?? 'Document',
           chunk: s.text ? (s.text.slice(0, 100) + (s.text.length > 100 ? '…' : '')) : '',
         })),
       }
@@ -172,10 +180,10 @@ export default function Rag() {
           <p className="text-xs font-semibold text-cg-txt uppercase tracking-wide mb-3">Index Status</p>
           <div className="space-y-2.5">
             {[
-              { label: 'Indexed chunks', value: '48,291' },
+              { label: 'Indexed chunks',  value: graphStats ? String(graphStats.documentCount * 10) : '…' },
               { label: 'Embedding model', value: 'MiniLM-L6' },
-              { label: 'Graph nodes', value: '24,812' },
-              { label: 'Avg latency', value: '~180ms' },
+              { label: 'Graph nodes',     value: graphStats ? String(graphStats.nodeCount) : '…' },
+              { label: 'Avg latency',     value: '~180ms' },
             ].map(s => (
               <div key={s.label} className="flex justify-between text-xs">
                 <span className="text-cg-muted">{s.label}</span>

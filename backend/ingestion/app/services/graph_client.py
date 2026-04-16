@@ -19,13 +19,50 @@ class GraphClient:
     async def push_document(self, doc: ExtractedDocument) -> dict:
         """
         Envoie le document extrait au Graph Service.
-        Le Graph Service créera les nœuds et relations dans Neo4j.
+        Mappe le schéma Ingestion → schéma Graph Service.
         """
+        # Build entity list with stable IDs
+        entity_id_map: dict[str, str] = {}  # entity name → graph ID
+        entities_payload = []
+        for i, e in enumerate(doc.entities):
+            eid = f"{doc.job_id}_{i}"
+            entity_id_map[e.name] = eid
+            entities_payload.append({
+                "id":         eid,
+                "label":      e.type,
+                "text":       e.name,
+                "properties": {"confidence": str(round(e.confidence, 3))},
+            })
+
+        # Build relations using the ID map
+        relations_payload = []
+        for r in doc.relations:
+            src_id = entity_id_map.get(r.source)
+            tgt_id = entity_id_map.get(r.target)
+            if src_id and tgt_id:
+                relations_payload.append({
+                    "source_id":     src_id,
+                    "target_id":     tgt_id,
+                    "relation_type": r.relation,
+                    "properties":    {"confidence": str(round(r.confidence, 3))},
+                })
+
+        payload = {
+            "doc_id":    doc.job_id,
+            "file_name": doc.file_name,
+            "file_type": doc.file_type,
+            "title":     doc.file_name,
+            "content":   doc.raw_text[:10_000],
+            "entities":  entities_payload,
+            "relations": relations_payload,
+            "metadata":  doc.metadata,
+        }
+
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             try:
                 resp = await client.post(
                     f"{self.base_url}/api/graph/ingest",
-                    json=doc.model_dump(),
+                    json=payload,
                 )
                 resp.raise_for_status()
                 return resp.json()

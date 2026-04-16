@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { BellRing, Filter, ChevronDown, ChevronRight, CheckCircle, AlertTriangle, ShieldAlert, BellOff } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { BellRing, Filter, ChevronDown, ChevronRight, CheckCircle, AlertTriangle, ShieldAlert, BellOff, RefreshCw } from 'lucide-react'
 import Card from '../components/ui/Card'
 import { StatCard } from '../components/ui/StatCard'
 import { Badge, severityBadge, statusBadge } from '../components/ui/Badge'
@@ -21,9 +21,25 @@ const STATUSES: AlertStatus[] = ['Open', 'Acknowledged', 'Resolved']
 
 export default function Alerts() {
   const [alerts, setAlerts]           = useState<Alert[]>([])
+  const [loading, setLoading]         = useState(true)
   const [severityFilter, setSeverityFilter] = useState<Severity | 'All'>('All')
   const [statusFilter, setStatusFilter]     = useState<AlertStatus | 'All'>('All')
   const [expandedId, setExpandedId]         = useState<string | null>(null)
+
+  const loadAlerts = async () => {
+    setLoading(true)
+    try {
+      const res = await fetch('http://localhost:8002/api/graph/alerts')
+      const data: Alert[] = await res.json()
+      setAlerts(data)
+    } catch {
+      setAlerts([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { loadAlerts() }, [])
 
   const filtered = alerts.filter(a => {
     const matchSev = severityFilter === 'All' || a.severity === severityFilter
@@ -47,14 +63,18 @@ export default function Alerts() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard label="Total Alerts"   value={total}    icon={<BellRing      size={17}/>} iconColor="#6366F1" />
-        <StatCard label="Critical"       value={critical} icon={<ShieldAlert   size={17}/>} iconColor="#EF4444" />
-        <StatCard label="Warnings"       value={warnings} icon={<AlertTriangle size={17}/>} iconColor="#F59E0B" />
-        <StatCard label="Resolved Today" value={resolved} icon={<CheckCircle  size={17}/>} iconColor="#10B981" />
+        <StatCard label="Total Alerts"   value={loading ? '…' : total}    icon={<BellRing      size={17}/>} iconColor="#6366F1" />
+        <StatCard label="Critical"       value={loading ? '…' : critical} icon={<ShieldAlert   size={17}/>} iconColor="#EF4444" />
+        <StatCard label="Warnings"       value={loading ? '…' : warnings} icon={<AlertTriangle size={17}/>} iconColor="#F59E0B" />
+        <StatCard label="Resolved Today" value={loading ? '…' : resolved} icon={<CheckCircle  size={17}/>} iconColor="#10B981" />
       </div>
 
       {/* Table */}
-      <Card title="Alerts Center">
+      <Card title="Alerts Center" action={
+        <button onClick={loadAlerts} className="p-1.5 rounded-lg text-cg-muted hover:text-cg-txt hover:bg-cg-s2 transition-colors" title="Refresh">
+          <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+        </button>
+      }>
         {/* Filters */}
         <div className="px-5 py-3.5 border-b border-cg-border flex flex-wrap gap-3 items-center">
           <Filter size={13} className="text-cg-muted shrink-0" />
@@ -79,14 +99,18 @@ export default function Alerts() {
           <span className="ml-auto text-xs text-cg-faint">{filtered.length} of {total} alerts</span>
         </div>
 
-        {total === 0 ? (
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <div className="w-5 h-5 border-2 border-cg-primary border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : total === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3 text-center">
             <div className="w-14 h-14 rounded-2xl bg-cg-s2 border border-cg-border flex items-center justify-center">
               <BellOff size={24} className="text-cg-faint" />
             </div>
-            <p className="text-sm font-medium text-cg-muted">No alerts</p>
+            <p className="text-sm font-medium text-cg-muted">No alerts detected</p>
             <p className="text-xs text-cg-faint max-w-xs">
-              Alerts will appear here once the monitoring backend is running and connected.
+              Upload CIM files to populate the graph — alerts are auto-generated from topology analysis.
             </p>
           </div>
         ) : (
@@ -95,7 +119,7 @@ export default function Alerts() {
               <thead>
                 <tr className="border-b border-cg-border">
                   <th className="w-8" />
-                  {['ID', 'System', 'Type', 'Severity', 'Message', 'Timestamp', 'Status', 'Actions'].map(h => (
+                  {['ID', 'System', 'Type', 'Severity', 'Message', 'Status', 'Actions'].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-cg-muted whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -113,17 +137,15 @@ export default function Alerts() {
                         <td className="px-2 py-3.5 text-cg-faint">
                           {expanded
                             ? <ChevronDown  size={13} className="text-cg-primary" />
-                            : <ChevronRight size={13} />
-                          }
+                            : <ChevronRight size={13} />}
                         </td>
-                        <td className="px-4 py-3.5 text-cg-muted font-mono text-xs whitespace-nowrap">{alert.id}</td>
-                        <td className="px-4 py-3.5 text-cg-txt font-medium">{alert.system}</td>
+                        <td className="px-4 py-3.5 text-cg-muted font-mono text-xs whitespace-nowrap">{alert.id.slice(0, 8)}</td>
+                        <td className="px-4 py-3.5 text-cg-txt font-medium max-w-[120px] truncate">{alert.system}</td>
                         <td className="px-4 py-3.5 text-cg-muted whitespace-nowrap text-xs">{alert.type}</td>
                         <td className="px-4 py-3.5">
                           <Badge variant={severityBadge(alert.severity)} dot>{alert.severity}</Badge>
                         </td>
                         <td className="px-4 py-3.5 text-cg-muted max-w-xs truncate text-xs">{alert.message}</td>
-                        <td className="px-4 py-3.5 text-cg-muted whitespace-nowrap text-xs">{alert.timestamp}</td>
                         <td className="px-4 py-3.5">
                           <Badge variant={statusBadge(alert.status)}>{alert.status}</Badge>
                         </td>
@@ -141,7 +163,7 @@ export default function Alerts() {
 
                       {expanded && (
                         <tr key={`${alert.id}-exp`} className="border-b border-cg-border/50">
-                          <td colSpan={9} className="px-8 py-5 bg-cg-s2">
+                          <td colSpan={8} className="px-8 py-5 bg-cg-s2">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                               <div>
                                 <p className="text-[10px] font-semibold text-cg-muted uppercase tracking-wide mb-2">Full Message</p>
@@ -182,7 +204,7 @@ export default function Alerts() {
                 })}
                 {filtered.length === 0 && total > 0 && (
                   <tr>
-                    <td colSpan={9} className="px-5 py-12 text-center text-cg-faint text-sm">
+                    <td colSpan={8} className="px-5 py-12 text-center text-cg-faint text-sm">
                       No alerts match your filters.
                     </td>
                   </tr>

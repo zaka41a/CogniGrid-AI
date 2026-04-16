@@ -5,6 +5,7 @@ import Dashboard  from './pages/Dashboard'
 import Ingestion  from './pages/Ingestion'
 import Documents  from './pages/Documents'
 import Graph      from './pages/Graph'
+import Network    from './pages/Network'
 import Rag        from './pages/Rag'
 import Agent      from './pages/Agent'
 import Alerts     from './pages/Alerts'
@@ -39,6 +40,7 @@ export default function App() {
         <Route path="ingestion"  element={<Ingestion />} />
         <Route path="documents"  element={<Documents />} />
         <Route path="graph"      element={<Graph />} />
+        <Route path="network"    element={<Network />} />
         <Route path="rag"        element={<Rag />} />
         <Route path="agent"      element={<Agent />} />
         <Route path="alerts"     element={<Alerts />} />

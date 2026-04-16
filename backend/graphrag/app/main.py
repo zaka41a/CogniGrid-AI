@@ -10,8 +10,11 @@ from app.api.routes import rag
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Pre-load embedding model at startup
-    get_embedder()
+    try:
+        get_embedder()   # pre-load (graceful if model unavailable)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("Embedder init warning: %s", e)
     yield
     await close_driver()
 

@@ -1,9 +1,9 @@
 """
 Qdrant vector store client for semantic search.
+Supports qdrant-client >= 1.7 (uses query_points API).
 """
 import logging
 from qdrant_client import AsyncQdrantClient
-from qdrant_client.models import Filter, FieldCondition, MatchValue
 from app.config import settings
 from app.core.embedder import embed
 
@@ -27,27 +27,32 @@ async def semantic_search(
     """Search for chunks semantically similar to the query."""
     query_vector = embed(query)
 
-    search_filter = None
-    if file_type_filter:
-        search_filter = Filter(
-            must=[FieldCondition(key="file_type", match=MatchValue(value=file_type_filter))]
-        )
+    try:
+        # qdrant-client >= 1.7 uses query_points
+        from qdrant_client.models import Filter, FieldCondition, MatchValue, QueryRequest
+        qfilter = None
+        if file_type_filter:
+            qfilter = Filter(must=[FieldCondition(key="file_type", match=MatchValue(value=file_type_filter))])
 
-    results = await get_qdrant().search(
-        collection_name=settings.qdrant_collection,
-        query_vector=query_vector,
-        limit=top_k,
-        query_filter=search_filter,
-        with_payload=True,
-    )
+        results = await get_qdrant().query_points(
+            collection_name=settings.qdrant_collection,
+            query=query_vector,
+            limit=top_k,
+            query_filter=qfilter,
+            with_payload=True,
+        )
+        points = results.points
+    except Exception as e:
+        logger.warning("Qdrant search failed: %s — returning empty results", e)
+        return []
 
     return [
         {
-            "doc_id":    r.payload.get("job_id", ""),
-            "text":      r.payload.get("text", ""),
-            "chunk_idx": r.payload.get("chunk_idx", 0),
-            "file_name": r.payload.get("file_name", ""),
-            "score":     r.score,
+            "doc_id":    p.payload.get("job_id", "") if p.payload else "",
+            "text":      p.payload.get("text", "")   if p.payload else "",
+            "chunk_idx": p.payload.get("chunk_idx", 0) if p.payload else 0,
+            "file_name": p.payload.get("file_name", "") if p.payload else "",
+            "score":     p.score,
         }
-        for r in results
+        for p in points
     ]

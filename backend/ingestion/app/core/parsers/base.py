@@ -10,6 +10,7 @@ class ParseResult:
     pages: list[str]             # Texte par page (si applicable)
     tables: list[list[list]]     # Tableaux extraits
     images_text: list[str]       # Texte extrait des images (OCR)
+    extra: dict = None           # Données structurées spécifiques au parser (ex: CIM entities)
 
 
 class BaseParser(ABC):

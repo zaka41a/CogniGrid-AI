@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Upload, FileText, GitBranch,
-  Bot, Sparkles, Bell, Settings,
+  Bot, Sparkles, Bell, Settings, Zap,
   ChevronLeft, ChevronRight, LogOut,
 } from 'lucide-react'
 import { useAppStore } from '../../store'
@@ -19,9 +19,10 @@ const NAV_GROUPS = [
   {
     label: 'Intelligence',
     items: [
-      { to: '/app/graph', icon: <GitBranch size={17} />, label: 'Graph Explorer' },
-      { to: '/app/rag',   icon: <Sparkles  size={17} />, label: 'GraphRAG Chat'  },
-      { to: '/app/agent', icon: <Bot       size={17} />, label: 'AI Agent'       },
+      { to: '/app/graph',   icon: <GitBranch size={17} />, label: 'Graph Explorer'    },
+      { to: '/app/network', icon: <Zap       size={17} />, label: 'Network Topology'  },
+      { to: '/app/rag',     icon: <Sparkles  size={17} />, label: 'GraphRAG Chat'     },
+      { to: '/app/agent',   icon: <Bot       size={17} />, label: 'AI Agent'          },
     ],
   },
   {

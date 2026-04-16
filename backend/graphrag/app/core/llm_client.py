@@ -16,17 +16,64 @@ async def generate(
 ) -> tuple[str, int]:
     """
     Returns (answer_text, tokens_used).
-    provider / model override settings defaults when provided.
+    Falls back gracefully when no LLM is configured/available.
     """
     provider = provider or settings.default_llm_provider
     model    = model    or settings.default_llm_model
 
-    if provider == "openai":
-        return await _openai(prompt, model)
-    elif provider == "anthropic":
-        return await _anthropic(prompt, model)
+    # If no API keys configured and provider isn't ollama, fall back to context-only
+    if provider == "openai" and settings.openai_api_key:
+        return await _openai(prompt, model or "gpt-4o-mini")
+    elif provider == "anthropic" and settings.anthropic_api_key:
+        return await _anthropic(prompt, model or "claude-haiku-4-5-20251001")
+    elif provider == "ollama":
+        try:
+            return await _ollama(prompt, model)
+        except Exception as e:
+            logger.warning("Ollama not available (%s), using context-only fallback", e)
+            return _context_fallback(prompt)
     else:
-        return await _ollama(prompt, model)
+        # Auto-select: try Anthropic → OpenAI → Ollama → fallback
+        if settings.anthropic_api_key:
+            return await _anthropic(prompt, "claude-haiku-4-5-20251001")
+        if settings.openai_api_key:
+            return await _openai(prompt, "gpt-4o-mini")
+        try:
+            return await _ollama(prompt, model)
+        except Exception:
+            return _context_fallback(prompt)
+
+
+def _context_fallback(prompt: str) -> tuple[str, int]:
+    """
+    When no LLM is available, extract the key context blocks from the prompt
+    and return them as a structured answer.
+    """
+    lines = prompt.split("\n")
+    context_lines = []
+    in_doc = in_graph = False
+    for line in lines:
+        if "=== Document Context ===" in line:
+            in_doc = True; in_graph = False; continue
+        if "=== Knowledge Graph Context ===" in line:
+            in_graph = True; in_doc = False; continue
+        if "===" in line:
+            in_doc = in_graph = False; continue
+        if (in_doc or in_graph) and line.strip():
+            context_lines.append(line.strip())
+
+    if context_lines:
+        answer = (
+            "**Based on the knowledge graph and indexed documents:**\n\n"
+            + "\n".join(f"• {l}" for l in context_lines[:12])
+            + "\n\n*Note: No LLM is configured. Configure ANTHROPIC_API_KEY or OPENAI_API_KEY for AI-generated answers.*"
+        )
+    else:
+        answer = (
+            "No relevant context found in the knowledge graph for your query. "
+            "Try uploading CIM files first, or configure an LLM provider (ANTHROPIC_API_KEY / OPENAI_API_KEY)."
+        )
+    return answer, len(answer.split())
 
 
 # ── Ollama ────────────────────────────────────────────────────────────────────
