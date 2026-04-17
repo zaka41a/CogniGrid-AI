@@ -17,12 +17,12 @@
 <br/>
 
 > **CogniGrid AI** is a full-stack, production-ready Knowledge Graph platform.  
-> Upload any document — PDF, Word, Excel, PowerPoint, CSV, XML — watch it become a structured graph,  
+> Upload any document (PDF, Word, Excel, PowerPoint, CSV, XML), watch it become a structured graph,  
 > then explore it visually, query it with natural language via **GraphRAG**, and automate reasoning with an **AI Agent**.
 
 <br/>
 
-[Live Demo](#quick-start) · [Architecture](#architecture) · [API Docs](#api-documentation) · [Admin Panel](#admin-panel)
+[Quick Start](#quick-start) · [Architecture](#architecture) · [API Docs](#api-documentation) · [Admin Panel](#admin-panel)
 
 </div>
 
@@ -51,11 +51,11 @@
 
 CogniGrid AI ingests heterogeneous documents, extracts entities and relationships using NLP pipelines, and stores them in a **Neo4j knowledge graph**. The platform exposes this graph through:
 
-- **Visual graph explorer** — interactive force-directed graph with filtering and path traversal
-- **GraphRAG Chat** — multi-hop retrieval-augmented generation over the graph using vector + graph search
-- **AI Agent** — autonomous tool-calling agent that plans, executes, and explains complex queries
-- **Network Topology** — real-time anomaly detection and alert management
-- **REST & Admin API** — secured by JWT with role-based access control
+- **Visual graph explorer**: interactive force-directed graph with filtering and path traversal
+- **GraphRAG Chat**: multi-hop retrieval-augmented generation over the graph using vector + graph search
+- **AI Agent**: autonomous tool-calling agent that plans, executes, and explains complex queries
+- **Network Topology**: real-time anomaly detection and alert management
+- **REST & Admin API**: secured by JWT with role-based access control
 
 All services are containerised, individually scalable, and observable via Prometheus + Grafana.
 
@@ -67,8 +67,8 @@ All services are containerised, individually scalable, and observable via Promet
 |---|---|
 | **Multi-format ingestion** | PDF, Word, Excel, PowerPoint, CSV, XML, images (OCR via EasyOCR) |
 | **Entity & relation extraction** | spaCy NLP + KeyBERT keyword extraction + sentence-transformers |
-| **Knowledge Graph** | Neo4j 5.18 — nodes, edges, Cypher queries, full-text search |
-| **Semantic vector store** | Qdrant — cosine similarity search over chunk embeddings |
+| **Knowledge Graph** | Neo4j 5.18 - nodes, edges, Cypher queries, full-text search |
+| **Semantic vector store** | Qdrant - cosine similarity search over chunk embeddings |
 | **GraphRAG** | Hybrid retrieval: graph traversal + vector similarity → LLM synthesis |
 | **AI Agent** | Autonomous agent with tool-calling (search, graph, anomaly detection) |
 | **Anomaly detection** | Real-time scoring, severity classification, alert lifecycle management |
@@ -83,30 +83,31 @@ All services are containerised, individually scalable, and observable via Promet
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                          CogniGrid AI Platform                          │
-│                                                                         │
-│  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │                    React / Vite Frontend  :5173                  │   │
-│  │   Dashboard · Graph Explorer · GraphRAG · AI Agent · Admin       │   │
-│  └────────────────────────────┬─────────────────────────────────────┘   │
-│                               │  REST / JSON                            │
-│  ┌────────────────────────────▼─────────────────────────────────────┐   │
-│  │           Spring Boot Gateway  :8080  (Auth + Routing)           │   │
-│  │       JWT Auth · CORS · Actuator · Flyway Migrations             │   │
-│  └──┬────────┬───────────┬──────────┬────────────┬──────────────────┘   │
-│     │        │           │          │            │                       │
-│  ┌──▼──┐ ┌──▼──┐    ┌───▼──┐  ┌───▼──┐    ┌───▼──┐                    │
-│  │Ing. │ │Graph│    │  AI  │  │Graph │    │Agent │  Python FastAPI     │
-│  │8001 │ │8002 │    │Engine│  │ RAG  │    │ 8005 │  Microservices      │
-│  └──┬──┘ └──┬──┘    │ 8003 │  │ 8004 │    └──┬───┘                    │
-│     │       │        └──┬───┘  └──┬───┘       │                        │
-│  ┌──▼───────▼───────────▼─────────▼───────────▼────────────────────┐   │
-│  │                     Data Layer (Docker)                          │   │
-│  │  PostgreSQL:5433 · Neo4j:7687 · Qdrant:6333 · Redis:6379        │   │
-│  │  MinIO:9000 · Prometheus:9090 · Grafana:3001                    │   │
-│  └──────────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────┐
+│                          CogniGrid AI Platform                           │
+│                                                                          │
+│  ┌───────────────────────────────────────────────────────────────────┐   │
+│  │                  React / Vite Frontend  :5173                     │   │
+│  │      Dashboard · Graph Explorer · GraphRAG · AI Agent · Admin     │   │
+│  └────────────────────────────┬──────────────────────────────────────┘   │
+│                               │  REST / JSON                             │
+│  ┌────────────────────────────▼──────────────────────────────────────┐   │
+│  │           Spring Boot Gateway  :8080  (Auth + Routing)            │   │
+│  │        JWT Auth · CORS · Actuator · Flyway Migrations             │   │
+│  └───┬──────────┬───────────┬──────────┬──────────┬──────────────────┘   │
+│      │          │           │          │          │                       │
+│   ┌──▼───┐  ┌──▼───┐  ┌────▼──┐  ┌───▼──┐  ┌───▼──┐                   │
+│   │Inges-│  │Graph │  │  AI   │  │Graph │  │Agent │  Python / FastAPI  │
+│   │tion  │  │      │  │Engine │  │ RAG  │  │      │  Microservices     │
+│   │:8001 │  │:8002 │  │:8003  │  │:8004 │  │:8005 │                   │
+│   └──┬───┘  └──┬───┘  └────┬──┘  └───┬──┘  └───┬──┘                   │
+│      │         │            │         │          │                       │
+│  ┌───▼─────────▼────────────▼─────────▼──────────▼───────────────────┐  │
+│  │                      Data Layer (Docker)                           │  │
+│  │   PostgreSQL:5433 · Neo4j:7687 · Qdrant:6333 · Redis:6379         │  │
+│  │   MinIO:9000 · Prometheus:9090 · Grafana:3001                     │  │
+│  └────────────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Data Flow
@@ -116,28 +117,28 @@ Document Upload
       │
       ▼
   Ingestion Service
-  ├── File validation & storage → MinIO
-  ├── Text extraction (PDF/DOCX/Excel/OCR)
-  ├── spaCy NER → entities
+  ├── File validation & storage  →  MinIO
+  ├── Text extraction (PDF / DOCX / Excel / OCR)
+  ├── spaCy NER  →  entities
   ├── Relation extraction
-  └── Embeddings → Qdrant
+  └── Embeddings  →  Qdrant
             │
             ▼
       Graph Service
-      ├── Upsert nodes/edges → Neo4j
+      ├── Upsert nodes / edges  →  Neo4j
       └── Cypher schema management
                   │
           ┌───────┴────────┐
           ▼                ▼
-     GraphRAG           AI Engine
-     (retrieval)     (anomaly detect)
+      GraphRAG          AI Engine
+      (retrieval)    (anomaly detect)
           │                │
           └───────┬────────┘
                   ▼
-            AI Agent (tool-calling)
+          AI Agent (tool-calling)
                   │
                   ▼
-            LLM (Claude / GPT / Ollama)
+          LLM (Claude / GPT / Ollama)
 ```
 
 ---
@@ -149,11 +150,11 @@ Document Upload
 | Layer | Technology | Version | Role |
 |---|---|---|---|
 | **Gateway** | Spring Boot + Spring Security | 3.2.4 / Java 21 | Auth, routing, JWT, Flyway |
-| **Ingestion** | FastAPI + spaCy + EasyOCR | 0.111 / 3.11 | Document parsing & NLP |
-| **Graph** | FastAPI + Neo4j driver | 0.111 | Graph CRUD & Cypher |
-| **AI Engine** | FastAPI + scikit-learn | 0.111 | Anomaly detection & classification |
-| **GraphRAG** | FastAPI + sentence-transformers | 0.111 | Hybrid retrieval + LLM synthesis |
-| **Agent** | FastAPI + Anthropic/OpenAI SDK | 0.111 | Autonomous tool-calling agent |
+| **Ingestion** | FastAPI + spaCy + EasyOCR | 0.111 / Python 3.11 | Document parsing & NLP |
+| **Graph** | FastAPI + Neo4j driver | 0.111 / Python 3.11 | Graph CRUD & Cypher |
+| **AI Engine** | FastAPI + scikit-learn | 0.111 / Python 3.11 | Anomaly detection & classification |
+| **GraphRAG** | FastAPI + sentence-transformers | 0.111 / Python 3.11 | Hybrid retrieval + LLM synthesis |
+| **Agent** | FastAPI + Anthropic/OpenAI SDK | 0.111 / Python 3.11 | Autonomous tool-calling agent |
 
 ### Data & Infrastructure
 
@@ -188,7 +189,7 @@ Document Upload
 ```
 CogniGrid-AI/
 ├── backend/
-│   ├── gateway/                  # Spring Boot — Auth & API gateway
+│   ├── gateway/                  # Spring Boot - Auth & API gateway
 │   │   ├── src/main/java/
 │   │   │   └── com/cognigrid/gateway/
 │   │   │       ├── auth/         # JWT, BCrypt, token service
@@ -197,7 +198,7 @@ CogniGrid-AI/
 │   │   │       └── model/        # JPA entities
 │   │   └── pom.xml
 │   │
-│   ├── ingestion/                # FastAPI — Document ingestion & NLP
+│   ├── ingestion/                # FastAPI - Document ingestion & NLP
 │   │   ├── app/
 │   │   │   ├── main.py
 │   │   │   ├── config.py
@@ -206,12 +207,12 @@ CogniGrid-AI/
 │   │   ├── requirements.txt
 │   │   └── Dockerfile
 │   │
-│   ├── graph/                    # FastAPI — Knowledge Graph CRUD
-│   ├── ai-engine/                # FastAPI — Anomaly detection & AI
-│   ├── graphrag/                 # FastAPI — GraphRAG & semantic search
-│   └── agent/                   # FastAPI — Autonomous AI Agent
+│   ├── graph/                    # FastAPI - Knowledge Graph CRUD
+│   ├── ai-engine/                # FastAPI - Anomaly detection & AI
+│   ├── graphrag/                 # FastAPI - GraphRAG & semantic search
+│   └── agent/                    # FastAPI - Autonomous AI Agent
 │
-├── frontend/                    # React + Vite SPA
+├── frontend/                     # React + Vite SPA
 │   ├── public/
 │   │   └── favicon.AI.png
 │   └── src/
@@ -241,12 +242,12 @@ CogniGrid-AI/
 │
 ├── infra/
 │   ├── prometheus.yml            # Scrape config for all services
-│   └── grafana/                 # Dashboard provisioning
+│   └── grafana/                  # Dashboard provisioning
 │
-├── docker-compose.yml           # Full platform orchestration
-├── start.sh                     # One-command platform startup
-├── stop.sh                      # Graceful shutdown
-└── .env.example                 # Environment template
+├── docker-compose.yml            # Full platform orchestration
+├── start.sh                      # One-command platform startup
+├── stop.sh                       # Graceful shutdown
+└── .env.example                  # Environment template
 ```
 
 ---
@@ -257,9 +258,9 @@ CogniGrid-AI/
 
 | Tool | Version |
 |---|---|
-| Docker Desktop | ≥ 24 |
+| Docker Desktop | >= 24 |
 | Java / Maven | JDK 21 / Maven 3.9+ |
-| Node.js / npm | ≥ 20 |
+| Node.js / npm | >= 20 |
 
 ### 1. Clone & configure
 
@@ -271,7 +272,7 @@ cd CogniGrid-AI
 cp .env.example .env
 ```
 
-Edit `.env` — at minimum, add one LLM provider key:
+Edit `.env` and add at minimum one LLM provider key:
 
 ```env
 # Choose one:
@@ -295,8 +296,8 @@ The script will:
 3. Build and launch the Spring Boot gateway (`java -jar`)
 4. Start the Vite dev server
 
-> **First run** — Docker images for Python services download ML models (~500 MB).  
-> Allow 5–15 minutes depending on network speed.
+> **First run**: Docker images for Python services download ML models (~500 MB).  
+> Allow 5 to 15 minutes depending on network speed.
 
 ### 3. Open the app
 
@@ -344,7 +345,7 @@ http://localhost:5173
 
 ## API Documentation
 
-### Authentication (Gateway — `:8080`)
+### Authentication (Gateway `:8080`)
 
 ```http
 POST /api/auth/register
@@ -411,7 +412,7 @@ GET  /agent/tasks/{id}      # Task result & reasoning steps
 
 ## Admin Panel
 
-Access at `http://localhost:5173/admin` — log in with admin credentials, or use the main login at `/login` (admin users are auto-redirected).
+Access at `http://localhost:5173/admin`. Log in with admin credentials, or use the main login at `/login` (admin users are auto-redirected).
 
 | Section | Path | Capabilities |
 |---|---|---|
@@ -428,7 +429,7 @@ Access at `http://localhost:5173/admin` — log in with admin credentials, or us
 Copy `.env.example` to `.env` and configure:
 
 ```env
-# ── Databases ─────────────────────────────────────────────────────────────────
+# Databases
 POSTGRES_HOST=localhost
 POSTGRES_PORT=5433
 POSTGRES_DB=cognigrid
@@ -447,12 +448,12 @@ MINIO_ROOT_PASSWORD=<strong-password>
 MINIO_URL=http://localhost:9000
 MINIO_BUCKET=cognigrid-files
 
-# ── Authentication ─────────────────────────────────────────────────────────────
+# Authentication
 JWT_SECRET=<min-64-char-random-string>
 JWT_EXPIRATION_MS=86400000          # 24 hours
 JWT_REFRESH_EXPIRATION_MS=604800000 # 7 days
 
-# ── LLM Providers ─────────────────────────────────────────────────────────────
+# LLM Providers
 DEFAULT_LLM_PROVIDER=anthropic      # anthropic | openai | ollama | groq
 DEFAULT_LLM_MODEL=claude-haiku-4-5-20251001
 
@@ -461,7 +462,7 @@ OPENAI_API_KEY=sk-...
 GROQ_API_KEY=gsk_...
 GROQ_MODEL=llama-3.3-70b-versatile
 
-# ── Service Ports ──────────────────────────────────────────────────────────────
+# Service Ports
 GATEWAY_PORT=8080
 INGESTION_PORT=8001
 GRAPH_PORT=8002
@@ -469,11 +470,11 @@ AI_ENGINE_PORT=8003
 GRAPHRAG_PORT=8004
 AGENT_PORT=8005
 
-# ── CORS ───────────────────────────────────────────────────────────────────────
+# CORS
 CORS_ORIGINS=http://localhost:5173
 ```
 
-> **Docker networking** — The `.env` file uses `localhost` for local development.  
+> **Docker networking**: The `.env` file uses `localhost` for local development.  
 > `docker-compose.yml` overrides hostnames to internal Docker service names  
 > (`neo4j`, `redis`, `qdrant`, etc.) for container-to-container communication.
 
@@ -493,7 +494,7 @@ CORS_ORIGINS=http://localhost:5173
 
 Prometheus scrapes metrics from all 6 services every 15 seconds.
 
-**Grafana** — `http://localhost:3001`
+**Grafana**: `http://localhost:3001`
 
 Pre-built dashboards cover:
 - Request rate & latency per microservice
@@ -502,7 +503,7 @@ Pre-built dashboards cover:
 - Alert volume & severity distribution
 - Active user sessions
 
-**Health endpoints** — every service exposes `/health` and `/metrics`.
+Every service exposes `/health` and `/metrics`.
 
 ---
 
@@ -516,10 +517,10 @@ Pre-built dashboards cover:
 
 ### Coding conventions
 
-- **Gateway** — Spring Boot 3 conventions, Lombok, constructor injection
-- **Python services** — PEP 8, `pydantic-settings` for config, async FastAPI handlers
-- **Frontend** — functional components, Zustand for state, Tailwind utility classes only (no inline styles)
-- **Commits** — follow [Conventional Commits](https://www.conventionalcommits.org/)
+- **Gateway**: Spring Boot 3 conventions, Lombok, constructor injection
+- **Python services**: PEP 8, `pydantic-settings` for config, async FastAPI handlers
+- **Frontend**: functional components, Zustand for state, Tailwind utility classes only (no inline styles)
+- **Commits**: follow [Conventional Commits](https://www.conventionalcommits.org/)
 
 ---
 
@@ -531,7 +532,7 @@ Distributed under the **MIT License**. See [`LICENSE`](LICENSE) for details.
 
 <div align="center">
 
-Built with by **Zakaria Sabiri**
+Built with ❤️ by **Zakaria Sabiri**
 
 <sub>Spring Boot · FastAPI · React · Neo4j · Qdrant · Redis · MinIO · Docker</sub>
 
