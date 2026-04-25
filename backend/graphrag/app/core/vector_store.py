@@ -23,25 +23,28 @@ async def semantic_search(
     query: str,
     top_k: int = 5,
     file_type_filter: str = "",
+    user_id: str | None = None,
 ) -> list[dict]:
-    """Search for chunks semantically similar to the query."""
+    """Search for chunks semantically similar to the query, scoped to user_id."""
     query_vector = embed(query)
 
     try:
-        # qdrant-client >= 1.7 uses query_points
-        from qdrant_client.models import Filter, FieldCondition, MatchValue, QueryRequest
-        qfilter = None
+        from qdrant_client.models import Filter, FieldCondition, MatchValue
+        must_conditions = []
         if file_type_filter:
-            qfilter = Filter(must=[FieldCondition(key="file_type", match=MatchValue(value=file_type_filter))])
+            must_conditions.append(FieldCondition(key="file_type", match=MatchValue(value=file_type_filter)))
+        if user_id:
+            must_conditions.append(FieldCondition(key="user_id", match=MatchValue(value=user_id)))
+        qfilter = Filter(must=must_conditions) if must_conditions else None
 
-        results = await get_qdrant().query_points(
+        results = await get_qdrant().search(
             collection_name=settings.qdrant_collection,
-            query=query_vector,
+            query_vector=query_vector,
             limit=top_k,
             query_filter=qfilter,
             with_payload=True,
         )
-        points = results.points
+        points = results
     except Exception as e:
         logger.warning("Qdrant search failed: %s — returning empty results", e)
         return []

@@ -107,6 +107,20 @@ public class AuthService {
                 .ifPresent(refreshTokenRepository::delete);
     }
 
+    @Transactional
+    public void changePassword(String email, String currentPassword, String newPassword) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new AuthException("User not found"));
+
+        if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
+            throw new AuthException("Current password is incorrect");
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+        log.info("Password changed for user: {}", email);
+    }
+
     private AuthResponse buildAuthResponse(User user) {
         var springUser = new org.springframework.security.core.userdetails.User(
                 user.getEmail(), user.getPasswordHash(), java.util.List.of()

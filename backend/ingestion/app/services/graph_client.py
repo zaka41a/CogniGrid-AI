@@ -78,7 +78,8 @@ class QdrantClient:
         self.base_url = settings.qdrant_url
         self.collection = "cognigrid_documents"
 
-    async def upsert_chunks(self, job_id: str, chunks: list[dict]):
+    async def upsert_chunks(self, job_id: str, chunks: list[dict],
+                            file_name: str = "", user_id: str | None = None):
         """Indexe les chunks du document dans Qdrant pour la recherche RAG."""
         points = [
             {
@@ -86,6 +87,8 @@ class QdrantClient:
                 "vector":  chunk["embedding"],
                 "payload": {
                     "job_id":    job_id,
+                    "user_id":   user_id or "",
+                    "file_name": file_name,
                     "text":      chunk["text"],
                     "chunk_idx": chunk["chunk_idx"],
                 },

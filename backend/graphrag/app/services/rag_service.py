@@ -28,13 +28,14 @@ Be precise, cite sources when relevant, and acknowledge when information is not 
 
 class RAGService:
 
-    async def answer(self, req: RAGRequest) -> RAGResponse:
+    async def answer(self, req: RAGRequest, user_id: str | None = None) -> RAGResponse:
         conversation_id = req.conversation_id or str(uuid.uuid4())
 
-        # 1. Semantic search
+        # 1. Semantic search (scoped to the requesting user's documents)
         raw_chunks = await semantic_search(
             query=req.query,
             top_k=req.top_k or settings.top_k,
+            user_id=user_id,
         )
         sources = [SourceChunk(**c) for c in raw_chunks]
 

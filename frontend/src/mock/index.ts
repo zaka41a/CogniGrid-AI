@@ -375,7 +375,7 @@ export const mockAIModels: AIModel[] = [
   { id: 'm1', name: 'Anomaly Detector v2.1',   type: 'Unsupervised',   enabled: true,  threshold: 0.75 },
   { id: 'm2', name: 'Energy Predictor v1.4',   type: 'Time Series',    enabled: true,  threshold: 0.80 },
   { id: 'm3', name: 'Network Classifier v3.0', type: 'Supervised',     enabled: false, threshold: 0.65 },
-  { id: 'm4', name: 'Sensor Fault Model v1.1', type: 'Semi-supervised', enabled: true, threshold: 0.70 },
+  { id: 'm4', name: 'Sensor Fault Model v1.1', type: 'Semi Supervised', enabled: true, threshold: 0.70 },
 ]
 
 export const mockRBACRoles: RBACRole[] = [

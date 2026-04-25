@@ -58,10 +58,14 @@ class GraphService:
 
         # 2. MERGE Entity nodes + MENTIONS relationship
         for entity in doc.entities:
+            # Sanitize label for use as Cypher node label (alphanumeric + underscore only)
+            safe_label = ''.join(c if c.isalnum() else '_' for c in (entity.label or 'ENTITY')).strip('_') or 'ENTITY'
             cypher = f"""
-            MERGE (e:Entity:{entity.label} {{entity_id: $entity_id}})
+            MERGE (e:Entity:{safe_label} {{entity_id: $entity_id}})
             SET e.label = $label,
                 e.text  = $text,
+                e.name  = $name,
+                e.type  = $entity_type,
                 e += $properties
             WITH e
             MATCH (d:Document {{doc_id: $doc_id}})
@@ -71,18 +75,44 @@ class GraphService:
             result = await run_query(
                 cypher,
                 {
-                    "entity_id":  entity.id,
-                    "label":      entity.label,
-                    "text":       entity.text,
-                    "properties": entity.properties,
-                    "doc_id":     doc.doc_id,
+                    "entity_id":   entity.id,
+                    "label":       entity.label or safe_label,
+                    "text":        entity.text or entity.name or '',
+                    "name":        entity.name or entity.text or '',
+                    "entity_type": entity.type or entity.label or 'ENTITY',
+                    "properties":  entity.properties,
+                    "doc_id":      doc.doc_id,
                 },
             )
             if result:
                 nodes_created += 1
                 rels_created  += 1
 
-        # 3. Create RELATED_TO edges between entities
+        # 3. Ingest keywords as Keyword nodes linked to document
+        for kw in (doc.keywords or [])[:30]:   # max 30 keywords per doc
+            kw_clean = kw.strip()
+            if not kw_clean:
+                continue
+            kw_id = str(__import__('uuid').uuid5(__import__('uuid').NAMESPACE_DNS, kw_clean))
+            try:
+                result = await run_query(
+                    """
+                    MERGE (k:Entity:KEYWORD {entity_id: $entity_id})
+                    SET k.label = 'KEYWORD', k.text = $text, k.name = $text
+                    WITH k
+                    MATCH (d:Document {doc_id: $doc_id})
+                    MERGE (d)-[:HAS_KEYWORD]->(k)
+                    RETURN k
+                    """,
+                    {"entity_id": kw_id, "text": kw_clean, "doc_id": doc.doc_id},
+                )
+                if result:
+                    nodes_created += 1
+                    rels_created  += 1
+            except Exception as e:
+                logger.warning("Failed to ingest keyword %s: %s", kw_clean, e)
+
+        # 4. Create RELATED_TO edges between entities
         for rel in doc.relations:
             cypher = """
             MATCH (a:Entity {entity_id: $source_id})
@@ -390,6 +420,15 @@ class GraphService:
             return out.getvalue()
 
         return json.dumps({"nodes": nodes, "edges": edges}, default=str, indent=2)
+
+    async def clear_all(self) -> dict:
+        """Delete ALL nodes and relationships from Neo4j."""
+        result = await run_query(
+            "MATCH (n) DETACH DELETE n RETURN count(n) AS deleted"
+        )
+        deleted = result[0]["deleted"] if result else 0
+        logger.info("clear_all: deleted %d nodes", deleted)
+        return {"message": "Graph cleared", "nodes_deleted": deleted}
 
     async def get_subgraph(self, doc_id: str) -> dict:
         """Return nodes + edges for graph visualisation."""

@@ -8,20 +8,20 @@ class Settings(BaseSettings):
     debug: bool = True
 
     # Database
-    database_url: str = "postgresql+asyncpg://cognigrid:cg_secret_2024@localhost:5432/cognigrid"
+    database_url: str = "postgresql+asyncpg://cognigrid:cg_secret_2024@cg-postgres:5432/cognigrid"
 
     # Redis
-    redis_url: str = "redis://localhost:6379/0"
+    redis_url: str = "redis://cg-redis:6379/0"
 
     # MinIO
-    minio_url: str = "http://localhost:9000"
+    minio_url: str = "http://cg-minio:9000"
     minio_root_user: str = "cognigrid_admin"
     minio_root_password: str = "cg_minio_2024"
     minio_bucket: str = "cognigrid-files"
 
     # Inter-service
-    graph_service_url: str = "http://localhost:8002"
-    qdrant_url: str = "http://localhost:6333"
+    graph_service_url: str = "http://cg-graph:8002"
+    qdrant_url: str = "http://cg-qdrant:6333"
 
     # AI / Embeddings
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"

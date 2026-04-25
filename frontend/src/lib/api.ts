@@ -6,6 +6,7 @@ const GRAPH_URL     = import.meta.env.VITE_GRAPH_URL     ?? 'http://localhost:80
 const INGESTION_URL = import.meta.env.VITE_INGESTION_URL ?? 'http://localhost:8001'
 const RAG_URL       = import.meta.env.VITE_RAG_URL       ?? 'http://localhost:8004'
 const AGENT_URL     = import.meta.env.VITE_AGENT_URL     ?? 'http://localhost:8005'
+const RUNNER_URL    = import.meta.env.VITE_RUNNER_URL    ?? 'http://localhost:8006'
 
 // ─── Shared request interceptor ───────────────────────────────────────────────
 function withAuth(instance: ReturnType<typeof axios.create>) {
@@ -31,11 +32,12 @@ function withAuth(instance: ReturnType<typeof axios.create>) {
 }
 
 // ─── Axios instances per service ──────────────────────────────────────────────
-export const api         = withAuth(axios.create({ baseURL: GATEWAY_URL,   timeout: 30_000, headers: { 'Content-Type': 'application/json' } }))
-export const graphHttp   = withAuth(axios.create({ baseURL: GRAPH_URL,     timeout: 30_000, headers: { 'Content-Type': 'application/json' } }))
-export const ingestHttp  = withAuth(axios.create({ baseURL: INGESTION_URL, timeout: 60_000, headers: { 'Content-Type': 'application/json' } }))
-export const ragHttp     = withAuth(axios.create({ baseURL: RAG_URL,       timeout: 60_000, headers: { 'Content-Type': 'application/json' } }))
-export const agentHttp   = withAuth(axios.create({ baseURL: AGENT_URL,     timeout: 60_000, headers: { 'Content-Type': 'application/json' } }))
+export const api         = withAuth(axios.create({ baseURL: GATEWAY_URL,   timeout: 30_000,  headers: { 'Content-Type': 'application/json' } }))
+export const graphHttp   = withAuth(axios.create({ baseURL: GRAPH_URL,     timeout: 30_000,  headers: { 'Content-Type': 'application/json' } }))
+export const ingestHttp  = withAuth(axios.create({ baseURL: INGESTION_URL, timeout: 60_000,  headers: { 'Content-Type': 'application/json' } }))
+export const ragHttp     = withAuth(axios.create({ baseURL: RAG_URL,       timeout: 60_000,  headers: { 'Content-Type': 'application/json' } }))
+export const agentHttp   = withAuth(axios.create({ baseURL: AGENT_URL,     timeout: 60_000,  headers: { 'Content-Type': 'application/json' } }))
+export const runnerHttp  = withAuth(axios.create({ baseURL: RUNNER_URL,    timeout: 300_000, headers: { 'Content-Type': 'application/json' } }))
 
 // ─── Auth endpoints (gateway) ─────────────────────────────────────────────────
 export interface LoginRequest    { email: string; password: string }
@@ -62,8 +64,9 @@ export const authApi = {
 
 // ─── Graph endpoints (graph service :8002) ────────────────────────────────────
 export interface GraphStats    { nodeCount: number; edgeCount: number; rdfTriples: number; documentCount: number }
-export interface GraphNode     { id: string; label: string; type: string; properties?: Record<string, string> }
-export interface SearchResult  { id: string; label: string; type: string; score: number }
+export interface GraphNode     { id: string; label: string; type?: string; properties?: Record<string, unknown> }
+export interface GraphEdge     { source: string; target: string; label: string }
+export interface SearchResult  { nodes: GraphNode[]; edges?: GraphEdge[]; total: number }
 
 // Raw shape returned by the backend
 interface _RawGraphStats { total_nodes: number; total_relationships: number; node_labels: Record<string, number>; relationship_types: Record<string, number> }
@@ -81,10 +84,12 @@ export const graphApi = {
     }
     return { data }
   },
-  search:    (q: string)  => graphHttp.get<SearchResult[]>('/api/graph/search', { params: { q } }),
+  search:    (q: string)  => graphHttp.get<SearchResult>('/api/graph/search', { params: { q } }),
   neighbors: (id: string) => graphHttp.get<GraphNode[]>(`/api/graph/nodes/${id}/neighbors`),
   documents: ()           => graphHttp.get('/api/graph/documents'),
   deleteDoc: (id: string) => graphHttp.delete(`/api/graph/documents/${id}`),
+  clearAll:  ()           => graphHttp.delete<{ message: string; nodes_deleted: number }>('/api/graph/clear'),
+  cypher:    (query: string) => graphHttp.post<{ rows: Record<string, unknown>[]; count: number }>('/api/graph/cypher', { query }),
 }
 
 // ─── Ingestion endpoints (ingestion service :8001) ────────────────────────────
@@ -106,13 +111,14 @@ export const ingestionApi = {
     form.append('file', file)
     return ingestHttp.post<IngestJob>('/api/ingestion/upload', form, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 300_000, // 5 min — NLP extraction can be slow for large files
       onUploadProgress: e => onProgress?.(Math.round((e.loaded * 100) / (e.total ?? 1))),
     })
   },
-  // Backend returns { jobs: [...], total: N }
-  jobs:      ()           => ingestHttp.get<{ jobs: IngestJob[]; total: number }>('/api/ingestion/jobs'),
-  jobById:   (id: string) => ingestHttp.get<IngestJob>(`/api/ingestion/jobs/${id}`),
-  deleteJob: (id: string) => ingestHttp.delete(`/api/ingestion/jobs/${id}`),
+  jobs:         ()           => ingestHttp.get<{ jobs: IngestJob[]; total: number }>('/api/ingestion/jobs'),
+  jobById:      (id: string) => ingestHttp.get<IngestJob>(`/api/ingestion/jobs/${id}`),
+  deleteJob:    (id: string) => ingestHttp.delete(`/api/ingestion/jobs/${id}`),
+  clearAllJobs: ()           => ingestHttp.delete<{ message: string; deleted: number }>('/api/ingestion/jobs'),
 }
 
 // ─── RAG / GraphRAG endpoints (graphrag service :8004) ────────────────────────

@@ -1,5 +1,5 @@
 """
-LLM client — supports Ollama (local), OpenAI, and Anthropic.
+LLM client — supports Groq, OpenAI, Anthropic, and Ollama.
 Returns a plain string answer + approximate token count.
 """
 import logging
@@ -16,13 +16,14 @@ async def generate(
 ) -> tuple[str, int]:
     """
     Returns (answer_text, tokens_used).
-    Falls back gracefully when no LLM is configured/available.
+    Priority: groq → openai → anthropic → ollama → context-fallback.
     """
     provider = provider or settings.default_llm_provider
     model    = model    or settings.default_llm_model
 
-    # If no API keys configured and provider isn't ollama, fall back to context-only
-    if provider == "openai" and settings.openai_api_key:
+    if provider == "groq" and settings.groq_api_key:
+        return await _groq(prompt, model or "llama-3.3-70b-versatile")
+    elif provider == "openai" and settings.openai_api_key:
         return await _openai(prompt, model or "gpt-4o-mini")
     elif provider == "anthropic" and settings.anthropic_api_key:
         return await _anthropic(prompt, model or "claude-haiku-4-5-20251001")
@@ -33,11 +34,13 @@ async def generate(
             logger.warning("Ollama not available (%s), using context-only fallback", e)
             return _context_fallback(prompt)
     else:
-        # Auto-select: try Anthropic → OpenAI → Ollama → fallback
-        if settings.anthropic_api_key:
-            return await _anthropic(prompt, "claude-haiku-4-5-20251001")
+        # Auto-select: try Groq → OpenAI → Anthropic → Ollama → fallback
+        if settings.groq_api_key:
+            return await _groq(prompt, "llama-3.3-70b-versatile")
         if settings.openai_api_key:
             return await _openai(prompt, "gpt-4o-mini")
+        if settings.anthropic_api_key:
+            return await _anthropic(prompt, "claude-haiku-4-5-20251001")
         try:
             return await _ollama(prompt, model)
         except Exception:
@@ -76,6 +79,30 @@ def _context_fallback(prompt: str) -> tuple[str, int]:
     return answer, len(answer.split())
 
 
+# ── Groq (httpx direct — openai SDK has SSL/proxy issues inside Docker) ───────
+
+async def _groq(prompt: str, model: str) -> tuple[str, int]:
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        resp = await client.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {settings.groq_api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": model,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.2,
+                "max_tokens": 2048,
+            },
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    answer = data["choices"][0]["message"]["content"] or ""
+    tokens = data.get("usage", {}).get("total_tokens", len(answer.split()))
+    return answer, tokens
+
+
 # ── Ollama ────────────────────────────────────────────────────────────────────
 
 async def _ollama(prompt: str, model: str) -> tuple[str, int]:
@@ -90,18 +117,27 @@ async def _ollama(prompt: str, model: str) -> tuple[str, int]:
     return answer, tokens
 
 
-# ── OpenAI ────────────────────────────────────────────────────────────────────
+# ── OpenAI (httpx direct) ─────────────────────────────────────────────────────
 
 async def _openai(prompt: str, model: str) -> tuple[str, int]:
-    import openai
-    client = openai.AsyncOpenAI(api_key=settings.openai_api_key)
-    resp = await client.chat.completions.create(
-        model=model,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.2,
-    )
-    answer = resp.choices[0].message.content or ""
-    tokens = resp.usage.total_tokens if resp.usage else len(answer.split())
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        resp = await client.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {settings.openai_api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": model,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.2,
+                "max_tokens": 2048,
+            },
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    answer = data["choices"][0]["message"]["content"] or ""
+    tokens = data.get("usage", {}).get("total_tokens", len(answer.split()))
     return answer, tokens
 
 

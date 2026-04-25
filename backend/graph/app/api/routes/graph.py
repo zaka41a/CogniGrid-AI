@@ -16,8 +16,10 @@ GET  /api/graph/path?from=...&to=...         → shortest path
 import json
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
+from pydantic import BaseModel
 from app.models.schemas import GraphStats, SearchResult, PathResult
 from app.services.graph_service import GraphService
+from app.core.neo4j_client import run_query
 
 router  = APIRouter()
 service = GraphService()
@@ -101,3 +103,31 @@ async def find_path(
     target: str = Query(..., alias="to"),
 ):
     return await service.find_path(source_id=source, target_id=target)
+
+
+@router.delete("/clear")
+async def clear_all_data():
+    """Delete ALL nodes and relationships from Neo4j and clear Qdrant vectors."""
+    return await service.clear_all()
+
+
+class CypherRequest(BaseModel):
+    query: str
+
+
+@router.post("/cypher")
+async def run_cypher(body: CypherRequest):
+    """Execute a read-only Cypher query against Neo4j and return rows as JSON."""
+    q = body.query.strip()
+    if not q:
+        raise HTTPException(status_code=400, detail="Empty query")
+    # Block mutating keywords for safety
+    lowered = q.lower()
+    for kw in ("create ", "merge ", "delete ", "detach ", "set ", "remove ", "drop "):
+        if kw in lowered:
+            raise HTTPException(status_code=400, detail=f"Write operations are not allowed via this endpoint ('{kw.strip()}' detected)")
+    try:
+        rows = await run_query(q)
+        return {"rows": rows, "count": len(rows)}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))

@@ -1,13 +1,37 @@
 import { useState, useRef, useEffect } from 'react'
-import { Send, BookOpen, Network, Cpu, Sparkles, ChevronRight } from 'lucide-react'
-import { ragApi } from '../lib/api'
+import { Send, BookOpen, Network, Cpu, Sparkles, ChevronRight, Trash2, AlertCircle, CheckCircle2, Clock } from 'lucide-react'
+import { ragApi, ragHttp } from '../lib/api'
+import { useAppStore } from '../store'
 import type { ChatMessage } from '../types'
 
-const LLM_PROVIDERS = [
-  { id: 'ollama',    label: 'Ollama',   sub: 'Local',         color: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/30' },
-  { id: 'openai',   label: 'OpenAI',   sub: 'GPT-4o',        color: 'text-blue-500    bg-blue-500/10    border-blue-500/30'    },
-  { id: 'anthropic', label: 'Claude',  sub: 'Anthropic',     color: 'text-violet-500  bg-violet-500/10  border-violet-500/30'  },
+const RAG_HISTORY_KEY = 'cg_rag_history'
+
+type ProviderStatus = 'active' | 'quota' | 'error' | 'unconfigured' | 'offline' | 'no_models' | 'loading'
+
+interface ProviderInfo {
+  id: string
+  label: string
+  sub: string
+  model: string
+  color: string
+  status: ProviderStatus
+}
+
+const LLM_PROVIDERS_BASE: Omit<ProviderInfo, 'status'>[] = [
+  { id: 'groq',      label: 'Groq',    sub: 'Llama 3.3 70B',          model: 'llama-3.3-70b-versatile', color: 'text-orange-500  bg-orange-500/10  border-orange-500/30'  },
+  { id: 'openai',    label: 'OpenAI',  sub: 'GPT-4o mini',            model: 'gpt-4o-mini',             color: 'text-blue-500    bg-blue-500/10    border-blue-500/30'    },
+  { id: 'anthropic', label: 'Claude',  sub: 'claude-haiku-4-5',       model: 'claude-haiku-4-5-20251001',color: 'text-violet-500  bg-violet-500/10  border-violet-500/30'  },
+  { id: 'ollama',    label: 'Ollama',  sub: 'Local model',            model: '',                        color: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/30' },
 ]
+
+function ProviderStatusBadge({ status }: { status: ProviderStatus }) {
+  if (status === 'loading') return <span className="text-[9px] text-cg-faint">…</span>
+  if (status === 'active')  return <span className="flex items-center gap-0.5 text-[9px] text-emerald-500 font-bold"><CheckCircle2 size={8} />Active</span>
+  if (status === 'quota')   return <span className="flex items-center gap-0.5 text-[9px] text-amber-500 font-bold"><AlertCircle size={8} />Quota</span>
+  if (status === 'no_models') return <span className="flex items-center gap-0.5 text-[9px] text-amber-500 font-bold"><Clock size={8} />No model</span>
+  if (status === 'offline') return <span className="flex items-center gap-0.5 text-[9px] text-cg-faint font-bold"><AlertCircle size={8} />Offline</span>
+  return <span className="text-[9px] text-cg-faint font-bold">—</span>
+}
 
 const EXAMPLE_QUERIES = [
   'What entities are connected to Substation A?',
@@ -31,6 +55,10 @@ function SourceChip({ title, chunk }: { title: string; chunk: string }) {
 function MessageBubble({ msg }: { msg: ChatMessage }) {
   const isUser = msg.role === 'user'
   const showSources = !isUser && msg.tools && msg.tools.length > 0
+  const currentUser = useAppStore(s => s.currentUser)
+  const initials = currentUser.name
+    ? currentUser.name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
+    : 'U'
 
   return (
     <div className={`flex gap-3 ${isUser ? 'justify-end' : 'justify-start'}`}>
@@ -68,9 +96,9 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
       </div>
 
       {isUser && (
-        <div className="w-8 h-8 rounded-xl bg-cg-s2 border border-cg-border flex items-center justify-center text-xs font-bold text-cg-txt shrink-0 mt-0.5">
-          A
-        </div>
+        currentUser.avatar
+          ? <img src={currentUser.avatar} alt="avatar" className="w-8 h-8 rounded-xl object-cover shrink-0 mt-0.5 border border-cg-border" />
+          : <div className="w-8 h-8 rounded-xl bg-cg-s2 border border-cg-border flex items-center justify-center text-xs font-bold text-cg-txt shrink-0 mt-0.5">{initials}</div>
       )}
     </div>
   )
@@ -92,22 +120,48 @@ function TypingIndicator() {
 }
 
 export default function Rag() {
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    try {
+      const saved = localStorage.getItem(RAG_HISTORY_KEY)
+      return saved ? JSON.parse(saved) : []
+    } catch { return [] }
+  })
   const [input, setInput] = useState('')
   const [thinking, setThinking] = useState(false)
-  const [provider, setProvider] = useState('ollama')
+  const [provider, setProvider] = useState('groq')
   const [graphStats, setGraphStats] = useState<{ nodeCount: number; documentCount: number } | null>(null)
+  const [providers, setProviders] = useState<ProviderInfo[]>(
+    LLM_PROVIDERS_BASE.map(p => ({ ...p, status: 'loading' as ProviderStatus }))
+  )
   const bottomRef = useRef<HTMLDivElement>(null)
+
+  // Persist messages to localStorage on every change
+  useEffect(() => {
+    localStorage.setItem(RAG_HISTORY_KEY, JSON.stringify(messages))
+  }, [messages])
 
   useEffect(() => {
     import('../lib/api').then(({ graphApi }) => {
       graphApi.stats().then(({ data }) => setGraphStats(data)).catch(() => {})
+    })
+    // Load provider statuses
+    ragHttp.get('/api/rag/providers').then(({ data }) => {
+      const statusMap: Record<string, ProviderStatus> = {}
+      for (const p of data.providers ?? []) statusMap[p.id] = p.status
+      setProviders(LLM_PROVIDERS_BASE.map(p => ({ ...p, status: statusMap[p.id] ?? 'unconfigured' })))
+    }).catch(() => {
+      setProviders(LLM_PROVIDERS_BASE.map(p => ({ ...p, status: 'error' as ProviderStatus })))
     })
   }, [])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, thinking])
+
+  const clearChat = () => {
+    setMessages([])
+    localStorage.removeItem(RAG_HISTORY_KEY)
+  }
 
   const sendMessage = async (text: string) => {
     if (!text.trim() || thinking) return
@@ -197,24 +251,30 @@ export default function Rag() {
         <div className="card p-4">
           <p className="text-xs font-semibold text-cg-txt uppercase tracking-wide mb-2.5">LLM Provider</p>
           <div className="space-y-1.5">
-            {LLM_PROVIDERS.map(p => (
+            {providers.map(p => (
               <button
                 key={p.id}
                 onClick={() => setProvider(p.id)}
+                disabled={p.status !== 'active' && p.status !== 'loading'}
                 className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl border text-left transition-all ${
-                  provider === p.id
+                  provider === p.id && p.status === 'active'
                     ? p.color
-                    : 'border-cg-border text-cg-muted hover:bg-cg-s2 hover:text-cg-txt'
+                    : p.status === 'active'
+                      ? 'border-cg-border text-cg-muted hover:bg-cg-s2 hover:text-cg-txt'
+                      : 'border-cg-border text-cg-faint opacity-50 cursor-not-allowed'
                 }`}
               >
-                <Cpu size={12} className={provider === p.id ? '' : 'text-cg-faint'} />
-                <div className="min-w-0">
+                <Cpu size={12} className={provider === p.id && p.status === 'active' ? '' : 'text-cg-faint'} />
+                <div className="min-w-0 flex-1">
                   <p className="text-xs font-semibold leading-none">{p.label}</p>
                   <p className="text-[10px] opacity-70 mt-0.5">{p.sub}</p>
                 </div>
-                {provider === p.id && (
-                  <span className="ml-auto text-[9px] font-bold uppercase tracking-wide opacity-80">Active</span>
-                )}
+                <div className="ml-auto shrink-0">
+                  {provider === p.id && p.status === 'active'
+                    ? <span className="text-[9px] font-bold uppercase tracking-wide opacity-80">Selected</span>
+                    : <ProviderStatusBadge status={p.status} />
+                  }
+                </div>
               </button>
             ))}
           </div>
@@ -231,12 +291,25 @@ export default function Rag() {
           <div>
             <p className="text-sm font-semibold text-cg-txt">GraphRAG Chat</p>
             <p className="text-[10px] text-cg-faint">
-              Semantic search + Knowledge graph · {LLM_PROVIDERS.find(p => p.id === provider)?.label ?? 'Ollama'}
+              Semantic search + Knowledge graph · {providers.find(p => p.id === provider)?.label ?? 'Ollama'}
             </p>
           </div>
-          <div className="ml-auto flex items-center gap-1.5 text-xs text-emerald-500">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            Ready
+          <div className="ml-auto flex items-center gap-3">
+            {messages.length > 0 && (
+              <button
+                onClick={clearChat}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-cg-muted
+                  hover:text-red-500 hover:bg-red-500/10 transition-all"
+                title="Clear chat history"
+              >
+                <Trash2 size={12} />
+                Clear
+              </button>
+            )}
+            <div className="flex items-center gap-1.5 text-xs text-emerald-500">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              Ready
+            </div>
           </div>
         </div>
 

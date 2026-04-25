@@ -10,6 +10,18 @@ from app.config import settings
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()   # create tables on startup
+    # Reset any jobs stuck in "processing" state from a previous crash
+    from app.db.job_store import JobStore
+    from app.db.database import AsyncSessionLocal
+    from sqlalchemy import update
+    from app.db.models import JobModel
+    async with AsyncSessionLocal() as session:
+        await session.execute(
+            update(JobModel)
+            .where(JobModel.status.in_(["processing", "pending"]))
+            .values(status="failed", error_message="Service restarted — please re-upload")
+        )
+        await session.commit()
     yield
 
 app = FastAPI(

@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
-import { Send, MessageSquare, Plus, Wrench, Bot, Trash2, Paperclip, AlertTriangle } from 'lucide-react'
+import { Send, MessageSquare, Plus, Wrench, Bot, Trash2, Paperclip, AlertTriangle, RotateCcw } from 'lucide-react'
+
+const AGENT_CONVS_KEY = 'cg_agent_conversations'
 import { agentApi } from '../lib/api'
 import type { ChatMessage } from '../types'
 import { useAppStore } from '../store'
@@ -37,8 +39,67 @@ function ToolChip({ name }: { name: string }) {
   )
 }
 
+/** Strip raw ReAct scaffolding — show only the final answer or clean text */
+function cleanAgentResponse(raw: string): string {
+  if (!raw?.trim()) return 'I could not generate a response. Please try again.'
+
+  // 1. Extract FINAL ANSWER if present
+  const finalMatch = raw.match(/FINAL ANSWER:\s*([\s\S]+)/i)
+  if (finalMatch) return finalMatch[1].trim()
+
+  // 2. Strip all THOUGHT / ACTION / ARGS / OBSERVATION blocks
+  const lines = raw.split('\n')
+  const cleaned: string[] = []
+  let skip = false
+  for (const line of lines) {
+    if (/^(THOUGHT|ACTION|ARGS|OBSERVATION):/i.test(line.trim())) {
+      skip = true
+      continue
+    }
+    if (skip && line.trim() === '') {
+      skip = false
+      continue
+    }
+    if (!skip) cleaned.push(line)
+  }
+  const result = cleaned.join('\n').trim()
+
+  // 3. If we got meaningful non-scaffolding content, return it
+  if (result && !/^(THOUGHT|ACTION|ARGS|OBSERVATION):/i.test(result.split('\n')[0])) {
+    return result
+  }
+
+  // 4. All content was ReAct scaffolding — return a helpful fallback
+  return 'I processed your request using the available tools. The knowledge graph contains text entities (organizations, people, dates). Try asking a specific question about the documents, for example: "Who are the key people in the documents?" or "What organizations are mentioned?"'
+}
+
+/** Render a single line of markdown-lite text (bold, bullets, code) */
+function renderLine(line: string, i: number) {
+  if (!line) return <br key={i} />
+  // Bullet list
+  if (line.startsWith('- ') || line.startsWith('• '))
+    return (
+      <p key={i} className="ml-3 flex items-start gap-1.5">
+        <span className="mt-1 text-cg-primary shrink-0">•</span>
+        <span dangerouslySetInnerHTML={{ __html: inlineMd(line.replace(/^[-•]\s*/, '')) }} />
+      </p>
+    )
+  // Heading-like bold line
+  if (/^\*\*.+\*\*$/.test(line.trim()))
+    return <p key={i} className="font-semibold mt-1" dangerouslySetInnerHTML={{ __html: inlineMd(line) }} />
+  return <p key={i} dangerouslySetInnerHTML={{ __html: inlineMd(line) }} />
+}
+
+/** Convert **bold** and `code` to HTML (no XSS risk — input is LLM text) */
+function inlineMd(text: string): string {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/`([^`]+)`/g, '<code class="bg-black/10 px-1 rounded text-[11px] font-mono">$1</code>')
+}
+
 function MessageBubble({ msg }: { msg: ChatMessage }) {
   const isUser = msg.role === 'user'
+  const content = isUser ? msg.content : cleanAgentResponse(msg.content)
   return (
     <div className={`flex gap-3 ${isUser ? 'justify-end' : 'justify-start'}`}>
       {!isUser && (
@@ -53,14 +114,7 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
             ? 'gradient-primary text-white rounded-tr-sm'
             : 'bg-cg-s2 border border-cg-border text-cg-txt rounded-tl-sm',
         ].join(' ')}>
-          {msg.content.split('\n').map((line, i) => {
-            if (!line) return <br key={i} />
-            if (line.startsWith('**') && line.endsWith('**'))
-              return <p key={i} className="font-semibold">{line.replace(/\*\*/g, '')}</p>
-            if (line.startsWith('- '))
-              return <p key={i} className="ml-3 flex items-start gap-1.5"><span className="mt-1 text-cg-primary">•</span>{line.slice(2)}</p>
-            return <p key={i}>{line}</p>
-          })}
+          {content.split('\n').map((line, i) => renderLine(line, i))}
         </div>
         {msg.tools && msg.tools.length > 0 && (
           <div className="flex flex-wrap gap-1.5 px-1">
@@ -92,7 +146,12 @@ function TypingIndicator() {
 }
 
 export default function Agent() {
-  const [conversations, setConversations] = useState<Conversation[]>([])
+  const [conversations, setConversations] = useState<Conversation[]>(() => {
+    try {
+      const saved = localStorage.getItem(AGENT_CONVS_KEY)
+      return saved ? JSON.parse(saved) : []
+    } catch { return [] }
+  })
   const [activeConvId, setActiveConvId]   = useState<string>('new')
   const [messages, setMessages]           = useState<ChatMessage[]>([])
   const [input, setInput]                 = useState('')
@@ -102,9 +161,29 @@ export default function Agent() {
 
   const activeConv = conversations.find(c => c.id === activeConvId)
 
+  // Persist conversations to localStorage
+  useEffect(() => {
+    localStorage.setItem(AGENT_CONVS_KEY, JSON.stringify(conversations))
+  }, [conversations])
+
+  // Sync messages into the active conversation
+  useEffect(() => {
+    if (activeConvId === 'new' || messages.length === 0) return
+    setConversations(prev =>
+      prev.map(c => c.id === activeConvId ? { ...c, messages } : c)
+    )
+  }, [messages, activeConvId])
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, thinking])
+
+  const clearAllConversations = () => {
+    setConversations([])
+    setMessages([])
+    setActiveConvId('new')
+    localStorage.removeItem(AGENT_CONVS_KEY)
+  }
 
   const sendMessage = async (text: string) => {
     if (!text.trim() || thinking) return
@@ -131,10 +210,18 @@ export default function Agent() {
     setInput('')
     setThinking(true)
     try {
-      const { data } = await agentApi.chat({
+      const payload = {
         message: text.trim(),
-        history: messages.map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.content })),
-      })
+        history: messages.map(m => ({ role: (m.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant', content: m.content })),
+      }
+      // Retry once on network error (handles container just-started scenario)
+      let data
+      try {
+        ;({ data } = await agentApi.chat(payload))
+      } catch {
+        await new Promise(r => setTimeout(r, 1500))
+        ;({ data } = await agentApi.chat(payload))
+      }
       setOffline(false)
       const aiMsg: ChatMessage = {
         id: `ai-${Date.now()}`,
@@ -177,13 +264,24 @@ export default function Agent() {
       <div className="w-56 shrink-0 flex flex-col card overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-cg-border">
           <p className="text-xs font-semibold text-cg-txt">Conversations</p>
-          <button
-            onClick={newConversation}
-            className="p-1.5 rounded-lg hover:bg-cg-s2 text-cg-muted hover:text-cg-txt transition-colors"
-            title="New conversation"
-          >
-            <Plus size={13} />
-          </button>
+          <div className="flex items-center gap-1">
+            {conversations.length > 0 && (
+              <button
+                onClick={clearAllConversations}
+                className="p-1.5 rounded-lg hover:bg-red-500/10 text-cg-muted hover:text-red-500 transition-colors"
+                title="Clear all conversations"
+              >
+                <RotateCcw size={12} />
+              </button>
+            )}
+            <button
+              onClick={newConversation}
+              className="p-1.5 rounded-lg hover:bg-cg-s2 text-cg-muted hover:text-cg-txt transition-colors"
+              title="New conversation"
+            >
+              <Plus size={13} />
+            </button>
+          </div>
         </div>
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
           {conversations.length === 0 && (
@@ -242,10 +340,10 @@ export default function Agent() {
 
         {/* Offline banner */}
         {offline && (
-          <div className="flex items-center gap-3 mx-5 mt-4 px-4 py-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-sm text-amber-600 dark:text-amber-400">
-            <AlertTriangle size={15} className="shrink-0" />
-            <span>Agent service is not running. Start the <code className="font-mono text-xs">cg-agent</code> container or run it locally on port 8005.</span>
-            <button onClick={() => setOffline(false)} className="ml-auto text-xs underline opacity-70 hover:opacity-100">Dismiss</button>
+          <div className="flex items-center gap-3 mx-5 mt-4 px-4 py-3 bg-amber-50 border-2 border-amber-400 rounded-xl text-sm text-amber-900">
+            <AlertTriangle size={15} className="shrink-0 text-amber-600" />
+            <span>Agent service is not running. Start the <code className="font-mono text-xs bg-amber-100 px-1 rounded">cg-agent</code> container or run it locally on port 8005.</span>
+            <button onClick={() => setOffline(false)} className="ml-auto text-xs font-semibold text-amber-700 hover:text-amber-900 underline">Dismiss</button>
           </div>
         )}
 

@@ -1,6 +1,9 @@
 import { create } from 'zustand'
 import type { Notification, CurrentUser, PlanId } from '../types'
-import { mockNotifications } from '../mock'
+
+// ─── Per-user avatar key ───────────────────────────────────────────────────────
+const avatarKey = (email?: string) =>
+  email ? `cg_avatar_${email.toLowerCase().trim()}` : 'cg_avatar'
 
 // ─── Persist helpers ──────────────────────────────────────────────────────────
 function loadUser(): CurrentUser | null {
@@ -8,8 +11,8 @@ function loadUser(): CurrentUser | null {
     const raw = localStorage.getItem('cg_user')
     if (!raw) return null
     const user = JSON.parse(raw) as CurrentUser
-    // Avatar is stored separately to avoid localStorage quota issues with large base64
-    const avatar = localStorage.getItem('cg_avatar')
+    // Avatar stored per-user to prevent cross-account leakage
+    const avatar = localStorage.getItem(avatarKey(user.email))
     if (avatar) user.avatar = avatar
     return user
   } catch { return null }
@@ -59,28 +62,30 @@ export const useAppStore = create<AppState>((set) => ({
   token:           localStorage.getItem('cg_token'),
 
   setAuth: (user, token) => {
-    // Preserve plan/usage from previous session
+    const email = user.email
+    // Preserve plan/usage from previous session for same user
     const existing = loadUser()
-    // Always read avatar from its dedicated key (survives logout)
-    const savedAvatar = localStorage.getItem('cg_avatar') ?? existing?.avatar
+    const isSameUser = existing?.email && email && existing.email === email
+    // Load avatar from the per-user key
+    const savedAvatar = localStorage.getItem(avatarKey(email))
     const enriched: CurrentUser = {
       plan: 'free' as PlanId,
       uploadsUsed: 0,
-      ...existing,            // keep plan, uploadsUsed
-      ...user,                // new login data wins (name, email, role)
+      ...(isSameUser ? existing : {}),  // keep plan/uploads only if same user
+      ...user,                          // new login data wins (name, email, role)
       avatar: savedAvatar ?? undefined,
     }
     localStorage.setItem('cg_token', token)
     const { avatar, ...withoutAvatar } = enriched
     localStorage.setItem('cg_user', JSON.stringify(withoutAvatar))
-    if (avatar) localStorage.setItem('cg_avatar', avatar)
+    if (avatar) localStorage.setItem(avatarKey(email), avatar)
     set({ currentUser: enriched, isAuthenticated: true, token })
   },
 
   clearAuth: () => {
     localStorage.removeItem('cg_token')
     localStorage.removeItem('cg_user')
-    // Keep avatar so it survives re-login
+    // Avatars are kept per-user key — they survive logout
     set({ currentUser: DEFAULT_USER, isAuthenticated: false, token: null })
   },
 
@@ -88,9 +93,8 @@ export const useAppStore = create<AppState>((set) => ({
   updateAvatar: (avatarDataUrl) => {
     set(s => {
       const updated = { ...s.currentUser, avatar: avatarDataUrl }
-      // Store avatar separately to avoid localStorage 5MB quota with base64
       try {
-        localStorage.setItem('cg_avatar', avatarDataUrl)
+        localStorage.setItem(avatarKey(s.currentUser.email), avatarDataUrl)
         const { avatar, ...withoutAvatar } = updated
         localStorage.setItem('cg_user', JSON.stringify(withoutAvatar))
       } catch { /* quota exceeded — in-memory only */ }
@@ -103,7 +107,7 @@ export const useAppStore = create<AppState>((set) => ({
       const updated = { ...s.currentUser, plan, uploadsUsed: uploadsUsed ?? s.currentUser.uploadsUsed ?? 0 }
       const { avatar, ...withoutAvatar } = updated
       localStorage.setItem('cg_user', JSON.stringify(withoutAvatar))
-      if (avatar) localStorage.setItem('cg_avatar', avatar)
+      if (avatar) localStorage.setItem(avatarKey(s.currentUser.email), avatar)
       return { currentUser: updated }
     })
   },
@@ -118,7 +122,7 @@ export const useAppStore = create<AppState>((set) => ({
   },
 
   // ── Notifications ──────────────────────────────────────────────────────────
-  notifications: mockNotifications,
+  notifications: [],
 
   markNotificationRead: (id) =>
     set(s => ({

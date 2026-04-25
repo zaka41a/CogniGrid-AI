@@ -8,12 +8,13 @@ import os
 import uuid
 import tempfile
 import logging
-from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks
+from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks, Request
 from app.models.schemas import UploadResponse, FileType
 from app.core.pipeline import IngestionPipeline
 from app.services.storage import StorageService
 from app.services.graph_client import GraphClient, QdrantClient
 from app.db.job_store import JobStore
+from app.api.auth import get_user_id
 from app.config import settings
 
 router   = APIRouter()
@@ -28,9 +29,11 @@ job_store    = JobStore()
 
 @router.post("/upload", response_model=UploadResponse)
 async def upload_file(
+    request: Request,
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
 ):
+    user_id   = get_user_id(request)
     max_bytes = settings.max_file_size_mb * 1024 * 1024
     content   = await file.read()
     if len(content) > max_bytes:
@@ -49,9 +52,10 @@ async def upload_file(
         file_name=file.filename or "",
         file_type=file_type.value,
         file_size=len(content),
+        user_id=user_id,
     )
 
-    background_tasks.add_task(_run_pipeline, job_id, tmp_path, file.filename or "")
+    background_tasks.add_task(_run_pipeline, job_id, tmp_path, file.filename or "", user_id)
 
     return UploadResponse(
         job_id=job_id,
@@ -65,9 +69,11 @@ async def upload_file(
 
 @router.post("/upload/batch")
 async def upload_batch(
+    request: Request,
     background_tasks: BackgroundTasks,
     files: list[UploadFile] = File(...),
 ):
+    user_id = get_user_id(request)
     results = []
     for file in files:
         content   = await file.read()
@@ -82,13 +88,14 @@ async def upload_batch(
             file_name=file.filename or "",
             file_type=file_type.value,
             file_size=len(content),
+            user_id=user_id,
         )
-        background_tasks.add_task(_run_pipeline, job_id, tmp_path, file.filename or "")
+        background_tasks.add_task(_run_pipeline, job_id, tmp_path, file.filename or "", user_id)
         results.append({"job_id": job_id, "file_name": file.filename})
     return {"jobs": results}
 
 
-async def _run_pipeline(job_id: str, file_path: str, file_name: str):
+async def _run_pipeline(job_id: str, file_path: str, file_name: str, user_id: str | None = None):
     await job_store.update_status(job_id, "processing", progress=0)
 
     async def on_progress(pct: int):
@@ -103,7 +110,7 @@ async def _run_pipeline(job_id: str, file_path: str, file_name: str):
         )
 
         result = await graph_client.push_document(doc)
-        await qdrant.upsert_chunks(job_id, chunks)
+        await qdrant.upsert_chunks(job_id, chunks, file_name=file_name, user_id=user_id)
 
         await job_store.update_status(
             job_id, "completed",

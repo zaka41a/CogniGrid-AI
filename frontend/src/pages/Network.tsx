@@ -3,6 +3,7 @@ import cytoscape from 'cytoscape'
 import { Zap, GitBranch, Box, RefreshCw, Filter, Radio } from 'lucide-react'
 import Card from '../components/ui/Card'
 import { StatCard } from '../components/ui/StatCard'
+import { graphHttp } from '../lib/api'
 
 // CIM entity types and their visual properties
 const CIM_STYLES: Record<string, { color: string; shape: string; size: number }> = {
@@ -45,17 +46,19 @@ export default function Network() {
   const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set(ALL_TYPES))
   const [selectedNode, setSelectedNode]   = useState<{ label: string; type: string; props: Record<string, string> } | null>(null)
   const [nodeCount, setNodeCount] = useState(0)
+  const [totalNodes, setTotalNodes] = useState(0)
 
   const loadTopology = useCallback(async (typeFilter?: Set<string>) => {
     setLoading(true)
     try {
-      const res  = await fetch('http://localhost:8002/api/graph/visualization?limit=300')
-      const data = await res.json()
+      type RawNode = { id: string; label: string; type: string; properties: Record<string,string> }
+      type RawEdge = { source: string; target: string; label: string }
+      const { data } = await graphHttp.get<{ nodes: RawNode[]; edges: RawEdge[] }>('/api/graph/visualization', { params: { limit: 300 }, timeout: 8_000 })
 
       const active = typeFilter ?? selectedTypes
       const nodes = (data.nodes ?? [])
-        .filter((n: { type: string }) => active.has(n.type))
-        .map((n: { id: string; label: string; type: string; properties: Record<string,string> }) => {
+        .filter(n => active.has(n.type))
+        .map(n => {
           const s = getStyle(n.type)
           return {
             data: {
@@ -70,22 +73,23 @@ export default function Network() {
           }
         })
 
-      const nodeIds = new Set(nodes.map((n: { data: { id: string } }) => n.data.id))
+      const nodeIds = new Set(nodes.map(n => n.data.id))
       const edges = (data.edges ?? [])
-        .filter((e: { source: string; target: string }) => nodeIds.has(e.source) && nodeIds.has(e.target))
-        .map((e: { source: string; target: string; label: string }, i: number) => ({
+        .filter(e => nodeIds.has(e.source) && nodeIds.has(e.target))
+        .map((e, i) => ({
           data: { id: `e-${i}`, source: e.source, target: e.target, label: e.label },
         }))
 
       // Compute topo stats
       const nodeList = data.nodes ?? []
+      setTotalNodes(nodeList.length)
       setStats({
-        substations: nodeList.filter((n: { type: string }) => n.type === 'SUBSTATION').length,
-        lines:       nodeList.filter((n: { type: string }) => n.type === 'LINE_SEGMENT').length,
-        transformers:nodeList.filter((n: { type: string }) => n.type === 'TRANSFORMER').length,
-        buses:       nodeList.filter((n: { type: string }) => n.type === 'BUSBAR').length,
-        generators:  nodeList.filter((n: { type: string }) => n.type === 'GENERATOR').length,
-        loads:       nodeList.filter((n: { type: string }) => n.type === 'LOAD').length,
+        substations: nodeList.filter(n => n.type === 'SUBSTATION').length,
+        lines:       nodeList.filter(n => n.type === 'LINE_SEGMENT').length,
+        transformers:nodeList.filter(n => n.type === 'TRANSFORMER').length,
+        buses:       nodeList.filter(n => n.type === 'BUSBAR').length,
+        generators:  nodeList.filter(n => n.type === 'GENERATOR').length,
+        loads:       nodeList.filter(n => n.type === 'LOAD').length,
       })
 
       initCy([...nodes, ...edges])
@@ -245,10 +249,15 @@ export default function Network() {
               )}
               <div ref={cyRef} className="w-full h-full" />
               {!loading && nodeCount === 0 && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-8 text-center">
                   <Zap size={32} className="text-cg-faint" />
-                  <p className="text-sm text-cg-muted">No network data</p>
-                  <p className="text-xs text-cg-faint">Upload CIM/RDF XML files to see the power grid topology</p>
+                  <div>
+                    <p className="text-sm font-semibold text-cg-muted mb-1">No CIM power grid data</p>
+                    {totalNodes > 0
+                      ? <p className="text-xs text-cg-faint">The graph has <span className="font-semibold text-cg-muted">{totalNodes} nodes</span> (text entities) but no CIM elements.<br />Upload a CIM/RDF XML file to see the power grid topology.</p>
+                      : <p className="text-xs text-cg-faint">Upload CIM/RDF XML files to see the power grid topology.</p>
+                    }
+                  </div>
                 </div>
               )}
             </div>

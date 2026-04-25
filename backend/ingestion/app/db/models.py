@@ -11,6 +11,7 @@ class JobModel(Base):
     __tablename__ = "ingestion_jobs"
 
     id:              Mapped[str]      = mapped_column(String(64), primary_key=True)
+    user_id:         Mapped[str|None] = mapped_column(String(256), nullable=True, index=True)
     file_name:       Mapped[str]      = mapped_column(String(512))
     file_type:       Mapped[str]      = mapped_column(String(32))
     file_size:       Mapped[int]      = mapped_column(Integer, default=0)

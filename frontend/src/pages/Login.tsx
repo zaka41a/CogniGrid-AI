@@ -36,8 +36,9 @@ export default function Login() {
     setLoading(true)
     try {
       const { data } = await authApi.login({ email: form.email, password: form.password })
+      const role = data.user.role
       setAuth(
-        { name: data.user.fullName, role: data.user.role, initials: data.user.fullName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() },
+        { name: data.user.fullName, email: data.user.email ?? form.email, role, initials: data.user.fullName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() },
         data.accessToken,
       )
       setSuccess(true)
@@ -50,7 +51,7 @@ export default function Login() {
       const local = LOCAL_ACCOUNTS[key]
       if (local) {
         setAuth(
-          { name: local.name, role: local.role, initials: local.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() },
+          { name: local.name, email: form.email.toLowerCase().trim(), role: local.role, initials: local.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() },
           'local-token',
         )
         setSuccess(true)
@@ -86,7 +87,8 @@ export default function Login() {
         <div className="relative flex items-center gap-2">
           <img src="/favicon.AI.png" alt="CogniGrid AI" className="w-9 h-9" />
           <span className="font-bold text-lg tracking-tight">
-            <span className="text-blue-300">CogniGrid</span> <span className="text-emerald-400">AI</span>
+            <span className="text-white">CogniGrid</span>
+            <span style={{ color: '#10B981' }}> AI</span>
           </span>
         </div>
 
@@ -138,7 +140,7 @@ export default function Login() {
         <div className="lg:hidden flex items-center gap-2 mb-8">
           <img src="/favicon.AI.png" alt="CogniGrid AI" className="w-8 h-8" />
           <span className="font-bold text-base tracking-tight">
-            <span style={{ color: '#3B82F6' }}>CogniGrid</span>
+            <span className="text-gray-900">CogniGrid</span>
             <span style={{ color: '#10B981' }}> AI</span>
           </span>
         </div>
@@ -150,14 +152,14 @@ export default function Login() {
           </div>
 
           {success && (
-            <div className="mb-5 px-4 py-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-sm text-emerald-600 flex items-center gap-2">
-              <CheckCircle2 size={16} /> Signed in successfully! Redirecting…
+            <div className="mb-5 px-4 py-3 bg-emerald-50 border-2 border-emerald-500 rounded-xl text-sm text-emerald-800 flex items-center gap-2">
+              <CheckCircle2 size={16} className="shrink-0 text-emerald-600" /> Signed in successfully! Redirecting…
             </div>
           )}
 
           {error && !success && (
-            <div className="mb-5 px-4 py-3 bg-red-500/10 border border-red-500/20 rounded-xl text-sm text-red-400 flex items-center gap-2">
-              <span className="shrink-0">⚠</span> {error}
+            <div className="mb-5 px-4 py-3 bg-red-50 border-2 border-red-500 rounded-xl text-sm text-red-800 flex items-center gap-2">
+              <span className="shrink-0 text-red-600">⚠</span> {error}
             </div>
           )}
 
@@ -179,9 +181,8 @@ export default function Login() {
             </div>
 
             <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center">
                 <label className="text-xs font-semibold text-cg-muted uppercase tracking-wide">Password</label>
-                <a href="#" className="text-xs text-cg-primary hover:underline">Forgot password?</a>
               </div>
               <div className="relative">
                 <input

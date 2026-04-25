@@ -42,7 +42,8 @@ ok "Gateway stopped"
 # ── Stop Docker services ──────────────────────────────────────────────────────
 info "Stopping Docker services..."
 cd "$ROOT_DIR"
-docker compose down
+# Suppress Docker Compose's verbose progress output — show only final status lines
+docker compose stop 2>&1 | grep -E "^( ✔| ✗|error)" | sort -u || true
 ok "All Docker services stopped"
 
 sep

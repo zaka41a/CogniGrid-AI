@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Network, Brain, Activity, AlertTriangle, Upload, CheckCircle, TrendingUp } from 'lucide-react'
+import { useEffect, useState, useCallback } from 'react'
+import { Network, Brain, Activity, AlertTriangle, Upload, CheckCircle, TrendingUp, Trash2, RefreshCw } from 'lucide-react'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer,
@@ -8,7 +8,7 @@ import { StatCard } from '../components/ui/StatCard'
 import Card from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { useChartColors } from '../hooks/useChartColors'
-import { graphApi, ingestionApi } from '../lib/api'
+import { graphApi, ingestHttp } from '../lib/api'
 
 
 interface DashStats {
@@ -26,43 +26,73 @@ export default function Dashboard() {
   const [jobSeries, setJobSeries] = useState<JobPoint[]>([])
   const [recentJobs, setRecentJobs] = useState<{ id: string; file_name: string; status: string }[]>([])
   const [loading, setLoading]     = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [clearing, setClearing]   = useState(false)
+  const [confirmClear, setConfirmClear] = useState(false)
 
-  useEffect(() => {
-    Promise.allSettled([
+  const clearAllData = async () => {
+    setClearing(true)
+    try {
+      await Promise.allSettled([graphApi.clearAll(), ingestHttp.delete('/api/ingestion/jobs')])
+      setStats({ nodeCount: 0, edgeCount: 0, rdfTriples: 0, documentCount: 0 })
+      setRecentJobs([])
+      setJobSeries(prev => prev.map(p => ({ ...p, value: 0 })))
+    } finally {
+      setClearing(false)
+      setConfirmClear(false)
+    }
+  }
+
+  const fetchData = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true)
+    else setLoading(true)
+
+    const [statsRes, jobsRes] = await Promise.allSettled([
       graphApi.stats(),
-      ingestionApi.jobs(),
-    ]).then(([statsRes, jobsRes]) => {
-      if (statsRes.status === 'fulfilled') {
-        setStats(statsRes.value.data)
-      }
-      if (jobsRes.status === 'fulfilled') {
-        const jobs = jobsRes.value.data.jobs ?? []
-        setRecentJobs(jobs.slice(0, 6))
+      ingestHttp.get<{ jobs: { id: string; file_name: string; status: string; created_at?: string }[]; total: number }>('/api/ingestion/jobs', { timeout: 8_000 }),
+    ])
 
-        // Build area chart: count jobs per day over the last 14 days
-        const dayMap: Record<string, number> = {}
-        const today = new Date()
-        for (let i = 13; i >= 0; i--) {
-          const d = new Date(today)
-          d.setDate(d.getDate() - i)
-          const key = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-          dayMap[key] = 0
-        }
-        // Use job created_at if available, otherwise distribute today
-        jobs.forEach((job: { created_at?: string }) => {
-          let key: string
-          if (job.created_at) {
-            key = new Date(job.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-          } else {
-            key = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-          }
-          if (key in dayMap) dayMap[key]++
-        })
-        setJobSeries(Object.entries(dayMap).map(([date, value]) => ({ date, value })))
+    if (jobsRes.status === 'fulfilled') {
+      const jobs = jobsRes.value.data.jobs ?? []
+      setRecentJobs(jobs.slice(0, 6))
+
+      // Only show graph stats if this user has completed jobs (avoid cross-user leakage)
+      const hasCompletedJobs = jobs.some((j: { status: string }) => j.status === 'completed')
+      if (statsRes.status === 'fulfilled' && hasCompletedJobs) {
+        setStats(statsRes.value.data)
+      } else {
+        setStats({ nodeCount: 0, edgeCount: 0, rdfTriples: 0, documentCount: 0 })
       }
-      setLoading(false)
-    })
+
+      const dayMap: Record<string, number> = {}
+      const today = new Date()
+      for (let i = 13; i >= 0; i--) {
+        const d = new Date(today)
+        d.setDate(d.getDate() - i)
+        dayMap[d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })] = 0
+      }
+      ;(jobs as Array<{ created_at?: string }>).forEach(job => {
+        const key = job.created_at
+          ? new Date(job.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+          : new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        if (key in dayMap) dayMap[key]++
+      })
+      setJobSeries(Object.entries(dayMap).map(([date, value]) => ({ date, value })))
+    }
+
+    setLoading(false)
+    setRefreshing(false)
   }, [])
+
+  useEffect(() => { fetchData() }, [fetchData])
+
+  // Auto-refresh every 15s while any job is still processing
+  useEffect(() => {
+    const hasProcessing = recentJobs.some(j => j.status === 'processing' || j.status === 'pending')
+    if (!hasProcessing) return
+    const id = setInterval(() => fetchData(true), 15_000)
+    return () => clearInterval(id)
+  }, [recentJobs, fetchData])
 
   const fmtNum = (n: number) => n >= 1_000_000
     ? (n / 1_000_000).toFixed(1) + 'M'
@@ -70,6 +100,59 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+
+      {/* Confirm clear modal */}
+      {confirmClear && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="card w-full max-w-sm p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-red-500/15 flex items-center justify-center">
+                <Trash2 size={18} className="text-red-500" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-cg-txt">Clear all platform data?</p>
+                <p className="text-xs text-cg-muted">This deletes the entire knowledge graph and all ingestion jobs. Irreversible.</p>
+              </div>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => setConfirmClear(false)}
+                className="flex-1 px-4 py-2 rounded-xl border border-cg-border text-sm text-cg-muted hover:bg-cg-s2 transition-colors">
+                Cancel
+              </button>
+              <button onClick={clearAllData} disabled={clearing}
+                className="flex-1 px-4 py-2 rounded-xl bg-red-500 text-white text-sm font-semibold hover:bg-red-600 disabled:opacity-60 transition-colors">
+                {clearing ? 'Clearing…' : 'Clear everything'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Header row */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-bold text-cg-txt">Dashboard</h1>
+          <p className="text-xs text-cg-muted">Platform overview</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => fetchData(true)}
+            disabled={refreshing}
+            className="p-2 rounded-xl border border-cg-border text-cg-muted hover:text-cg-txt hover:bg-cg-s2 transition-colors"
+            title="Refresh"
+          >
+            <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
+          </button>
+          <button
+            onClick={() => setConfirmClear(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-red-500/30 text-red-500 text-sm
+              hover:bg-red-500/10 transition-all"
+          >
+            <Trash2 size={14} />
+            Clear all data
+          </button>
+        </div>
+      </div>
 
       {/* KPI cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">

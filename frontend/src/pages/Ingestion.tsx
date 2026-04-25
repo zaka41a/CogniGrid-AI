@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Upload, FileText, Search, Filter, CloudUpload, RefreshCw, X, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Upload, FileText, Search, Filter, CloudUpload, RefreshCw, X, CheckCircle2, AlertCircle, Trash2, AlertTriangle } from 'lucide-react'
 import Card from '../components/ui/Card'
 import { Badge, statusBadge } from '../components/ui/Badge'
 import { StatCard } from '../components/ui/StatCard'
-import { ingestionApi } from '../lib/api'
-import type { IngestJob } from '../lib/api'
+import { ingestionApi, graphApi, ingestHttp } from '../lib/api'
+import type { IngestJob, GraphStats } from '../lib/api'
 import { useAppStore } from '../store'
 
 const FORMAT_COLORS: Record<string, string> = {
@@ -41,24 +41,36 @@ export default function Ingestion() {
   const [statusFilter, setStatusFilter] = useState<string>('All')
   const [dragging, setDragging]       = useState(false)
   const [uploads, setUploads]         = useState<UploadState[]>([])
+  const [clearing, setClearing]       = useState(false)
+  const [confirmClear, setConfirmClear] = useState(false)
+  const [graphStats, setGraphStats]   = useState<GraphStats | null>(null)
   const fileInputRef                  = useRef<HTMLInputElement>(null)
   const pollRef                       = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const loadJobs = useCallback(async () => {
     try {
-      const { data } = await ingestionApi.jobs()
-      // Backend returns { jobs: [...], total: N }
+      const { data } = await ingestHttp.get<{ jobs: IngestJob[]; total: number }>('/api/ingestion/jobs', { timeout: 8_000 })
       setJobs(data.jobs ?? [])
     } catch {
-      // If backend not running, keep existing jobs
+      // Service not ready yet — show empty state
     } finally {
       setLoading(false)
+    }
+  }, [])
+
+  const loadGraphStats = useCallback(async () => {
+    try {
+      const { data } = await graphApi.stats()
+      setGraphStats(data)
+    } catch {
+      // Graph service may not be running
     }
   }, [])
 
   // Poll while any job is in-progress
   useEffect(() => {
     loadJobs()
+    loadGraphStats()
     pollRef.current = setInterval(() => {
       if (jobs.some(j => j.status === 'pending' || j.status === 'processing')) {
         loadJobs()
@@ -87,10 +99,16 @@ export default function Ingestion() {
           type: 'success',
         })
         await loadJobs()
+        loadGraphStats()
       } catch (err: unknown) {
-        const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+        const rawMsg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
           ?? (err as { message?: string })?.message
-          ?? 'Upload failed — check that the ingestion service is running'
+          ?? 'Upload failed'
+        const msg = rawMsg.includes('timeout')
+          ? 'Processing timed out. The file may be too large or the ingestion service is overloaded. Try again or split the file into smaller parts.'
+          : rawMsg.includes('Network Error') || rawMsg.includes('ECONNREFUSED')
+            ? 'Cannot reach the ingestion service. Make sure it is running with: docker compose up ingestion'
+            : rawMsg
         setUploads(prev => prev.map((u, i) => i === idx ? { ...u, status: 'error', error: msg } : u))
         addNotification({
           title: 'Upload failed',
@@ -125,6 +143,27 @@ export default function Ingestion() {
   const errors      = jobs.filter(j => j.status === 'failed').length
   const inProgress  = jobs.filter(j => j.status === 'pending' || j.status === 'processing').length
 
+  const clearAllData = async () => {
+    setClearing(true)
+    setConfirmClear(false)
+    try {
+      await Promise.all([
+        graphApi.clearAll(),
+        ingestionApi.clearAllJobs(),
+      ])
+      setJobs([])
+      setUploads([])
+      setGraphStats(prev => prev ? { ...prev, nodeCount: 0, edgeCount: 0, rdfTriples: 0, documentCount: 0 } : null)
+      addNotification({ title: 'Data cleared', message: 'All graph nodes, relationships, and job history have been deleted. Ready for fresh import.', time: 'Just now', read: false, type: 'success' })
+    } catch {
+      addNotification({ title: 'Clear failed', message: 'Could not clear all data. Check that graph and ingestion services are running.', time: 'Just now', read: false, type: 'critical' })
+    } finally {
+      setClearing(false)
+    }
+  }
+
+  const hasExistingData = jobs.length > 0
+
   function statusLabel(s: IngestJob['status']): string {
     if (s === 'completed') return 'Success'
     if (s === 'failed')    return 'Error'
@@ -141,6 +180,43 @@ export default function Ingestion() {
         <StatCard label="In Progress" value={loading ? '…' : inProgress}     icon={<Upload   size={17}/>} iconColor="#F59E0B" />
         <StatCard label="Errors"      value={loading ? '…' : errors}         icon={<FileText size={17}/>} iconColor="#EF4444" />
       </div>
+
+      {/* Existing data warning banner */}
+      {hasExistingData && (
+        <div className="flex items-start gap-4 p-4 rounded-2xl
+          bg-amber-50 border-2 border-amber-400
+          shadow-sm">
+          {/* Icon */}
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0
+            bg-amber-400 shadow-sm">
+            <AlertTriangle size={18} className="text-white" />
+          </div>
+          {/* Text */}
+          <div className="flex-1 min-w-0 space-y-1">
+            <p className="text-sm font-bold text-amber-900">
+              Graph already contains data
+            </p>
+            <p className="text-xs text-amber-800 leading-relaxed">
+              You have existing ingestion jobs. Uploading without clearing will{' '}
+              <span className="font-bold text-amber-900">merge</span>{' '}
+              with existing data. Clear the graph first to start fresh.
+            </p>
+          </div>
+          {/* Action */}
+          <button
+            onClick={() => setConfirmClear(true)}
+            disabled={clearing}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold shrink-0
+              bg-red-600 text-white border border-red-700
+              hover:bg-red-700
+              disabled:opacity-50 disabled:cursor-not-allowed
+              transition-all duration-150 shadow-sm"
+          >
+            <Trash2 size={13} />
+            {clearing ? 'Clearing…' : 'Clear Graph'}
+          </button>
+        </div>
+      )}
 
       {/* Drop zone */}
       <Card title="Upload Data">
@@ -237,6 +313,42 @@ export default function Ingestion() {
         </div>
       </Card>
 
+      {/* Confirm clear dialog */}
+      {confirmClear && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-cg-surface border border-cg-border rounded-2xl p-6 w-full max-w-sm shadow-2xl space-y-4 mx-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center shrink-0">
+                <Trash2 size={18} className="text-red-500" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-cg-txt">Clear All Data</p>
+                <p className="text-xs text-cg-muted">This action cannot be undone</p>
+              </div>
+            </div>
+
+            <p className="text-sm text-cg-muted">
+              All Neo4j graph nodes, relationships, vector embeddings, and upload job history will be permanently deleted.
+              The graph will be empty and ready for a fresh import.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmClear(false)}
+                className="flex-1 py-2.5 rounded-xl border border-cg-border text-sm text-cg-muted hover:bg-cg-s2 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={clearAllData}
+                className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-semibold transition-colors"
+              >
+                Clear Everything
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* History table */}
       <Card title="Upload History">
         {/* Filters */}
@@ -276,6 +388,17 @@ export default function Ingestion() {
           <span className="ml-auto text-xs text-cg-faint self-center">
             {filtered.length} of {jobs.length} records
           </span>
+          <button
+            onClick={() => setConfirmClear(true)}
+            disabled={clearing}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
+              text-red-500 border border-red-500/30 hover:bg-red-500/10
+              disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+            title="Clear all graph data and job history"
+          >
+            <Trash2 size={12} />
+            {clearing ? 'Clearing…' : 'Clear Data'}
+          </button>
         </div>
 
         {/* Table */}

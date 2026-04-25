@@ -1,0 +1,36 @@
+entity_name,entity_type,related_to,relationship,location,founded,revenue
+TechVision GmbH,Company,Sarah Müller,CEO_OF,Cologne Germany,2015,85M EUR
+TechVision GmbH,Company,Daniel Schneider,CTO_OF,Cologne Germany,2015,85M EUR
+TechVision GmbH,Company,Lena Weber,CFO_OF,Cologne Germany,2015,85M EUR
+TechVision GmbH,Company,DataBridge Platform,DEVELOPS,Cologne Germany,2015,85M EUR
+TechVision GmbH,Company,Siemens AG,PARTNER_OF,Cologne Germany,2015,85M EUR
+TechVision GmbH,Company,RWTH Aachen University,RESEARCH_PARTNER,Cologne Germany,2015,85M EUR
+TechVision GmbH,Company,Microsoft Germany,PARTNER_OF,Cologne Germany,2015,85M EUR
+TechVision GmbH,Company,Volkswagen AG,CLIENT_OF,Cologne Germany,2015,85M EUR
+TechVision GmbH,Company,Deutsche Telekom,CLIENT_OF,Cologne Germany,2015,85M EUR
+TechVision GmbH,Company,Bayer AG,CLIENT_OF,Cologne Germany,2015,85M EUR
+Sarah Müller,Person,TechVision GmbH,FOUNDER_OF,Cologne Germany,,
+Sarah Müller,Person,SAP SE,PREVIOUSLY_AT,Germany,,
+Daniel Schneider,Person,TechVision GmbH,FOUNDER_OF,Aachen Germany,,
+Daniel Schneider,Person,RWTH Aachen University,GRADUATED_FROM,Aachen Germany,,
+Lena Weber,Person,Deutsche Bank,PREVIOUSLY_AT,Frankfurt Germany,,
+Marcus Klein,Person,Siemens AG,PREVIOUSLY_AT,Munich Germany,,
+Marcus Klein,Person,Bosch GmbH,PREVIOUSLY_AT,Stuttgart Germany,,
+Aisha Becker,Person,TechVision GmbH,WORKS_AT,Cologne Germany,,
+DataBridge Platform,Product,Neo4j,USES_TECHNOLOGY,,2019,
+DataBridge Platform,Product,Apache Kafka,USES_TECHNOLOGY,,2019,
+DataBridge Platform,Product,Microsoft Azure,INTEGRATES_WITH,,2019,
+DataBridge Platform,Product,SAP S/4HANA,INTEGRATES_WITH,,2019,
+DataBridge Platform,Product,PostgreSQL,USES_DATABASE,,2019,
+Siemens AG,Company,TechVision GmbH,PARTNER_OF,Munich Germany,1847,
+RWTH Aachen University,University,TechVision GmbH,RESEARCH_PARTNER,Aachen Germany,1870,
+Volkswagen AG,Company,TechVision GmbH,CLIENT_OF,Wolfsburg Germany,1937,
+Deutsche Telekom,Company,TechVision GmbH,CLIENT_OF,Bonn Germany,1996,
+Bayer AG,Company,TechVision GmbH,CLIENT_OF,Leverkusen Germany,1863,
+ThyssenKrupp,Company,TechVision GmbH,CLIENT_OF,Essen Germany,1999,
+Fraunhofer Institute,Research,TechVision GmbH,CLIENT_OF,Munich Germany,1949,
+HV Capital,Investor,TechVision GmbH,INVESTED_IN,Munich Germany,,,40M EUR Series B 2023
+Earlybird Venture Capital,Investor,TechVision GmbH,INVESTED_IN,Berlin Germany,,,12M EUR Series A 2019
+Cologne,City,TechVision GmbH,HEADQUARTERS_OF,Germany,,
+Aachen,City,TechVision GmbH,R&D_CENTER_OF,Germany,,
+Berlin,City,TechVision GmbH,OFFICE_OF,Germany,,

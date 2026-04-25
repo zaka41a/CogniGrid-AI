@@ -10,6 +10,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -47,5 +49,14 @@ public class AuthController {
     public ResponseEntity<Void> logout(@RequestBody Map<String, String> body) {
         authService.logout(body.get("refreshToken"));
         return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/password")
+    @Operation(summary = "Change password for the authenticated user")
+    public ResponseEntity<Map<String, String>> changePassword(
+            @AuthenticationPrincipal UserDetails principal,
+            @RequestBody Map<String, String> body) {
+        authService.changePassword(principal.getUsername(), body.get("currentPassword"), body.get("newPassword"));
+        return ResponseEntity.ok(Map.of("message", "Password updated successfully"));
     }
 }

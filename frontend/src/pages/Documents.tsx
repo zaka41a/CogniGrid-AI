@@ -4,7 +4,7 @@ import Card from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { StatCard } from '../components/ui/StatCard'
 import { EmptyState } from '../components/ui/EmptyState'
-import { ingestionApi } from '../lib/api'
+import { ingestionApi, ingestHttp } from '../lib/api'
 
 interface Document {
   id: string
@@ -57,7 +57,7 @@ export default function Documents() {
   const loadDocs = useCallback(async () => {
     setLoading(true)
     try {
-      const { data } = await ingestionApi.jobs()
+      const { data } = await ingestHttp.get<{ jobs: { id: string; file_name: string; status: string; nodes_extracted?: number; file_size?: number }[]; total: number }>('/api/ingestion/jobs', { timeout: 8_000 })
       const jobs = data.jobs ?? []
       setDocs(jobs.map(j => ({
         id:         j.id,

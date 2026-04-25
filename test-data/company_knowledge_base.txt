@@ -1,0 +1,118 @@
+CogniGrid AI — Demo Knowledge Base
+====================================
+
+COMPANY OVERVIEW
+----------------
+TechVision GmbH is a leading software company headquartered in Cologne, Germany.
+Founded in 2015 by CEO Sarah Müller and CTO Daniel Schneider, TechVision GmbH
+specializes in artificial intelligence and enterprise data solutions.
+The company employs over 450 people across offices in Cologne, Aachen, and Berlin.
+Annual revenue for 2024 reached €85 million, a 32% increase from 2023.
+
+KEY PEOPLE
+----------
+- Sarah Müller: CEO, co-founder of TechVision GmbH. Previously VP at SAP SE.
+  She oversees global strategy and investor relations.
+
+- Daniel Schneider: CTO, co-founder of TechVision GmbH. PhD in Computer Science
+  from RWTH Aachen. Responsible for AI research and product architecture.
+
+- Lena Weber: CFO, joined in 2018 from Deutsche Bank. Manages financial operations
+  and the recent Series B funding round of €40 million.
+
+- Marcus Klein: Head of Engineering. Leads a team of 120 engineers. Previously
+  at Siemens AG and Bosch GmbH.
+
+- Aisha Becker: VP Sales, responsible for DACH region and international expansion.
+  Closed key accounts with Volkswagen AG and Deutsche Telekom.
+
+PRODUCTS & TECHNOLOGY
+---------------------
+TechVision GmbH's flagship product is the DataBridge Platform, an enterprise
+knowledge management system that uses graph databases and large language models
+to connect unstructured data sources.
+
+The DataBridge Platform integrates with:
+- SAP S/4HANA for ERP data
+- Microsoft Azure for cloud storage
+- Neo4j for knowledge graph storage
+- PostgreSQL for transactional data
+- Apache Kafka for real-time data streaming
+
+Key technology stack:
+- Backend: Java Spring Boot microservices + Python FastAPI
+- AI: PyTorch, Hugging Face Transformers, LangChain
+- Frontend: React TypeScript with Tailwind CSS
+- Infrastructure: Docker, Kubernetes on AWS
+
+PARTNERSHIPS
+------------
+TechVision GmbH has strategic partnerships with:
+- Siemens AG: Joint solution for industrial IoT data analysis
+- RWTH Aachen University: Research collaboration on graph neural networks
+- Microsoft Germany: Azure co-sell partner since 2022
+- Accenture Germany: Implementation partner for enterprise clients
+
+CLIENTS
+-------
+Major clients include:
+- Volkswagen AG (automotive data management)
+- Deutsche Telekom (network topology analysis)
+- Bayer AG (pharmaceutical research knowledge graph)
+- ThyssenKrupp (supply chain intelligence)
+- Fraunhofer Institute (scientific literature mining)
+
+FINANCIAL INFORMATION
+---------------------
+- Series A: €12M raised in 2019 (Lead: Earlybird Venture Capital)
+- Series B: €40M raised in 2023 (Lead: HV Capital)
+- 2024 Revenue: €85M
+- 2024 ARR Growth: 32% YoY
+- Gross Margin: 74%
+- Headcount: 452 employees
+
+MARKET POSITION
+---------------
+TechVision GmbH competes in the enterprise knowledge management market against:
+- Palantir Technologies (US-based, larger scale)
+- Ontotext (EU-based, semantic web focus)
+- Franz Inc. (graph database specialist)
+- Stardog (enterprise knowledge graph)
+
+TechVision differentiates through:
+1. Deep integration with German/EU enterprise software ecosystem (SAP, etc.)
+2. GDPR-compliant architecture with on-premise deployment option
+3. Industry-specific knowledge graph templates for automotive, pharma, logistics
+4. Multilingual NLP support (German, English, French)
+
+RECENT NEWS
+-----------
+Q1 2025: TechVision announced partnership with Siemens Energy for power grid
+knowledge graph implementation across 12 European countries.
+
+Q4 2024: Won the "German AI Startup of the Year" award at the Bitkom Digital Summit.
+
+Q3 2024: Opened new R&D center in Aachen, 50 new engineering positions.
+
+Q2 2024: Launched DataBridge Cloud Edition for mid-market companies.
+
+TECHNICAL ARCHITECTURE
+----------------------
+The DataBridge Platform uses a microservices architecture:
+
+1. Ingestion Service: Processes PDF, Word, Excel, and CSV files using
+   Apache Tika and custom ML extractors. Handles up to 10,000 documents/hour.
+
+2. NLP Pipeline: Named entity recognition using spaCy and custom German
+   language models. Entity linking to Wikidata and company-internal ontologies.
+
+3. Graph Engine: Neo4j Enterprise cluster with APOC library for complex
+   graph algorithms. Stores 500M+ nodes and 2B+ relationships for largest clients.
+
+4. Vector Store: Qdrant vector database for semantic search across 50M+ chunks.
+
+5. AI Agent: Multi-step reasoning using LangGraph with tool use for
+   graph traversal, document retrieval, and calculation.
+
+6. API Gateway: Spring Boot with JWT authentication, rate limiting,
+   and comprehensive audit logging for GDPR compliance.

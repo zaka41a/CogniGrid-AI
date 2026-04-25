@@ -51,7 +51,7 @@ export default function Register() {
         password: form.password,
       })
       setAuth(
-        { name: data.user.fullName, role: data.user.role, initials: data.user.fullName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() },
+        { name: data.user.fullName, email: data.user.email ?? form.email, role: data.user.role, initials: data.user.fullName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() },
         data.accessToken,
       )
       setSuccess(true)
@@ -82,7 +82,8 @@ export default function Register() {
         <div className="relative flex items-center gap-2">
           <img src="/favicon.AI.png" alt="CogniGrid AI" className="w-9 h-9" />
           <span className="font-bold text-lg tracking-tight">
-            <span className="text-blue-300">CogniGrid</span> <span className="text-emerald-400">AI</span>
+            <span className="text-white">CogniGrid</span>
+            <span style={{ color: '#10B981' }}> AI</span>
           </span>
         </div>
 
@@ -134,7 +135,7 @@ export default function Register() {
         <div className="lg:hidden flex items-center gap-2 mb-8">
           <img src="/favicon.AI.png" alt="CogniGrid AI" className="w-8 h-8" />
           <span className="font-bold text-base tracking-tight">
-            <span style={{ color: '#3B82F6' }}>CogniGrid</span>
+            <span className="text-gray-900">CogniGrid</span>
             <span style={{ color: '#10B981' }}> AI</span>
           </span>
         </div>
@@ -146,14 +147,14 @@ export default function Register() {
           </div>
 
           {success && (
-            <div className="mb-5 px-4 py-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-sm text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
-              <CheckCircle2 size={16} /> Account created! Redirecting to dashboard…
+            <div className="mb-5 px-4 py-3 bg-emerald-50 border-2 border-emerald-500 rounded-xl text-sm text-emerald-800 flex items-center gap-2">
+              <CheckCircle2 size={16} className="shrink-0 text-emerald-600" /> Account created! Redirecting to dashboard…
             </div>
           )}
 
           {error && !success && (
-            <div className="mb-5 px-4 py-3 bg-red-500/10 border border-red-500/20 rounded-xl text-sm text-red-400 flex items-center gap-2">
-              <span className="shrink-0">⚠</span> {error}
+            <div className="mb-5 px-4 py-3 bg-red-50 border-2 border-red-500 rounded-xl text-sm text-red-800 flex items-center gap-2">
+              <span className="shrink-0 text-red-600">⚠</span> {error}
             </div>
           )}
 

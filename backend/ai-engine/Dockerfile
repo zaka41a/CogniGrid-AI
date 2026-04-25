@@ -2,11 +2,12 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY requirements.txt .
-# Install PyTorch CPU-only first (sentence-transformers needs it)
-RUN pip install --no-cache-dir --timeout=300 \
+# ── Layer 1: PyTorch CPU (heavy) — before any COPY for stable caching ─────────
+RUN pip install --no-cache-dir --timeout=300 --retries 5 \
     torch==2.1.2 --index-url https://download.pytorch.org/whl/cpu
-RUN pip install --no-cache-dir --timeout=120 -r requirements.txt
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir --timeout=600 --retries 10 -r requirements.txt
 
 COPY . .
 

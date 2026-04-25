@@ -8,6 +8,7 @@ IngestionPipeline — orchestre les étapes d'ingestion :
   5. Indexe dans Qdrant (recherche sémantique)
   6. Met à jour le statut du job
 """
+import asyncio
 import logging
 from app.core.file_router import FileRouter
 from app.core.extractors.entity_extractor import EntityExtractor
@@ -43,7 +44,8 @@ class IngestionPipeline:
 
         # ── Étape 1 : Parsing ─────────────────────────────────────────────────
         await progress(10, "Parsing file...")
-        parse_result = self.file_router.parse(file_path)
+        # Run sync parsers in thread pool so they don't block the event loop
+        parse_result = await asyncio.to_thread(self.file_router.parse, file_path)
         file_type = self.file_router.detect_file_type(file_path)
 
         # ── Étape 2 : Extraction entités + keywords ───────────────────────────
@@ -65,19 +67,24 @@ class IngestionPipeline:
             ]
             keywords = list({rec["cim_type"] for rec in cim_records})
         else:
-            entities, keywords = self.entity_extractor.extract(parse_result.text)
+            # Run blocking NER + keyword extraction in thread pool
+            entities, keywords = await asyncio.to_thread(
+                self.entity_extractor.extract, parse_result.text
+            )
 
         # ── Étape 3 : Embeddings des entités ──────────────────────────────────
         await progress(55, "Generating embeddings...")
         if entities:
             names = [e.name for e in entities]
-            embeddings = self.embedder.embed_batch(names)
+            # Run blocking embedding in thread pool
+            embeddings = await asyncio.to_thread(self.embedder.embed_batch, names)
             for entity, emb in zip(entities, embeddings):
                 entity.embedding = emb
 
         # ── Étape 4 : Découpage du document en chunks pour Qdrant ─────────────
         await progress(70, "Chunking document for vector store...")
-        chunks = self.embedder.embed_chunks(parse_result.text)
+        # Run blocking chunk embedding in thread pool
+        chunks = await asyncio.to_thread(self.embedder.embed_chunks, parse_result.text)
 
         # ── Étape 5 : Construction du document extrait ────────────────────────
         await progress(85, "Building knowledge graph data...")

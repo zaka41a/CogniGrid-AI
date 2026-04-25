@@ -12,10 +12,12 @@ from .models import JobModel
 class JobStore:
     """Async job store backed by SQLAlchemy (SQLite locally, PostgreSQL in prod)."""
 
-    async def create(self, job_id: str, file_name: str, file_type: str, file_size: int) -> dict:
+    async def create(self, job_id: str, file_name: str, file_type: str, file_size: int,
+                     user_id: str | None = None) -> dict:
         async with AsyncSessionLocal() as session:
             job = JobModel(
                 id=job_id,
+                user_id=user_id,
                 file_name=file_name,
                 file_type=file_type,
                 file_size=file_size,
@@ -34,11 +36,12 @@ class JobStore:
             job = result.scalar_one_or_none()
             return self._to_dict(job) if job else None
 
-    async def list_all(self) -> list[dict]:
+    async def list_all(self, user_id: str | None = None) -> list[dict]:
         async with AsyncSessionLocal() as session:
-            result = await session.execute(
-                select(JobModel).order_by(JobModel.created_at.desc())
-            )
+            q = select(JobModel).order_by(JobModel.created_at.desc())
+            if user_id:
+                q = q.where(JobModel.user_id == user_id)
+            result = await session.execute(q)
             return [self._to_dict(j) for j in result.scalars().all()]
 
     async def update_status(self, job_id: str, status: str, progress: int = None,
@@ -59,6 +62,12 @@ class JobStore:
             await session.commit()
             return result.rowcount > 0
 
+    async def delete_all(self) -> int:
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(delete(JobModel))
+            await session.commit()
+            return result.rowcount
+
     async def count_by_status(self) -> dict:
         async with AsyncSessionLocal() as session:
             result = await session.execute(
@@ -71,6 +80,7 @@ class JobStore:
     def _to_dict(job: JobModel) -> dict:
         return {
             "id":              job.id,
+            "user_id":         job.user_id,
             "file_name":       job.file_name,
             "file_type":       job.file_type,
             "file_size":       job.file_size,

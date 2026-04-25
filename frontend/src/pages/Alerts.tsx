@@ -4,6 +4,7 @@ import Card from '../components/ui/Card'
 import { StatCard } from '../components/ui/StatCard'
 import { Badge, severityBadge, statusBadge } from '../components/ui/Badge'
 import type { Severity, AlertStatus } from '../types'
+import { graphHttp } from '../lib/api'
 
 interface Alert {
   id:        string
@@ -29,8 +30,7 @@ export default function Alerts() {
   const loadAlerts = async () => {
     setLoading(true)
     try {
-      const res = await fetch('http://localhost:8002/api/graph/alerts')
-      const data: Alert[] = await res.json()
+      const { data } = await graphHttp.get<Alert[]>('/api/graph/alerts', { timeout: 8_000 })
       setAlerts(data)
     } catch {
       setAlerts([])
@@ -108,9 +108,10 @@ export default function Alerts() {
             <div className="w-14 h-14 rounded-2xl bg-cg-s2 border border-cg-border flex items-center justify-center">
               <BellOff size={24} className="text-cg-faint" />
             </div>
-            <p className="text-sm font-medium text-cg-muted">No alerts detected</p>
-            <p className="text-xs text-cg-faint max-w-xs">
-              Upload CIM files to populate the graph — alerts are auto-generated from topology analysis.
+            <p className="text-sm font-semibold text-cg-txt">No alerts detected</p>
+            <p className="text-xs text-cg-muted max-w-xs leading-relaxed">
+              Alerts are generated automatically from CIM power grid topology analysis.<br />
+              Upload a <span className="font-semibold">CIM/RDF XML</span> file via Data Ingestion to populate the grid model.
             </p>
           </div>
         ) : (
