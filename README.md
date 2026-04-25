@@ -132,16 +132,16 @@ The `assume-runner` service at port 8006 executes real `python -m assume` subpro
 │  ┌────────────────────────────▼──────────────────────────────────────────┐   │
 │  │           Spring Boot Gateway  :8080  (Auth + Routing)                │   │
 │  │        JWT Auth · CORS · Actuator · Flyway Migrations                 │   │
-│  └───┬─────────┬──────────┬─────────┬─────────┬──────────────────────────┘   │
-│      │         │          │         │         │                              │
-│   ┌──▼───┐  ┌──▼───┐  ┌───▼──┐  ┌───▼──┐  ┌───▼──┐  ┌──────────┐           │
-│   │Inges-│  │Graph │  │  AI  │  │Graph │  │Agent │  │  ASSUME  │           │
-│   │tion  │  │      │  │Engine│  │ RAG  │  │+ASSUME│  │  Runner  │           │
-│   │:8001 │  │:8002 │  │:8003 │  │:8004 │  │:8005 │  │  :8006   │           │
-│   └──┬───┘  └──┬───┘  └────┬─┘  └───┬──┘  └───┬──┘  └────┬─────┘           │
-│      │         │           │        │         │           │                  │
-│  ┌───▼─────────▼───────────▼────────▼─────────▼───────────▼────────────┐     │
-│  │                      Data Layer (Docker)                             │     │
+│  └───┬─────────┬──────────┬─────────┬─────────┬───────────┬──────────────┘   │
+│      │         │          │         │         │           │                  │
+│   ┌──▼───┐  ┌──▼───┐  ┌───▼──┐  ┌───▼──┐  ┌───▼──┐  ┌─────▼────┐             │
+│   │Inges-│  │Graph │  │  AI  │  │Graph │  │Agent │  │  ASSUME  │             │
+│   │tion  │  │      │  │Engine│  │ RAG  │  │ASSUME│  │  Runner  │             │
+│   │:8001 │  │:8002 │  │:8003 │  │:8004 │  │:8005 │  │  :8006   │             │
+│   └──┬───┘  └──┬───┘  └────┬─┘  └───┬──┘  └───┬──┘  └────┬─────┘             │
+│      │         │           │        │         │          │                   │
+│  ┌───▼─────────▼───────────▼────────▼─────────▼──────────▼─────────────┐     │
+│  │                      Data Layer (Docker)                            │     │
 │  │   PostgreSQL:5433 · Neo4j:7687 · Qdrant:6333 · Redis:6379           │     │
 │  │   MinIO:9000 · Prometheus:9090 · Grafana:3001                       │     │
 │  └─────────────────────────────────────────────────────────────────────┘     │
@@ -291,13 +291,6 @@ CogniGrid-AI/
 │       │   ├── Ingestion.tsx     # Document upload and job tracking
 │       │   ├── assume/
 │       │   │   └── AssumeWorkspace.tsx   # 7-tab ASSUME research environment
-│       │   └── admin/            # Full admin panel
-│       │       ├── AdminLayout.tsx
-│       │       ├── AdminDashboard.tsx
-│       │       ├── AdminUsers.tsx
-│       │       ├── AdminPlans.tsx
-│       │       ├── AdminActivity.tsx
-│       │       └── AdminSettings.tsx
 │       ├── store/index.ts        # Zustand global store
 │       ├── lib/api.ts            # Axios API client (all 6 services)
 │       └── types/index.ts        # Shared TypeScript types
@@ -379,7 +372,6 @@ This activates the Scenario Generator, Outcome Predictor, and Simulation Runner 
 |---|---|---|
 | **Frontend** | http://localhost:5173 | React SPA |
 | **ASSUME Workspace** | http://localhost:5173 (sidebar) | 7-tab ASSUME research environment |
-| **Admin Panel** | http://localhost:5173/admin | Admin dashboard |
 | **Gateway API** | http://localhost:8080 | Spring Boot REST gateway |
 | **Swagger UI** | http://localhost:8080/swagger-ui.html | Gateway API docs |
 | **Ingestion API** | http://localhost:8001/docs | Document ingestion (FastAPI) |
@@ -490,20 +482,6 @@ GET    /health                      # Service health
   "push_to_graph": true
 }
 ```
-
----
-
-## Admin Panel
-
-Access at `http://localhost:5173/admin`. Log in with admin credentials (admin users are auto-redirected from `/login`).
-
-| Section | Path | Capabilities |
-|---|---|---|
-| **Overview** | `/admin` | User KPIs, ingestion stats, activity feed, system health per service |
-| **Users** | `/admin/users` | Search, filter, view detail, change role, suspend/reactivate, delete |
-| **Activity Log** | `/admin/activity` | All platform events with type, timestamp, IP address |
-| **Settings** | `/admin/settings` | Platform name, LLM provider, 2FA policy, session TTL, notifications, backups |
-
 ---
 
 ## Environment Variables
