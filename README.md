@@ -614,4 +614,6 @@ After the first start, a default admin account is auto-seeded by the gateway:
 
 Built by **Zaka41a**
 
+<sub>Spring Boot · FastAPI · React · Neo4j · Qdrant · Redis · MinIO · ASSUME · Docker</sub>
+
 </div>
