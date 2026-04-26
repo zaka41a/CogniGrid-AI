@@ -33,6 +33,7 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
+    private final ai.cognigrid.gateway.filter.RateLimitFilter rateLimitFilter;
     private final UserDetailsServiceImpl userDetailsService;
 
     @Value("${cors.allowed-origins}")
@@ -63,7 +64,8 @@ public class SecurityConfig {
                     .anyRequest().authenticated()
             )
             .authenticationProvider(authenticationProvider())
-            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+            .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
+            .addFilterAfter(jwtAuthFilter, ai.cognigrid.gateway.filter.RateLimitFilter.class);
 
         return http.build();
     }

@@ -1,4 +1,4 @@
-# CogniGrid AI — API Reference
+# CogniGrid AI . API Reference
 
 All protected endpoints require `Authorization: Bearer <access_token>`. Tokens are
 signed with HS256 by the Spring Boot gateway and verified by every Python service.

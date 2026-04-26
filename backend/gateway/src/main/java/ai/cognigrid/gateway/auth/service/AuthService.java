@@ -1,5 +1,6 @@
 package ai.cognigrid.gateway.auth.service;
 
+import ai.cognigrid.gateway.admin.service.ActivityService;
 import ai.cognigrid.gateway.auth.dto.AuthResponse;
 import ai.cognigrid.gateway.auth.dto.LoginRequest;
 import ai.cognigrid.gateway.auth.dto.RegisterRequest;
@@ -32,6 +33,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
+    private final ActivityService activityService;
 
     @Value("${jwt.refresh-expiration-ms}")
     private long refreshExpirationMs;
@@ -57,20 +59,31 @@ public class AuthService {
 
     @Transactional
     public AuthResponse login(LoginRequest request) {
-        authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
-        );
+        try {
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
+            );
+        } catch (Exception ex) {
+            // Audit failed login attempts (helps detect brute-force attacks)
+            activityService.record(ActivityService.LOGIN_FAIL, request.getEmail(),
+                    null, request.getEmail(), "bad credentials");
+            throw ex;
+        }
 
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new AuthException("User not found"));
 
         if (!user.isActive()) {
+            activityService.record(ActivityService.LOGIN_FAIL, request.getEmail(),
+                    user.getId(), user.getEmail(), "account disabled");
             throw new AuthException("Account is disabled");
         }
 
         user.setLastLoginAt(LocalDateTime.now());
         userRepository.save(user);
 
+        activityService.record(ActivityService.LOGIN_OK, user.getEmail(),
+                user.getId(), user.getEmail(), null);
         return buildAuthResponse(user);
     }
 
@@ -119,6 +132,8 @@ public class AuthService {
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         userRepository.save(user);
         log.info("Password changed for user: {}", email);
+        activityService.record(ActivityService.PASSWORD_CHANGE, email,
+                user.getId(), user.getEmail(), "self-service password change");
     }
 
     private AuthResponse buildAuthResponse(User user) {

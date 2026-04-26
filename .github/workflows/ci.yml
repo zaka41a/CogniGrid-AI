@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master]
+
+# Limit concurrent runs per branch — newer push cancels older runs.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend (TypeScript)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install
+        run: npm ci --no-audit --no-fund
+      - name: Type-check
+        run: npx tsc --noEmit
+      - name: Lint (best-effort)
+        run: npx eslint "src/**/*.{ts,tsx}" --max-warnings 50 || true
+
+  python:
+    name: Python services (compile + smoke tests)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [ingestion, graph, ai-engine, graphrag, agent, assume-runner]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install minimal deps for compile-check
+        working-directory: backend/${{ matrix.service }}
+        run: |
+          python -m pip install --upgrade pip
+          # Install lightweight deps (skip torch / sentence-transformers in CI — too heavy).
+          python -m pip install fastapi==0.111.0 pydantic==2.7.1 pydantic-settings==2.2.1 httpx==0.27.0 PyJWT pytest
+      - name: Syntax check
+        working-directory: backend/${{ matrix.service }}
+        run: |
+          python -m compileall -q app
+      - name: Smoke tests (if present)
+        working-directory: backend/${{ matrix.service }}
+        run: |
+          if [ -d tests ]; then
+            python -m pytest tests/ -q --tb=short || exit 1
+          else
+            echo "No tests/ directory in ${{ matrix.service }} — skipping."
+          fi
+
+  gateway:
+    name: Gateway (Maven)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend/gateway
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Compile + test
+        run: mvn -B verify -DskipITs
+
+  docker-build:
+    name: Docker build sanity check
+    runs-on: ubuntu-latest
+    needs: [frontend, python, gateway]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build all service images
+        run: |
+          docker compose -f docker-compose.yml build \
+            --pull \
+            ingestion graph ai-engine graphrag agent assume-runner \
+            || exit 1

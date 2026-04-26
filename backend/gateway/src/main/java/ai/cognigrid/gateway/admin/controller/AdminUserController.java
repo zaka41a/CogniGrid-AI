@@ -1,10 +1,13 @@
 package ai.cognigrid.gateway.admin.controller;
 
+import ai.cognigrid.gateway.admin.dto.ActivityEventDto;
 import ai.cognigrid.gateway.admin.dto.AdminStatsDto;
 import ai.cognigrid.gateway.admin.dto.AdminUserDto;
 import ai.cognigrid.gateway.admin.dto.ResetPasswordRequest;
 import ai.cognigrid.gateway.admin.dto.UpdateUserRequest;
+import ai.cognigrid.gateway.admin.repository.ActivityEventRepository;
 import ai.cognigrid.gateway.admin.service.AdminUserService;
+import org.springframework.data.domain.PageRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -27,6 +30,7 @@ import java.util.UUID;
 public class AdminUserController {
 
     private final AdminUserService adminUserService;
+    private final ActivityEventRepository activityRepo;
 
     @GetMapping("/users")
     @Operation(summary = "List all users")
@@ -80,5 +84,15 @@ public class AdminUserController {
     @Operation(summary = "Aggregate user stats")
     public ResponseEntity<AdminStatsDto> stats() {
         return ResponseEntity.ok(adminUserService.stats());
+    }
+
+    @GetMapping("/activity")
+    @Operation(summary = "Read the audit log (most recent first, capped at `limit`)")
+    public ResponseEntity<List<ActivityEventDto>> activity(
+            @RequestParam(defaultValue = "100") int limit) {
+        int safe = Math.max(1, Math.min(limit, 500));
+        var events = activityRepo.findRecent(PageRequest.of(0, safe))
+                .stream().map(ActivityEventDto::from).toList();
+        return ResponseEntity.ok(events);
     }
 }

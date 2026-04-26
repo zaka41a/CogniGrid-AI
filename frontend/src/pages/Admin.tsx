@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react'
 import {
   Users, ShieldCheck, UserX, UserCheck, KeyRound, Trash2, RefreshCw,
   Search, Eye, EyeOff, Crown, AlertTriangle, CheckCircle2, Clock, Mail,
-  Calendar, Loader2, Shield,
+  Calendar, Loader2, Shield, Activity, LogIn, LogOut,
 } from 'lucide-react'
 import Card from '../components/ui/Card'
 import { StatCard } from '../components/ui/StatCard'
@@ -11,7 +11,7 @@ import { Modal } from '../components/ui/Modal'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Avatar } from '../components/ui/Avatar'
 import { useAppStore } from '../store'
-import { adminApi, type AdminUser, type AdminStats } from '../lib/api'
+import { adminApi, type AdminUser, type AdminStats, type ActivityEvent } from '../lib/api'
 
 type RoleFilter   = 'all' | 'ADMIN' | 'ANALYST' | 'VIEWER'
 type StatusFilter = 'all' | 'active' | 'suspended'
@@ -49,6 +49,7 @@ export default function Admin() {
   const [confirmDelete,   setConfirmDelete]   = useState<AdminUser | null>(null)
   const [busyId,          setBusyId]          = useState<string | null>(null)
   const [toast,           setToast]           = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null)
+  const [activityOpen,    setActivityOpen]    = useState(false)
 
   const loadAll = useCallback(async () => {
     setLoading(true)
@@ -167,16 +168,24 @@ export default function Admin() {
             <Shield size={18} className="text-violet-500" />
             Admin Console
           </h1>
-          <p className="text-xs text-cg-muted">User management — visible only to administrators</p>
+          <p className="text-xs text-cg-muted">User management, visible only to administrators</p>
         </div>
-        <button
-          onClick={loadAll}
-          disabled={loading}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl border border-cg-border text-sm font-medium text-cg-muted hover:text-cg-txt hover:bg-cg-s2 transition-colors disabled:opacity-50"
-        >
-          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-          Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setActivityOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-cg-border text-sm font-medium text-cg-muted hover:text-cg-txt hover:bg-cg-s2 transition-colors"
+          >
+            <Activity size={14} /> Activity Log
+          </button>
+          <button
+            onClick={loadAll}
+            disabled={loading}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-cg-border text-sm font-medium text-cg-muted hover:text-cg-txt hover:bg-cg-s2 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Toast */}
@@ -405,6 +414,9 @@ export default function Admin() {
         }}
       />
 
+      {/* Activity log modal */}
+      <ActivityLogModal open={activityOpen} onClose={() => setActivityOpen(false)} />
+
       {/* Delete confirm */}
       <Modal
         open={!!confirmDelete}
@@ -492,6 +504,92 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 // ─── Password reset modal ─────────────────────────────────────────────────────
+// ─── Activity log modal ───────────────────────────────────────────────────────
+function ActivityLogModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [events, setEvents] = useState<ActivityEvent[]>([])
+  const [loading, setLoading] = useState(false)
+  const [err, setErr] = useState('')
+
+  useEffect(() => {
+    if (!open) return
+    setLoading(true)
+    setErr('')
+    adminApi.activity(200)
+      .then(res => setEvents(res.data))
+      .catch(e => {
+        const ax = e as { response?: { status?: number } }
+        setErr(ax.response?.status === 404 ? 'Activity Log endpoint not available — rebuild the gateway.' : 'Failed to load activity log.')
+      })
+      .finally(() => setLoading(false))
+  }, [open])
+
+  const typeBadge = (type: string) => {
+    if (type.startsWith('LOGIN_OK')) return <Badge variant="success" dot>{type}</Badge>
+    if (type.startsWith('LOGIN_FAIL')) return <Badge variant="danger" dot>{type}</Badge>
+    if (type === 'PASSWORD_RESET' || type === 'PASSWORD_CHANGE') return <Badge variant="warning" dot>{type}</Badge>
+    if (type === 'SUSPEND' || type === 'DELETE_USER') return <Badge variant="danger" dot>{type}</Badge>
+    if (type === 'ACTIVATE') return <Badge variant="success" dot>{type}</Badge>
+    return <Badge variant="info" dot>{type}</Badge>
+  }
+
+  const typeIcon = (type: string) => {
+    if (type === 'LOGIN_OK') return <LogIn size={12} className="text-emerald-500" />
+    if (type === 'LOGIN_FAIL') return <LogOut size={12} className="text-red-500" />
+    if (type === 'PASSWORD_RESET' || type === 'PASSWORD_CHANGE') return <KeyRound size={12} className="text-amber-500" />
+    if (type === 'DELETE_USER') return <Trash2 size={12} className="text-red-500" />
+    if (type === 'SUSPEND') return <UserX size={12} className="text-amber-500" />
+    if (type === 'ACTIVATE') return <UserCheck size={12} className="text-emerald-500" />
+    return <Activity size={12} className="text-cg-muted" />
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title="Activity Log" size="full">
+      {loading && (
+        <div className="py-12 text-center text-cg-faint text-sm">
+          <Loader2 size={18} className="inline-block animate-spin mr-2" /> Loading audit log…
+        </div>
+      )}
+      {err && (
+        <div className="px-3 py-2 bg-red-500/10 border border-red-500/30 rounded-lg text-xs text-red-500 flex items-center gap-2">
+          <AlertTriangle size={13} /> {err}
+        </div>
+      )}
+      {!loading && !err && events.length === 0 && (
+        <EmptyState icon={<Activity size={28} />} title="No activity yet" description="Events appear here as users log in and admins make changes." />
+      )}
+      {!loading && !err && events.length > 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-cg-border">
+                {['When', 'Type', 'Actor', 'Target', 'Detail', 'IP'].map(h => (
+                  <th key={h} className="text-left px-3 py-2 text-xs font-semibold text-cg-muted whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {events.map(e => (
+                <tr key={e.id} className="border-b border-cg-border/50 hover:bg-cg-s2">
+                  <td className="px-3 py-2 text-xs text-cg-muted whitespace-nowrap">{fmtDate(e.createdAt)}</td>
+                  <td className="px-3 py-2"><span className="flex items-center gap-1.5">{typeIcon(e.type)} {typeBadge(e.type)}</span></td>
+                  <td className="px-3 py-2 text-xs text-cg-txt font-mono truncate max-w-[180px]">{e.actorEmail}</td>
+                  <td className="px-3 py-2 text-xs text-cg-muted font-mono truncate max-w-[180px]">{e.targetEmail || '—'}</td>
+                  <td className="px-3 py-2 text-xs text-cg-faint truncate max-w-[260px]">{e.detail || '—'}</td>
+                  <td className="px-3 py-2 text-xs text-cg-faint font-mono">{e.ipAddress || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="px-3 py-2 border-t border-cg-border text-xs text-cg-faint">
+            Showing {events.length} most recent events
+          </div>
+        </div>
+      )}
+    </Modal>
+  )
+}
+
+// ─── Password reset modal ────────────────────────────────────────────────────
 function PasswordResetModal({
   user, onClose, onDone,
 }: {

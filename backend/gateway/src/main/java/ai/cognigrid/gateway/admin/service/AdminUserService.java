@@ -35,6 +35,7 @@ public class AdminUserService {
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
+    private final ActivityService activityService;
 
     @Transactional(readOnly = true)
     public List<AdminUserDto> listUsers() {
@@ -54,6 +55,8 @@ public class AdminUserService {
     public AdminUserDto updateUser(UUID id, UpdateUserRequest req) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new AuthException("User not found"));
+        Role oldRole = user.getRole();
+        boolean oldActive = user.isActive();
 
         if (req.getFullName() != null && !req.getFullName().isBlank()) {
             user.setFullName(req.getFullName().trim());
@@ -75,6 +78,20 @@ public class AdminUserService {
         }
         userRepository.save(user);
         log.info("Admin updated user {} (active={}, role={})", user.getEmail(), user.isActive(), user.getRole());
+
+        String caller = currentCallerEmail();
+        if (oldRole != user.getRole()) {
+            activityService.record(ActivityService.ROLE_CHANGE, caller, user.getId(), user.getEmail(),
+                    oldRole + " → " + user.getRole());
+        }
+        if (oldActive != user.isActive()) {
+            activityService.record(user.isActive() ? ActivityService.ACTIVATE : ActivityService.SUSPEND,
+                    caller, user.getId(), user.getEmail(), null);
+        }
+        if (oldRole == user.getRole() && oldActive == user.isActive()) {
+            activityService.record(ActivityService.UPDATE_USER, caller, user.getId(), user.getEmail(),
+                    "fullName updated");
+        }
         return AdminUserDto.from(user);
     }
 
@@ -96,6 +113,8 @@ public class AdminUserService {
         refreshTokenRepository.deleteAll(tokens);
 
         log.info("Admin reset password for user {}", user.getEmail());
+        activityService.record(ActivityService.PASSWORD_RESET, currentCallerEmail(),
+                user.getId(), user.getEmail(), "admin reset");
     }
 
     @Transactional
@@ -119,6 +138,18 @@ public class AdminUserService {
         refreshTokenRepository.deleteAll(tokens);
         userRepository.delete(user);
         log.info("Admin deleted user {}", user.getEmail());
+        activityService.record(ActivityService.DELETE_USER, callerEmail,
+                user.getId(), user.getEmail(), "permanent removal");
+    }
+
+    private static String currentCallerEmail() {
+        try {
+            var auth = org.springframework.security.core.context.SecurityContextHolder
+                    .getContext().getAuthentication();
+            return auth != null ? auth.getName() : "system";
+        } catch (Exception e) {
+            return "system";
+        }
     }
 
     @Transactional(readOnly = true)

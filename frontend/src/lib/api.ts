@@ -184,6 +184,17 @@ export interface AdminStats {
   roleCounts:     Record<string, number>
 }
 
+export interface ActivityEvent {
+  id:           string
+  actorEmail:   string
+  targetId:     string | null
+  targetEmail:  string | null
+  type:         string
+  detail:       string | null
+  ipAddress:    string | null
+  createdAt:    string
+}
+
 export const adminApi = {
   users:          ()                                                      => api.get<AdminUser[]>('/api/admin/users'),
   getUser:        (id: string)                                            => api.get<AdminUser>(`/api/admin/users/${id}`),
@@ -195,6 +206,7 @@ export const adminApi = {
   activateUser:   (id: string)                                            => api.post<AdminUser>(`/api/admin/users/${id}/activate`),
   deleteUser:     (id: string)                                            => api.delete<{ message: string }>(`/api/admin/users/${id}`),
   stats:          ()                                                      => api.get<AdminStats>('/api/admin/stats'),
+  activity:       (limit = 100)                                           => api.get<ActivityEvent[]>('/api/admin/activity', { params: { limit } }),
 }
 
 // ─── AI Engine endpoints (ai-engine service :8003) ────────────────────────────
