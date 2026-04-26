@@ -4,7 +4,7 @@ import { ragApi, ragHttp } from '../lib/api'
 import { useAppStore } from '../store'
 import type { ChatMessage } from '../types'
 
-const RAG_HISTORY_KEY = 'cg_rag_history'
+const ragHistoryKey = (email?: string) => `cg_rag_history_${email ?? 'guest'}`
 
 type ProviderStatus = 'active' | 'quota' | 'error' | 'unconfigured' | 'offline' | 'no_models' | 'loading'
 
@@ -30,7 +30,7 @@ function ProviderStatusBadge({ status }: { status: ProviderStatus }) {
   if (status === 'quota')   return <span className="flex items-center gap-0.5 text-[9px] text-amber-500 font-bold"><AlertCircle size={8} />Quota</span>
   if (status === 'no_models') return <span className="flex items-center gap-0.5 text-[9px] text-amber-500 font-bold"><Clock size={8} />No model</span>
   if (status === 'offline') return <span className="flex items-center gap-0.5 text-[9px] text-cg-faint font-bold"><AlertCircle size={8} />Offline</span>
-  return <span className="text-[9px] text-cg-faint font-bold">—</span>
+  return null
 }
 
 const EXAMPLE_QUERIES = [
@@ -120,9 +120,13 @@ function TypingIndicator() {
 }
 
 export default function Rag() {
+  const currentUser = useAppStore(s => s.currentUser)
+  const ragKey = ragHistoryKey(currentUser.email)
+
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     try {
-      const saved = localStorage.getItem(RAG_HISTORY_KEY)
+      const email = useAppStore.getState().currentUser.email
+      const saved = localStorage.getItem(ragHistoryKey(email))
       return saved ? JSON.parse(saved) : []
     } catch { return [] }
   })
@@ -135,10 +139,10 @@ export default function Rag() {
   )
   const bottomRef = useRef<HTMLDivElement>(null)
 
-  // Persist messages to localStorage on every change
+  // Persist messages to localStorage on every change (per-user key)
   useEffect(() => {
-    localStorage.setItem(RAG_HISTORY_KEY, JSON.stringify(messages))
-  }, [messages])
+    localStorage.setItem(ragKey, JSON.stringify(messages))
+  }, [messages, ragKey])
 
   useEffect(() => {
     import('../lib/api').then(({ graphApi }) => {
@@ -160,7 +164,7 @@ export default function Rag() {
 
   const clearChat = () => {
     setMessages([])
-    localStorage.removeItem(RAG_HISTORY_KEY)
+    localStorage.removeItem(ragKey)
   }
 
   const sendMessage = async (text: string) => {

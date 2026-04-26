@@ -63,10 +63,10 @@ export default function Documents() {
         id:         j.id,
         name:       j.file_name,
         type:       guessType(j.file_name),
-        size:       j.file_size ? `${(j.file_size / 1024 / 1024).toFixed(1)} MB` : '—',
+        size:       j.file_size ? `${(j.file_size / 1024 / 1024).toFixed(1)} MB` : '',
         status:     j.status === 'completed' ? 'processed' : j.status === 'failed' ? 'failed' : 'processing',
         nodes:      j.nodes_extracted ?? 0,
-        uploadedAt: '—',
+        uploadedAt: '',
       })))
     } catch {
       setDocs([])
@@ -197,7 +197,7 @@ export default function Documents() {
                       <Badge variant={STATUS_VARIANT[doc.status]} dot>{doc.status}</Badge>
                     </td>
                     <td className="px-5 py-3.5 text-cg-muted font-mono text-xs">
-                      {doc.status === 'processed' ? doc.nodes.toLocaleString() : '—'}
+                      {doc.status === 'processed' ? doc.nodes.toLocaleString() : ''}
                     </td>
                     <td className="px-5 py-3.5 text-cg-faint text-xs whitespace-nowrap">{doc.uploadedAt}</td>
                     <td className="px-5 py-3.5">

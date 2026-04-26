@@ -1,5 +1,10 @@
 """
 Agent tools — each tool wraps an HTTP call to an internal service.
+
+Every tool accepts an optional ``auth_header`` so the agent can forward
+the user's bearer token to internal services. This keeps all data
+scoped to the calling user; without it, internal calls would leak
+across tenants.
 """
 import httpx
 import json
@@ -12,65 +17,87 @@ logger = logging.getLogger(__name__)
 _http = httpx.AsyncClient(timeout=60.0)
 
 
-async def search_knowledge_base(query: str, top_k: int = 5) -> dict:
+def _hdrs(auth_header: str | None) -> dict:
+    """Build downstream headers, forwarding the caller's Authorization if present."""
+    return {"Authorization": auth_header} if auth_header else {}
+
+
+async def search_knowledge_base(query: str, top_k: int = 5,
+                                auth_header: str | None = None) -> dict:
     """Semantic search in the document knowledge base."""
     resp = await _http.post(
         f"{settings.rag_service_url}/api/rag/search",
         json={"query": query, "top_k": top_k},
+        headers=_hdrs(auth_header),
     )
     resp.raise_for_status()
     return resp.json()
 
 
-async def ask_knowledge_base(query: str, use_graph: bool = True) -> dict:
+async def ask_knowledge_base(query: str, use_graph: bool = True,
+                              auth_header: str | None = None) -> dict:
     """Full GraphRAG Q&A over ingested documents."""
     resp = await _http.post(
         f"{settings.rag_service_url}/api/rag/chat",
         json={"query": query, "use_graph_context": use_graph},
+        headers=_hdrs(auth_header),
     )
     resp.raise_for_status()
     return resp.json()
 
 
-async def get_graph_stats() -> dict:
+async def get_graph_stats(auth_header: str | None = None) -> dict:
     """Get knowledge graph statistics."""
-    resp = await _http.get(f"{settings.graph_service_url}/api/graph/stats")
+    resp = await _http.get(
+        f"{settings.graph_service_url}/api/graph/stats",
+        headers=_hdrs(auth_header),
+    )
     resp.raise_for_status()
     return resp.json()
 
 
-async def search_graph(query: str, limit: int = 10) -> dict:
+async def search_graph(query: str, limit: int = 10,
+                       auth_header: str | None = None) -> dict:
     """Full-text search across graph entities."""
     resp = await _http.get(
         f"{settings.graph_service_url}/api/graph/search",
         params={"q": query, "limit": limit},
+        headers=_hdrs(auth_header),
     )
     resp.raise_for_status()
     return resp.json()
 
 
-async def get_document_insights(doc_id: str) -> dict:
+async def get_document_insights(doc_id: str,
+                                 auth_header: str | None = None) -> dict:
     """Get AI-generated insights for a document."""
-    resp = await _http.get(f"{settings.ai_engine_url}/api/ai/documents/{doc_id}/insights")
+    resp = await _http.get(
+        f"{settings.ai_engine_url}/api/ai/documents/{doc_id}/insights",
+        headers=_hdrs(auth_header),
+    )
     resp.raise_for_status()
     return resp.json()
 
 
-async def find_similar_documents(doc_id: str, top_k: int = 5) -> dict:
+async def find_similar_documents(doc_id: str, top_k: int = 5,
+                                  auth_header: str | None = None) -> dict:
     """Find documents similar to a given document."""
     resp = await _http.get(
         f"{settings.ai_engine_url}/api/ai/documents/{doc_id}/similar",
         params={"top_k": top_k},
+        headers=_hdrs(auth_header),
     )
     resp.raise_for_status()
     return resp.json()
 
 
-async def list_documents(limit: int = 10) -> dict:
+async def list_documents(limit: int = 10,
+                         auth_header: str | None = None) -> dict:
     """List all ingested documents."""
     resp = await _http.get(
         f"{settings.graph_service_url}/api/graph/documents",
         params={"limit": limit},
+        headers=_hdrs(auth_header),
     )
     resp.raise_for_status()
     return resp.json()
@@ -80,6 +107,7 @@ async def generate_assume_scenario(
     description: str,
     duration_hours: int = 24,
     market_type: str = "day_ahead",
+    auth_header: str | None = None,
 ) -> dict:
     """
     Generate a valid ASSUME YAML scenario configuration from a natural language description.
@@ -101,7 +129,7 @@ async def generate_assume_scenario(
 
     try:
         search_query = f"ASSUME scenario {market_type} {description}"
-        kg_resp = await search_knowledge_base(query=search_query, top_k=8)
+        kg_resp = await search_knowledge_base(query=search_query, top_k=8, auth_header=auth_header)
         for chunk in kg_resp.get("results", []):
             src  = chunk.get("source", "")
             text = chunk.get("text", "")
@@ -118,6 +146,7 @@ async def generate_assume_scenario(
         rag_resp = await ask_knowledge_base(
             query=f"How to configure an ASSUME {market_type} market with {description}?",
             use_graph=True,
+            auth_header=auth_header,
         )
         rag_context = rag_resp.get("answer", "")
     except Exception as e:
@@ -344,6 +373,7 @@ CRITICAL: yaml_config value MUST use \\n (backslash-n) for newlines, NOT actual 
 async def predict_assume_outcome(
     scenario_yaml: str,
     question: str = "What will be the market clearing price and dispatch order?",
+    auth_header: str | None = None,
 ) -> dict:
     """
     Predict simulation outcomes for a given ASSUME scenario YAML without running it.
@@ -357,6 +387,7 @@ async def predict_assume_outcome(
         kg_resp = await search_knowledge_base(
             query=f"ASSUME simulation results clearing price dispatch {question}",
             top_k=6,
+            auth_header=auth_header,
         )
         for chunk in kg_resp.get("results", []):
             text = chunk.get("text", "")

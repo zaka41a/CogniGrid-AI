@@ -43,7 +43,7 @@ export default function Ingestion() {
   const [uploads, setUploads]         = useState<UploadState[]>([])
   const [clearing, setClearing]       = useState(false)
   const [confirmClear, setConfirmClear] = useState(false)
-  const [graphStats, setGraphStats]   = useState<GraphStats | null>(null)
+  const [, setGraphStats]   = useState<GraphStats | null>(null)
   const fileInputRef                  = useRef<HTMLInputElement>(null)
   const pollRef                       = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -452,7 +452,7 @@ export default function Ingestion() {
                     </div>
                   </td>
                   <td className="px-5 py-3.5 text-cg-muted text-xs">
-                    {job.nodes_extracted ?? '—'}
+                    {job.nodes_extracted ?? ''}
                   </td>
                 </tr>
               ))}

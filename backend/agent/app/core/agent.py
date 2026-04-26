@@ -12,27 +12,30 @@ from app.models.schemas import AgentRequest, AgentResponse, ToolCall
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = f"""You are CogniGrid Agent, an AI assistant with access to a Knowledge Graph platform.
-You help users explore, analyze, and query their document knowledge base.
+SYSTEM_PROMPT = f"""You are CogniGrid Agent, an AI assistant for a personal Knowledge Graph platform.
+You help users explore, analyze, and query their OWN ingested documents and graph.
 
 {TOOL_DESCRIPTIONS}
 
-RULES:
-- You MUST always end every response with FINAL ANSWER: <your response to the user>
-- If a tool returns empty results, explain what the graph contains and suggest better queries
-- Never repeat the same tool call more than once — if it returns empty, move on to FINAL ANSWER
-- If you cannot find specific data, say so clearly and describe what IS available
+CRITICAL RULES:
+1. You MUST call at least ONE tool before producing FINAL ANSWER. Never answer from prior knowledge alone.
+2. For ANY question about "what's in my data", "concepts", "documents", "entities", "stats", "graph",
+   you MUST call get_graph_stats and/or list_documents FIRST to ground your answer.
+3. For specific lookups (e.g. "tell me about X", "find Y"), call search_graph or search_knowledge_base.
+4. If a tool returns empty results, ALWAYS check whether the user has ANY documents indexed
+   (list_documents). If they have zero, tell them clearly to upload via Data Ingestion.
+5. Never repeat the same tool call with identical args.
+6. Always end with FINAL ANSWER on its own line. Be concrete — name files, entities, numbers.
 
-To use a tool, respond with:
-THOUGHT: <your reasoning>
+OUTPUT FORMAT — strict ReAct:
+THOUGHT: <reasoning, 1-2 lines>
 ACTION: <tool_name>
-ARGS: <json args>
+ARGS: <strict JSON, e.g. {{"query": "...", "limit": 10}}>
+... (observation will follow)
+THOUGHT: <synthesis>
+FINAL ANSWER: <user-facing reply with concrete details and citations>
 
-ALWAYS end with:
-THOUGHT: <your summary>
-FINAL ANSWER: <your answer to the user — required in every response>
-
-Be concise and accurate. Cite document sources when available.
+Be concise. Cite document file_name when relevant.
 """
 
 
@@ -159,7 +162,7 @@ def _extract_clean_response(text: str) -> str:
     return ""
 
 
-async def _no_llm_fallback(message: str) -> str:
+async def _no_llm_fallback(message: str, auth_header: str | None = None) -> str:
     """
     When no LLM is configured, run relevant tools based on keywords in the message
     and return a structured summary of the results.
@@ -171,14 +174,14 @@ async def _no_llm_fallback(message: str) -> str:
         if any(k in msg for k in ("stat", "graph", "node", "edge", "count")):
             stats_fn = TOOLS.get("get_graph_stats")
             if stats_fn:
-                data = await stats_fn()
+                data = await stats_fn(auth_header=auth_header)
                 results.append(f"**Graph Statistics:**\n{json.dumps(data, indent=2)}")
 
         if any(k in msg for k in ("search", "find", "show", "list", "document", "anomal", "critical", "substation", "line", "bus")):
             query = message.strip()
             search_fn = TOOLS.get("search_graph")
             if search_fn:
-                data = await search_fn(query=query[:100], limit=10)
+                data = await search_fn(query=query[:100], limit=10, auth_header=auth_header)
                 if data and data.get("nodes"):
                     nodes_text = "\n".join([f"• {n.get('label','?')} ({n.get('id','')})" for n in data["nodes"][:10]])
                     results.append(f"**Search results for '{query[:50]}':**\n{nodes_text}")
@@ -186,7 +189,7 @@ async def _no_llm_fallback(message: str) -> str:
         if any(k in msg for k in ("rag", "question", "explain", "summarize", "what", "why", "how")):
             rag_fn = TOOLS.get("ask_knowledge_base")
             if rag_fn:
-                data = await rag_fn(query=message, use_graph=True)
+                data = await rag_fn(query=message, use_graph=True, auth_header=auth_header)
                 if isinstance(data, dict) and data.get("answer"):
                     results.append(f"**Knowledge Base:**\n{data['answer'][:500]}")
     except Exception as e:
@@ -207,7 +210,7 @@ async def _no_llm_fallback(message: str) -> str:
     return answer
 
 
-async def run_agent(req: AgentRequest) -> AgentResponse:
+async def run_agent(req: AgentRequest, auth_header: str | None = None) -> AgentResponse:
     import uuid
     session_id  = req.session_id or str(uuid.uuid4())
     tool_calls  = []
@@ -235,7 +238,7 @@ async def run_agent(req: AgentRequest) -> AgentResponse:
 
     if test_output is None:
         # No LLM available — run inferred tools directly and format output
-        final_answer = await _no_llm_fallback(req.message)
+        final_answer = await _no_llm_fallback(req.message, auth_header=auth_header)
     else:
         llm_output = test_output
         for step in range(max_steps):
@@ -252,7 +255,9 @@ async def run_agent(req: AgentRequest) -> AgentResponse:
                 tool_fn = TOOLS.get(tool_name)
                 if tool_fn:
                     try:
-                        result = await tool_fn(**args)
+                        # Forward the user's bearer token to every tool call so
+                        # internal HTTP requests stay scoped to the caller.
+                        result = await tool_fn(**args, auth_header=auth_header)
                         tc = ToolCall(tool=tool_name, args=args, result=result)
                         tool_calls.append(tc)
                         observations.append(

@@ -22,22 +22,33 @@ async def list_jobs(request: Request):
 
 
 @router.get("/jobs/{job_id}")
-async def get_job(job_id: str):
+async def get_job(job_id: str, request: Request):
+    user_id = get_user_id(request)
     job = await job_store.get(job_id)
     if not job:
+        raise HTTPException(404, "Job not found")
+    # Enforce ownership — return 404 (not 403) so we don't leak existence
+    if user_id and job.get("user_id") and job["user_id"] != user_id:
         raise HTTPException(404, "Job not found")
     return job
 
 
 @router.delete("/jobs")
-async def clear_all_jobs():
-    """Delete ALL ingestion jobs."""
-    count = await job_store.delete_all()
-    return {"message": "All jobs cleared", "deleted": count}
+async def clear_all_jobs(request: Request):
+    """Delete current user's ingestion jobs."""
+    user_id = get_user_id(request)
+    count = await job_store.delete_all(user_id=user_id)
+    return {"message": "Jobs cleared", "deleted": count}
 
 
 @router.delete("/jobs/{job_id}")
-async def delete_job(job_id: str):
+async def delete_job(job_id: str, request: Request):
+    user_id = get_user_id(request)
+    job = await job_store.get(job_id)
+    if not job:
+        raise HTTPException(404, "Job not found")
+    if user_id and job.get("user_id") and job["user_id"] != user_id:
+        raise HTTPException(404, "Job not found")
     deleted = await job_store.delete(job_id)
     if not deleted:
         raise HTTPException(404, "Job not found")

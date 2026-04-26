@@ -1,3 +1,12 @@
+<!--
+  ┌────────────────────────────────────────────────────────────────────┐
+  │  Copyright © 2026 Zakaria Sabiri.                                  │
+  │  Licensed under the PolyForm Noncommercial License 1.0.0.          │
+  │  Commercial use is PROHIBITED without a separate written license.  │
+  │  See LICENSE file for full terms.                                  │
+  └────────────────────────────────────────────────────────────────────┘
+-->
+
 <div align="center">
 
 <img src="frontend/public/favicon.AI.png" alt="CogniGrid AI" width="90" height="90" />
@@ -12,7 +21,8 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Neo4j](https://img.shields.io/badge/Neo4j-5.18-008CC1?style=flat-square&logo=neo4j&logoColor=white)](https://neo4j.com)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&logo=docker&logoColor=white)](https://docs.docker.com/compose/)
-[![License](https://img.shields.io/badge/License-MIT-22c55e?style=flat-square)](LICENSE)
+[![License: PolyForm NC](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-orange?style=flat-square)](LICENSE)
+[![Source-Available](https://img.shields.io/badge/Source-Available%20%28non--commercial%29-red?style=flat-square)](LICENSE)
 
 <br/>
 
@@ -132,16 +142,16 @@ The `assume-runner` service at port 8006 executes real `python -m assume` subpro
 │  ┌────────────────────────────▼──────────────────────────────────────────┐   │
 │  │           Spring Boot Gateway  :8080  (Auth + Routing)                │   │
 │  │        JWT Auth · CORS · Actuator · Flyway Migrations                 │   │
-│  └───┬─────────┬──────────┬─────────┬─────────┬──────────────────────────┘   │
-│      │         │          │         │         │                              │
-│   ┌──▼───┐  ┌──▼───┐  ┌───▼──┐  ┌───▼──┐  ┌───▼──┐  ┌──────────┐           │
-│   │Inges-│  │Graph │  │  AI  │  │Graph │  │Agent │  │  ASSUME  │           │
-│   │tion  │  │      │  │Engine│  │ RAG  │  │+ASSUME│  │  Runner  │           │
-│   │:8001 │  │:8002 │  │:8003 │  │:8004 │  │:8005 │  │  :8006   │           │
-│   └──┬───┘  └──┬───┘  └────┬─┘  └───┬──┘  └───┬──┘  └────┬─────┘           │
+│  └───┬─────────┬──────────┬─────────┬─────────┬──────────┬───────────────┘   │
+│      │         │          │         │         │          │                   │
+│   ┌──▼───┐  ┌──▼───┐  ┌───▼──┐  ┌───▼──┐  ┌───▼──┐  ┌────▼─────┐             │
+│   │Inges-│  │Graph │  │  AI  │  │Graph │  │Agent │  │  ASSUME  │             │
+│   │tion  │  │      │  │Engine│  │ RAG  │  │ASSUME│  │  Runner  │             │
+│   │:8001 │  │:8002 │  │:8003 │  │:8004 │  │:8005 │  │  :8006   │             │
+│   └──┬───┘  └──┬───┘  └────┬─┘  └───┬──┘  └───┬──┘  └─────┬────┘             │
 │      │         │           │        │         │           │                  │
 │  ┌───▼─────────▼───────────▼────────▼─────────▼───────────▼────────────┐     │
-│  │                      Data Layer (Docker)                             │     │
+│  │                      Data Layer (Docker)                            │     │
 │  │   PostgreSQL:5433 · Neo4j:7687 · Qdrant:6333 · Redis:6379           │     │
 │  │   MinIO:9000 · Prometheus:9090 · Grafana:3001                       │     │
 │  └─────────────────────────────────────────────────────────────────────┘     │
@@ -571,14 +581,37 @@ Every service exposes `/health` and `/metrics`.
 
 ## License
 
-Distributed under the **MIT License**. See [`LICENSE`](LICENSE) for details.
+CogniGrid AI is **source-available** under the [**PolyForm Noncommercial License 1.0.0**](LICENSE).
+
+| You **may** | You **may not** without a separate commercial license |
+|---|---|
+| View, read, study the source | Sell or host CogniGrid AI as a paid service |
+| Run it locally for personal study, research, or experimentation | Embed it (or a non-trivial part of it) in a commercial product |
+| Modify it for non-commercial purposes | Use it to deliver paid consulting / SaaS / integration |
+| Use it in non-profit, academic, or public-interest organizations | Re-publish under another license (including MIT/Apache/GPL) |
+
+**Copyright © 2026 Zakaria Sabiri.** All rights reserved beyond those granted by the license.
+For commercial licensing, contact **zaksab98@gmail.com**.
+
+> ⚠️ This is **NOT** an Open Source license under the OSI definition. Anyone who clones, forks,
+> or runs this repository implicitly accepts the terms in [`LICENSE`](LICENSE).
+
+---
+
+## Default Admin Account
+
+After the first start, a default admin account is auto-seeded by the gateway:
+
+| Email | Password | Role |
+|---|---|---|
+| `admin@gmail.com` | `admin4321` | `ADMIN` |
+
+**Change it immediately** the Admin Console (sidebar → *Administration → Admin Console*) lets you reset the password, suspend other users, or change roles. The password is only re-seeded if the account does not already exist (idempotent across rebuilds).
 
 ---
 
 <div align="center">
 
-Built with passion by **Zaka41a**
-
-<sub>Spring Boot · FastAPI · React · Neo4j · Qdrant · Redis · MinIO · ASSUME · Docker</sub>
+Built by **Zaka41a**
 
 </div>

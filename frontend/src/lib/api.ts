@@ -7,6 +7,7 @@ const INGESTION_URL = import.meta.env.VITE_INGESTION_URL ?? 'http://localhost:80
 const RAG_URL       = import.meta.env.VITE_RAG_URL       ?? 'http://localhost:8004'
 const AGENT_URL     = import.meta.env.VITE_AGENT_URL     ?? 'http://localhost:8005'
 const RUNNER_URL    = import.meta.env.VITE_RUNNER_URL    ?? 'http://localhost:8006'
+const AI_ENGINE_URL = import.meta.env.VITE_AI_ENGINE_URL ?? 'http://localhost:8003'
 
 // ─── Shared request interceptor ───────────────────────────────────────────────
 function withAuth(instance: ReturnType<typeof axios.create>) {
@@ -38,6 +39,7 @@ export const ingestHttp  = withAuth(axios.create({ baseURL: INGESTION_URL, timeo
 export const ragHttp     = withAuth(axios.create({ baseURL: RAG_URL,       timeout: 60_000,  headers: { 'Content-Type': 'application/json' } }))
 export const agentHttp   = withAuth(axios.create({ baseURL: AGENT_URL,     timeout: 60_000,  headers: { 'Content-Type': 'application/json' } }))
 export const runnerHttp  = withAuth(axios.create({ baseURL: RUNNER_URL,    timeout: 300_000, headers: { 'Content-Type': 'application/json' } }))
+export const aiEngineHttp = withAuth(axios.create({ baseURL: AI_ENGINE_URL, timeout: 30_000,  headers: { 'Content-Type': 'application/json' } }))
 
 // ─── Auth endpoints (gateway) ─────────────────────────────────────────────────
 export interface LoginRequest    { email: string; password: string }
@@ -163,19 +165,43 @@ export const profileApi = {
 }
 
 // ─── Admin endpoints (gateway :8080) ──────────────────────────────────────────
+export interface AdminUser {
+  id:          string
+  email:       string
+  fullName:    string
+  role:        'ADMIN' | 'ANALYST' | 'VIEWER'
+  active:      boolean
+  lastLoginAt: string | null
+  createdAt:   string
+  updatedAt:   string
+}
+
+export interface AdminStats {
+  totalUsers:     number
+  activeUsers:    number
+  suspendedUsers: number
+  admins:         number
+  roleCounts:     Record<string, number>
+}
+
 export const adminApi = {
-  users:       ()           => api.get('/api/admin/users'),
-  getUser:     (id: string) => api.get(`/api/admin/users/${id}`),
-  updateUser:  (id: string, data: object) => api.put(`/api/admin/users/${id}`, data),
-  suspendUser: (id: string) => api.post(`/api/admin/users/${id}/suspend`),
-  deleteUser:  (id: string) => api.delete(`/api/admin/users/${id}`),
-  stats:       ()           => api.get('/api/admin/stats'),
+  users:          ()                                                      => api.get<AdminUser[]>('/api/admin/users'),
+  getUser:        (id: string)                                            => api.get<AdminUser>(`/api/admin/users/${id}`),
+  updateUser:     (id: string, data: Partial<{ fullName: string; role: string; active: boolean }>) =>
+                                                                              api.put<AdminUser>(`/api/admin/users/${id}`, data),
+  resetPassword:  (id: string, newPassword: string)                       =>
+                                                                              api.put<{ message: string }>(`/api/admin/users/${id}/password`, { newPassword }),
+  suspendUser:    (id: string)                                            => api.post<AdminUser>(`/api/admin/users/${id}/suspend`),
+  activateUser:   (id: string)                                            => api.post<AdminUser>(`/api/admin/users/${id}/activate`),
+  deleteUser:     (id: string)                                            => api.delete<{ message: string }>(`/api/admin/users/${id}`),
+  stats:          ()                                                      => api.get<AdminStats>('/api/admin/stats'),
 }
 
 // ─── AI Engine endpoints (ai-engine service :8003) ────────────────────────────
+// Calls go directly to the AI Engine — the gateway does not proxy these.
 export const aiEngineApi = {
-  similar:       (docId: string) => api.get(`/api/ai/documents/${docId}/similar`),
-  insights:      (docId: string) => api.get(`/api/ai/documents/${docId}/insights`),
-  cluster:       (k: number)     => api.post('/api/ai/documents/cluster', { k }),
-  knowledgeGaps: ()              => api.get('/api/ai/knowledge-gaps'),
+  similar:       (docId: string) => aiEngineHttp.get(`/api/ai/documents/${docId}/similar`),
+  insights:      (docId: string) => aiEngineHttp.get(`/api/ai/documents/${docId}/insights`),
+  cluster:       (k: number)     => aiEngineHttp.post('/api/ai/documents/cluster', { n_clusters: k }),
+  knowledgeGaps: ()              => aiEngineHttp.get('/api/ai/knowledge-gaps'),
 }

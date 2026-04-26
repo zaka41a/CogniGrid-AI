@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Upload, FileText, GitBranch,
   Bot, Sparkles, Bell, Zap,
   ChevronLeft, ChevronRight, LogOut,
-  BarChart3, ShieldCheck, Settings, Network,
+  BarChart3, ShieldCheck, Settings, Network, Shield,
 } from 'lucide-react'
 import { useAppStore } from '../../store'
 import { Avatar } from '../ui/Avatar'
@@ -144,6 +144,28 @@ export default function Sidebar() {
             accent
           />
         </div>
+
+        {/* ── Administration (ADMIN only) ───────────────────────────────── */}
+        {currentUser.role === 'ADMIN' && (
+          <>
+            <div className="mx-3 my-2 h-px bg-white/10" />
+            {sidebarOpen && (
+              <p className="px-4 pb-1 pt-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-white/25 select-none">
+                Administration
+              </p>
+            )}
+            {!sidebarOpen && <div className="h-2" />}
+            <div className="space-y-0.5 px-2">
+              <NavItem
+                to="/app/admin"
+                icon={<Shield size={17} />}
+                label="Admin Console"
+                sidebarOpen={sidebarOpen}
+                accent
+              />
+            </div>
+          </>
+        )}
       </nav>
 
       {/* ── Footer ───────────────────────────────────────────────────────── */}

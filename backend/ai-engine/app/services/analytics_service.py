@@ -32,13 +32,17 @@ class AnalyticsService:
     # ── Document Similarity ────────────────────────────────────────────────
 
     async def similar_documents(
-        self, doc_id: str, top_k: int = 5
+        self, doc_id: str, top_k: int = 5, user_id: str | None = None,
     ) -> list[SimilarityResult]:
-        """Find docs most similar to a given doc using Qdrant scroll + cosine."""
-        # Get all points for this doc
+        """Find docs most similar to a given doc, scoped to the user's vectors."""
+        # Verify the source doc belongs to this user before doing anything
+        scroll_filter = {"must": [{"key": "job_id", "match": {"value": doc_id}}]}
+        if user_id:
+            scroll_filter["must"].append({"key": "user_id", "match": {"value": user_id}})
+
         points, _ = await self._qdrant.scroll(
             collection_name=settings.qdrant_collection,
-            scroll_filter={"must": [{"key": "job_id", "match": {"value": doc_id}}]},
+            scroll_filter=scroll_filter,
             with_vectors=True,
             limit=10,
         )
@@ -51,12 +55,17 @@ class AnalyticsService:
             return []
         avg_vec = normalize(vecs.mean(axis=0).reshape(1, -1))[0].tolist()
 
-        # Search for similar documents
+        # Search only within the user's namespace
+        search_filter = None
+        if user_id:
+            search_filter = {"must": [{"key": "user_id", "match": {"value": user_id}}]}
+
         results = await self._qdrant.search(
             collection_name=settings.qdrant_collection,
             query_vector=avg_vec,
             limit=top_k * 3,
             with_payload=True,
+            query_filter=search_filter,
         )
 
         # Group by doc_id, exclude self
@@ -78,10 +87,15 @@ class AnalyticsService:
     # ── Clustering ─────────────────────────────────────────────────────────
 
     async def cluster_documents(
-        self, n_clusters: int = 5, doc_ids: list[str] | None = None
+        self, n_clusters: int = 5, doc_ids: list[str] | None = None,
+        user_id: str | None = None,
     ) -> ClusterResponse:
-        """K-Means clustering of document embeddings."""
-        # Scroll all points
+        """K-Means clustering of document embeddings, scoped to the user's vectors."""
+        scroll_filter = None
+        if user_id:
+            scroll_filter = {"must": [{"key": "user_id", "match": {"value": user_id}}]}
+
+        # Scroll all points (user-scoped)
         all_points = []
         offset = None
         while True:
@@ -91,6 +105,7 @@ class AnalyticsService:
                 with_vectors=True,
                 with_payload=True,
                 limit=100,
+                scroll_filter=scroll_filter,
             )
             all_points.extend(batch)
             if offset is None:
@@ -135,18 +150,20 @@ class AnalyticsService:
 
     # ── Document Insights ──────────────────────────────────────────────────
 
-    async def document_insights(self, doc_id: str) -> DocumentInsight | None:
+    async def document_insights(self, doc_id: str,
+                                user_id: str | None = None) -> DocumentInsight | None:
         async with self._neo4j.session() as session:
             result = await session.run(
                 """
                 MATCH (d:Document {doc_id: $doc_id})
+                WHERE $user_id IS NULL OR d.user_id = $user_id
                 OPTIONAL MATCH (d)-[:MENTIONS]->(e:Entity)
                 OPTIONAL MATCH (e)-[r:RELATED_TO]->()
                 RETURN d.file_name AS file_name, d.file_type AS file_type,
                        collect(DISTINCT {text: e.text, label: e.label}) AS entities,
                        count(DISTINCT r) AS rel_count
                 """,
-                {"doc_id": doc_id},
+                {"doc_id": doc_id, "user_id": user_id},
             )
             row = await result.single()
 
@@ -169,27 +186,50 @@ class AnalyticsService:
 
     # ── Knowledge Gaps ─────────────────────────────────────────────────────
 
-    async def knowledge_gaps(self) -> KnowledgeGapsResponse:
+    async def knowledge_gaps(self, user_id: str | None = None) -> KnowledgeGapsResponse:
         """
         Finds entities that are poorly connected (isolated nodes).
-        These represent potential knowledge gaps.
+        Scoped to entities reachable from the caller's documents.
         """
         async with self._neo4j.session() as session:
-            total_result = await session.run("MATCH (e:Entity) RETURN count(e) AS total")
+            if user_id:
+                total_result = await session.run(
+                    """
+                    MATCH (d:Document {user_id: $user_id})-[:MENTIONS]->(e:Entity)
+                    RETURN count(DISTINCT e) AS total
+                    """,
+                    {"user_id": user_id},
+                )
+            else:
+                total_result = await session.run("MATCH (e:Entity) RETURN count(e) AS total")
             total_row = await total_result.single()
             total_entities = total_row["total"] if total_row else 0
 
-            gap_result = await session.run(
-                """
-                MATCH (e:Entity)
-                WHERE NOT (e)-[:RELATED_TO]-()
-                WITH e, size([(d:Document)-[:MENTIONS]->(e) | d]) AS doc_count
-                RETURN e.text AS topic, doc_count,
-                       count(*) AS mention_count
-                ORDER BY doc_count ASC, mention_count DESC
-                LIMIT 20
-                """
-            )
+            if user_id:
+                gap_result = await session.run(
+                    """
+                    MATCH (d:Document {user_id: $user_id})-[:MENTIONS]->(e:Entity)
+                    WHERE NOT (e)-[:RELATED_TO]-()
+                    WITH e, size([(d2:Document {user_id: $user_id})-[:MENTIONS]->(e) | d2]) AS doc_count
+                    RETURN e.text AS topic, doc_count,
+                           count(*) AS mention_count
+                    ORDER BY doc_count ASC, mention_count DESC
+                    LIMIT 20
+                    """,
+                    {"user_id": user_id},
+                )
+            else:
+                gap_result = await session.run(
+                    """
+                    MATCH (e:Entity)
+                    WHERE NOT (e)-[:RELATED_TO]-()
+                    WITH e, size([(d:Document)-[:MENTIONS]->(e) | d]) AS doc_count
+                    RETURN e.text AS topic, doc_count,
+                           count(*) AS mention_count
+                    ORDER BY doc_count ASC, mention_count DESC
+                    LIMIT 20
+                    """
+                )
             gaps_data = await gap_result.data()
 
         isolated = len(gaps_data)

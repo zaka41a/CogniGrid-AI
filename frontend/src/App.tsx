@@ -1,6 +1,8 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import Layout         from './components/layout/Layout'
 import ProtectedRoute from './components/auth/ProtectedRoute'
+import AdminRoute     from './components/auth/AdminRoute'
+import Admin          from './pages/Admin'
 import Dashboard      from './pages/Dashboard'
 import Ingestion      from './pages/Ingestion'
 import Documents      from './pages/Documents'
@@ -49,6 +51,8 @@ export default function App() {
         <Route path="assume"        element={<AssumeWorkspace />} />
         {/* Account */}
         <Route path="settings"      element={<Settings />} />
+        {/* Admin (gated by ADMIN role inside the protected layout) */}
+        <Route path="admin"         element={<AdminRoute><Admin /></AdminRoute>} />
         {/* Legacy redirect */}
         <Route path="profile"       element={<Navigate to="/app/settings" replace />} />
       </Route>

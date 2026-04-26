@@ -86,6 +86,7 @@ class ExtractedDocument(BaseModel):
     entities:  list[ExtractedEntity]  = []
     relations: list[ExtractedRelation] = []
     metadata:  dict[str, Any] = {}
+    user_id:   Optional[str]  = None
 
     @model_validator(mode='after')
     def normalise(self) -> 'ExtractedDocument':

@@ -463,7 +463,7 @@ export default function Home() {
 
               <p className="text-lg text-slate-300/80 max-w-lg mb-8 leading-relaxed anim-slide-up d2">
                 <Brand className="text-lg" /> extracts entities, builds knowledge graphs,
-                and lets you chat with your data using GraphRAG.
+                lets you chat with your data using GraphRAG, and runs ASSUME electricity market simulations.
               </p>
 
               <div className="flex items-center gap-3 flex-wrap anim-slide-up d3">

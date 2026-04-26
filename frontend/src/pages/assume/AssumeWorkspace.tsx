@@ -732,7 +732,7 @@ function KnowledgeTab() {
               { label: 'Total Nodes',   value: stats?.nodes ?? '…',                              icon: <GitBranch size={16} />, accent: 'text-blue-300',    border: 'border-blue-400/30',    bg: 'bg-blue-400/15'    },
               { label: 'Relationships', value: stats?.rels   ?? '…',                              icon: <Network   size={16} />, accent: 'text-emerald-300', border: 'border-emerald-400/30', bg: 'bg-emerald-400/15' },
               { label: 'Entity Types',  value: stats ? Object.keys(stats.labels).length : '…',   icon: <Layers    size={16} />, accent: 'text-cyan-300',    border: 'border-cyan-400/30',    bg: 'bg-cyan-400/15'    },
-              { label: 'ASSUME Files',  value: '49',                                              icon: <Database  size={16} />, accent: 'text-amber-300',   border: 'border-amber-400/30',   bg: 'bg-amber-400/15'   },
+              { label: 'Documents',     value: stats ? (stats.labels['Document'] ?? 0) : '…',    icon: <Database  size={16} />, accent: 'text-amber-300',   border: 'border-amber-400/30',   bg: 'bg-amber-400/15'   },
             ].map(s => (
               <div key={s.label} className={`rounded-xl border p-4 ${s.border} ${s.bg} backdrop-blur-sm`}>
                 <div className={`w-8 h-8 rounded-lg bg-white/8 flex items-center justify-center mb-3 ${s.accent}`}>{s.icon}</div>
@@ -774,7 +774,7 @@ function KnowledgeTab() {
                 className="w-full bg-cg-bg border border-cg-border rounded-xl pl-9 pr-4 py-2.5 text-sm text-cg-txt placeholder:text-cg-faint focus:outline-none transition-all"
               />
             </div>
-            <button onClick={search} disabled={searching || !query.trim()}
+            <button onClick={() => search()} disabled={searching || !query.trim()}
               className="px-5 py-2.5 rounded-xl bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold disabled:opacity-40 transition-all flex items-center gap-2 shadow-lg shadow-blue-500/20 shrink-0">
               {searching ? <RefreshCw size={13} className="animate-spin" /> : null}
               {searching ? 'Searching…' : 'Search'}
@@ -832,10 +832,16 @@ function KnowledgeTab() {
             </div>
           </div>
           <div className="p-5 space-y-3.5">
-            {sortedLabels.length === 0 && (
+            {sortedLabels.length === 0 && stats === null && (
               <div className="flex flex-col items-center py-6 text-cg-faint">
                 <RefreshCw size={18} className="animate-spin mb-2 opacity-40" />
                 <p className="text-xs">Loading graph statistics…</p>
+              </div>
+            )}
+            {sortedLabels.length === 0 && stats !== null && (
+              <div className="flex flex-col items-center py-6 text-cg-faint">
+                <Network size={18} className="mb-2 opacity-40" />
+                <p className="text-xs">No entities yet. Upload documents to populate the graph.</p>
               </div>
             )}
             {sortedLabels.map(([label, count]) => {

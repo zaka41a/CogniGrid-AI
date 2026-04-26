@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Send, MessageSquare, Plus, Wrench, Bot, Trash2, Paperclip, AlertTriangle, RotateCcw } from 'lucide-react'
 
-const AGENT_CONVS_KEY = 'cg_agent_conversations'
+const agentConvsKey = (email?: string) => `cg_agent_conversations_${email ?? 'guest'}`
 import { agentApi } from '../lib/api'
 import type { ChatMessage } from '../types'
 import { useAppStore } from '../store'
@@ -146,9 +146,13 @@ function TypingIndicator() {
 }
 
 export default function Agent() {
+  const currentUser = useAppStore(s => s.currentUser)
+  const agentKey = agentConvsKey(currentUser.email)
+
   const [conversations, setConversations] = useState<Conversation[]>(() => {
     try {
-      const saved = localStorage.getItem(AGENT_CONVS_KEY)
+      const email = useAppStore.getState().currentUser.email
+      const saved = localStorage.getItem(agentConvsKey(email))
       return saved ? JSON.parse(saved) : []
     } catch { return [] }
   })
@@ -161,10 +165,10 @@ export default function Agent() {
 
   const activeConv = conversations.find(c => c.id === activeConvId)
 
-  // Persist conversations to localStorage
+  // Persist conversations to localStorage (per-user key)
   useEffect(() => {
-    localStorage.setItem(AGENT_CONVS_KEY, JSON.stringify(conversations))
-  }, [conversations])
+    localStorage.setItem(agentKey, JSON.stringify(conversations))
+  }, [conversations, agentKey])
 
   // Sync messages into the active conversation
   useEffect(() => {
@@ -182,7 +186,7 @@ export default function Agent() {
     setConversations([])
     setMessages([])
     setActiveConvId('new')
-    localStorage.removeItem(AGENT_CONVS_KEY)
+    localStorage.removeItem(agentKey)
   }
 
   const sendMessage = async (text: string) => {

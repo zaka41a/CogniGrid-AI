@@ -85,8 +85,11 @@ export const useAppStore = create<AppState>((set) => ({
   clearAuth: () => {
     localStorage.removeItem('cg_token')
     localStorage.removeItem('cg_user')
-    // Avatars are kept per-user key — they survive logout
-    set({ currentUser: DEFAULT_USER, isAuthenticated: false, token: null })
+    // Per-user chat histories (cg_rag_history_<email>, cg_agent_conversations_<email>)
+    // and avatars (cg_avatar_<email>) are intentionally KEPT — they're keyed by
+    // email so each account loads its own state on next sign-in. Wiping them
+    // would silently destroy the user's conversation history on every logout.
+    set({ currentUser: DEFAULT_USER, isAuthenticated: false, token: null, notifications: [] })
   },
 
   // ── Profile ───────────────────────────────────────────────────────────────

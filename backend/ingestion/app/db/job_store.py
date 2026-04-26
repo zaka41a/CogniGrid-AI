@@ -62,9 +62,12 @@ class JobStore:
             await session.commit()
             return result.rowcount > 0
 
-    async def delete_all(self) -> int:
+    async def delete_all(self, user_id: str | None = None) -> int:
         async with AsyncSessionLocal() as session:
-            result = await session.execute(delete(JobModel))
+            q = delete(JobModel)
+            if user_id:
+                q = q.where(JobModel.user_id == user_id)
+            result = await session.execute(q)
             await session.commit()
             return result.rowcount
 

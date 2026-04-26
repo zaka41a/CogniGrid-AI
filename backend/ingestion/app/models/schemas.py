@@ -79,3 +79,4 @@ class ExtractedDocument(BaseModel):
     relations: list[ExtractedRelation]
     keywords: list[str]
     metadata: dict
+    user_id: str | None = None

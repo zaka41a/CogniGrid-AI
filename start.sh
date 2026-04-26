@@ -1,144 +1,129 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # =============================================================================
 #  CogniGrid AI — Start Platform
-#  Usage : ./start.sh            → démarrage rapide (images existantes, pas de build)
-#          ./start.sh --rebuild  → force rebuild complet de toutes les images
+#
+#  Usage:
+#    ./start.sh             Fast start using existing images (default).
+#    ./start.sh --rebuild   Force a full rebuild of every Docker image and
+#                           the Spring Boot Gateway JAR.
 # =============================================================================
+set -uo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 FRONTEND_DIR="$ROOT_DIR/frontend"
 GATEWAY_DIR="$ROOT_DIR/backend/gateway"
 LOGS_DIR="$ROOT_DIR/logs"
 
-GREEN='\033[0;32m'
-CYAN='\033[0;36m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-RESET='\033[0m'
-
+# ─── Colors ──────────────────────────────────────────────────────────────────
+GREEN='\033[0;32m'; CYAN='\033[0;36m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; RESET='\033[0m'
 sep()  { echo -e "${YELLOW}────────────────────────────────────────────────────${RESET}"; }
 info() { echo -e "${CYAN}▶  $1${RESET}"; }
 ok()   { echo -e "${GREEN}✅  $1${RESET}"; }
-err()  { echo -e "${RED}❌  $1${RESET}"; exit 1; }
 warn() { echo -e "${YELLOW}⚠   $1${RESET}"; }
+err()  { echo -e "${RED}❌  $1${RESET}"; exit 1; }
 
+# ─── Args ────────────────────────────────────────────────────────────────────
 FORCE_REBUILD=false
-[[ "$1" == "--rebuild" ]] && FORCE_REBUILD=true
+[[ "${1:-}" == "--rebuild" ]] && FORCE_REBUILD=true
 
 sep
 echo -e "${CYAN}   CogniGrid AI — Starting Platform${RESET}"
-if [[ "$FORCE_REBUILD" == true ]]; then
-  echo -e "${YELLOW}   Mode: Force Rebuild (images + Gateway)${RESET}"
+if $FORCE_REBUILD; then
+  echo -e "${YELLOW}   Mode: Force rebuild (Docker images + Gateway JAR)${RESET}"
 else
-  echo -e "${GREEN}   Mode: Fast Start (no rebuild)${RESET}"
+  echo -e "${GREEN}   Mode: Fast start (no rebuild)${RESET}"
 fi
 sep
 
-# ── Vérification .env ─────────────────────────────────────────────────────────
-[[ ! -f "$ROOT_DIR/.env" ]] && err ".env not found — copier .env.example et remplir les valeurs"
+# ─── Pre-flight checks ───────────────────────────────────────────────────────
+[[ -f "$ROOT_DIR/.env" ]] || err ".env not found — copy .env.example to .env and fill in the values."
 
-# ── Dépendances ───────────────────────────────────────────────────────────────
-info "Vérification des dépendances..."
-command -v docker >/dev/null 2>&1 || err "Docker non installé"
-command -v mvn    >/dev/null 2>&1 || err "Maven non installé"
-command -v npm    >/dev/null 2>&1 || err "Node/npm non installé"
-ok "Docker, Maven, Node trouvés"
+info "Checking dependencies..."
+command -v docker >/dev/null 2>&1 || err "Docker is not installed."
+command -v mvn    >/dev/null 2>&1 || err "Maven is not installed."
+command -v npm    >/dev/null 2>&1 || err "Node / npm is not installed."
+ok "Docker, Maven and Node found."
 
-# ── Création du répertoire logs ───────────────────────────────────────────────
 mkdir -p "$LOGS_DIR"
 
-# ── Docker Desktop (Mac) ──────────────────────────────────────────────────────
+# ─── Docker Desktop (macOS) ──────────────────────────────────────────────────
 if ! docker info >/dev/null 2>&1; then
-  info "Démarrage de Docker Desktop..."
-  open -a Docker
-  echo -n "  Attente Docker"
+  info "Starting Docker Desktop..."
+  open -a Docker || true
+  echo -n "  Waiting for Docker"
   until docker info >/dev/null 2>&1; do echo -n "."; sleep 2; done
   echo ""
-  ok "Docker Desktop prêt"
+  ok "Docker Desktop is ready."
 fi
 
-# ── Nettoyage docker-compose.yml (version: obsolète) ─────────────────────────
+# Strip the obsolete "version:" key from docker-compose.yml if present
 sed -i '' '/^version:/d' "$ROOT_DIR/docker-compose.yml" 2>/dev/null || true
 
-# ── Infrastructure (Databases & Stores) ──────────────────────────────────────
-info "Démarrage de l'infrastructure (Docker)..."
+# ─── Infrastructure (databases & object stores) ──────────────────────────────
+info "Starting infrastructure (Postgres, Neo4j, Redis, Qdrant, MinIO)..."
 cd "$ROOT_DIR"
-docker compose up -d postgres neo4j redis qdrant minio
+docker compose up -d postgres neo4j redis qdrant minio >/dev/null
 
-# ── Attente PostgreSQL ────────────────────────────────────────────────────────
-info "Attente PostgreSQL..."
-until docker compose exec -T postgres pg_isready -U cognigrid -d cognigrid >/dev/null 2>&1; do
-  sleep 2
-done
-ok "PostgreSQL prêt"
+info "Waiting for PostgreSQL..."
+until docker compose exec -T postgres pg_isready -U cognigrid -d cognigrid >/dev/null 2>&1; do sleep 2; done
+ok "PostgreSQL is ready."
 
-# ── Attente Redis ─────────────────────────────────────────────────────────────
-info "Attente Redis..."
-until docker compose exec -T redis redis-cli ping >/dev/null 2>&1; do
-  sleep 2
-done
-ok "Redis prêt"
+info "Waiting for Redis..."
+until docker compose exec -T redis redis-cli ping >/dev/null 2>&1; do sleep 2; done
+ok "Redis is ready."
 
-# ── Attente Neo4j Bolt (port 7687) ────────────────────────────────────────────
-info "Attente Neo4j Bolt (nécessaire pour le Graph Service)..."
-MAX_NEO4J=90
-WAITED_NEO4J=0
+info "Waiting for Neo4j (Bolt protocol)..."
 NEO4J_PASS_VAL=$(grep "^NEO4J_PASSWORD=" "$ROOT_DIR/.env" | cut -d= -f2- | tr -d '"' | head -1)
+MAX_NEO4J=90 ; WAITED_NEO4J=0
 until docker compose exec -T neo4j cypher-shell -u neo4j -p "${NEO4J_PASS_VAL:-cg_neo4j_2024}" "RETURN 1" >/dev/null 2>&1; do
   sleep 3
   WAITED_NEO4J=$((WAITED_NEO4J + 3))
   if [[ $WAITED_NEO4J -ge $MAX_NEO4J ]]; then
-    warn "Neo4j non prêt après ${MAX_NEO4J}s — le Graph Service peut échouer au démarrage"
+    warn "Neo4j is not ready after ${MAX_NEO4J}s — the Graph Service may fail to start."
     break
   fi
 done
-ok "Neo4j prêt"
+ok "Neo4j is ready."
 
-# ── Services Python ───────────────────────────────────────────────────────────
+# ─── Python microservices ────────────────────────────────────────────────────
 PYTHON_SERVICES="ingestion graph ai-engine graphrag agent"
 
-if [[ "$FORCE_REBUILD" == true ]]; then
-  info "Rebuild + démarrage des microservices Python..."
+if $FORCE_REBUILD; then
+  info "Rebuilding and starting Python microservices..."
   DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1 \
-    docker compose up -d --build --no-cache $PYTHON_SERVICES 2>&1 | tee "$LOGS_DIR/docker-build.log" || {
-    warn "Certains services ont échoué — voir $LOGS_DIR/docker-build.log"
-  }
+    docker compose up -d --build $PYTHON_SERVICES 2>&1 | tee "$LOGS_DIR/docker-build.log" >/dev/null \
+    || warn "One or more services failed to build — see $LOGS_DIR/docker-build.log"
 else
-  info "Démarrage des microservices Python (images existantes)..."
-  docker compose up -d $PYTHON_SERVICES 2>&1 | tee "$LOGS_DIR/docker-start.log" || {
-    warn "Certains services n'ont pas démarré — essayez ./start.sh --rebuild si c'est la première fois"
-  }
+  info "Starting Python microservices (using existing images)..."
+  docker compose up -d $PYTHON_SERVICES 2>&1 | tee "$LOGS_DIR/docker-start.log" >/dev/null \
+    || warn "Some services failed to start — try ./start.sh --rebuild on first run."
 fi
+ok "Python microservices started (ingestion:8001 graph:8002 ai-engine:8003 graphrag:8004 agent:8005)."
 
-ok "Microservices Python démarrés (ingestion:8001 graph:8002 ai-engine:8003 graphrag:8004 agent:8005)"
+# ─── ASSUME Runner ───────────────────────────────────────────────────────────
+info "Starting ASSUME Runner..."
+docker compose up -d assume-runner >> "$LOGS_DIR/docker-start.log" 2>&1 || warn "ASSUME Runner failed to start."
+ok "ASSUME Runner is up (port 8006)."
 
-# ── ASSUME Runner ─────────────────────────────────────────────────────────────
-info "Démarrage du ASSUME Runner..."
-docker compose up -d assume-runner >> "$LOGS_DIR/docker-start.log" 2>&1 || warn "ASSUME Runner non démarré"
-ok "ASSUME Runner démarré (port 8006)"
+# ─── Monitoring ──────────────────────────────────────────────────────────────
+info "Starting monitoring (Prometheus + Grafana)..."
+docker compose up -d prometheus grafana >/dev/null
+ok "Monitoring is up."
 
-# ── Monitoring ────────────────────────────────────────────────────────────────
-info "Démarrage du monitoring (Prometheus + Grafana)..."
-docker compose up -d prometheus grafana
-ok "Monitoring démarré"
-
-# ── Gateway Spring Boot ───────────────────────────────────────────────────────
+# ─── Spring Boot Gateway ─────────────────────────────────────────────────────
 GATEWAY_JAR=$(ls "$GATEWAY_DIR/target/"*.jar 2>/dev/null | grep -v "sources" | head -1)
 
-if [[ "$FORCE_REBUILD" == true ]] || [[ -z "$GATEWAY_JAR" ]]; then
-  info "Build du Gateway (Spring Boot)..."
-  cd "$GATEWAY_DIR"
-  mvn package -DskipTests -q 2>&1 || err "Build Maven du Gateway échoué"
+if $FORCE_REBUILD || [[ -z "$GATEWAY_JAR" ]]; then
+  info "Building the Gateway (Spring Boot)..."
+  ( cd "$GATEWAY_DIR" && mvn package -DskipTests -q ) || err "Maven build of the Gateway failed."
   GATEWAY_JAR=$(ls "$GATEWAY_DIR/target/"*.jar 2>/dev/null | grep -v "sources" | head -1)
 else
-  info "Gateway JAR existant — skip build Maven"
+  info "Reusing existing Gateway JAR (skipping Maven build)."
 fi
+[[ -n "$GATEWAY_JAR" ]] || err "Gateway JAR not found."
 
-[[ -z "$GATEWAY_JAR" ]] && err "JAR Gateway introuvable"
-
-# ── Lecture .env pour le Gateway ──────────────────────────────────────────────
+# Read env vars for the Gateway
 _env() { grep "^${1}=" "$ROOT_DIR/.env" | cut -d= -f2- | tr -d '"' | head -1; }
-
 PG_USER=$(_env POSTGRES_USER)
 PG_PASS=$(_env POSTGRES_PASSWORD)
 PG_DB=$(_env POSTGRES_DB)
@@ -147,82 +132,74 @@ JWT_EXP=$(_env JWT_EXPIRATION_MS)
 JWT_REF_EXP=$(_env JWT_REFRESH_EXPIRATION_MS)
 CORS_VAL=$(_env CORS_ORIGINS)
 
-# ── Arrêt de l'ancien Gateway ─────────────────────────────────────────────────
+# Stop any previous Gateway instance and free port 8080
 if [[ -f "$LOGS_DIR/gateway.pid" ]]; then
-  OLD_PID=$(cat "$LOGS_DIR/gateway.pid")
-  kill "$OLD_PID" 2>/dev/null || true
+  kill "$(cat "$LOGS_DIR/gateway.pid")" 2>/dev/null || true
   rm -f "$LOGS_DIR/gateway.pid"
 fi
-# Force-free port 8080 et attendre qu'il soit vraiment libre
 lsof -ti:8080 | xargs kill -9 2>/dev/null || true
-echo -n "  Attente libération port 8080"
+echo -n "  Waiting for port 8080 to be free"
 for _ in {1..15}; do
   lsof -ti:8080 >/dev/null 2>&1 || break
-  echo -n "."
-  sleep 1
+  echo -n "."; sleep 1
 done
 echo ""
 
-info "Démarrage du Gateway (java -jar)..."
+info "Starting the Gateway (java -jar)..."
 GATEWAY_JAR_NAME=$(basename "$GATEWAY_JAR")
-cd "$GATEWAY_DIR/target"
-
-java \
-  -DSPRING_DATASOURCE_URL="jdbc:postgresql://localhost:5433/${PG_DB}" \
-  -DSPRING_DATASOURCE_USERNAME="${PG_USER}" \
-  -DSPRING_DATASOURCE_PASSWORD="${PG_PASS}" \
-  -DSPRING_DATA_REDIS_HOST=localhost \
-  -DSPRING_DATA_REDIS_PORT=6379 \
-  -DJWT_SECRET="${JWT_SECRET_VAL}" \
-  -DJWT_EXPIRATION_MS="${JWT_EXP}" \
-  -DJWT_REFRESH_EXPIRATION_MS="${JWT_REF_EXP}" \
-  -DCORS_ORIGINS="${CORS_VAL}" \
-  -jar "$GATEWAY_JAR_NAME" \
-  > "$LOGS_DIR/gateway.log" 2>&1 &
+( cd "$GATEWAY_DIR/target" && \
+  java \
+    -DSPRING_DATASOURCE_URL="jdbc:postgresql://localhost:5433/${PG_DB}" \
+    -DSPRING_DATASOURCE_USERNAME="${PG_USER}" \
+    -DSPRING_DATASOURCE_PASSWORD="${PG_PASS}" \
+    -DSPRING_DATA_REDIS_HOST=localhost \
+    -DSPRING_DATA_REDIS_PORT=6379 \
+    -DJWT_SECRET="${JWT_SECRET_VAL}" \
+    -DJWT_EXPIRATION_MS="${JWT_EXP}" \
+    -DJWT_REFRESH_EXPIRATION_MS="${JWT_REF_EXP}" \
+    -DCORS_ORIGINS="${CORS_VAL}" \
+    -jar "$GATEWAY_JAR_NAME" \
+    > "$LOGS_DIR/gateway.log" 2>&1 ) &
 
 GATEWAY_PID=$!
-echo $GATEWAY_PID > "$LOGS_DIR/gateway.pid"
+echo "$GATEWAY_PID" > "$LOGS_DIR/gateway.pid"
 
-# ── Attente Gateway ───────────────────────────────────────────────────────────
-info "Attente du Gateway sur le port 8080..."
-MAX_WAIT=150
-WAITED=0
-until curl -s http://localhost:8080/actuator/health >/dev/null 2>&1; do
+info "Waiting for the Gateway on port 8080..."
+MAX_WAIT=150 ; WAITED=0
+until curl -fs http://localhost:8080/actuator/health >/dev/null 2>&1; do
   sleep 3
   WAITED=$((WAITED + 3))
   if [[ $WAITED -ge $MAX_WAIT ]]; then
-    err "Gateway non démarré après ${MAX_WAIT}s — voir $LOGS_DIR/gateway.log"
+    err "Gateway did not start within ${MAX_WAIT}s — see $LOGS_DIR/gateway.log."
   fi
 done
-ok "Gateway prêt — http://localhost:8080"
+ok "Gateway is ready — http://localhost:8080"
 
-# ── Frontend (Vite) ───────────────────────────────────────────────────────────
-info "Démarrage du Frontend (Vite)..."
+# ─── Frontend (Vite) ─────────────────────────────────────────────────────────
+info "Starting the Frontend (Vite)..."
 cd "$FRONTEND_DIR"
 
 if [[ ! -d "node_modules" ]]; then
-  info "Installation des dépendances npm..."
+  info "Installing npm dependencies..."
   npm install -q
 fi
 
-# Arrêt de l'ancien processus frontend
 if [[ -f "$LOGS_DIR/frontend.pid" ]]; then
-  OLD_PID=$(cat "$LOGS_DIR/frontend.pid")
-  kill "$OLD_PID" 2>/dev/null || true
+  kill "$(cat "$LOGS_DIR/frontend.pid")" 2>/dev/null || true
   rm -f "$LOGS_DIR/frontend.pid"
 fi
 lsof -ti:5173 | xargs kill -9 2>/dev/null || true
 
 npm run dev > "$LOGS_DIR/frontend.log" 2>&1 &
 FRONTEND_PID=$!
-echo $FRONTEND_PID > "$LOGS_DIR/frontend.pid"
+echo "$FRONTEND_PID" > "$LOGS_DIR/frontend.pid"
 
 sleep 3
-ok "Frontend prêt — http://localhost:5173"
+ok "Frontend is ready — http://localhost:5173"
 
-# ── Résumé ────────────────────────────────────────────────────────────────────
+# ─── Summary ─────────────────────────────────────────────────────────────────
 sep
-echo -e "${GREEN}   Platform CogniGrid AI — En ligne !${RESET}"
+echo -e "${GREEN}   CogniGrid AI Platform is online!${RESET}"
 sep
 echo ""
 echo -e "  ${CYAN}Frontend${RESET}      →  http://localhost:5173"
@@ -238,6 +215,8 @@ echo -e "  ${CYAN}MinIO${RESET}         →  http://localhost:9001"
 echo -e "  ${CYAN}Grafana${RESET}       →  http://localhost:3001"
 echo -e "  ${CYAN}Prometheus${RESET}    →  http://localhost:9090"
 echo ""
-echo -e "  Stop        →  ${YELLOW}./stop.sh${RESET}"
-echo -e "  Rebuild     →  ${YELLOW}./start.sh --rebuild${RESET}"
+echo -e "  Default admin → ${YELLOW}admin@gmail.com / admin4321${RESET}"
+echo ""
+echo -e "  Stop          →  ${YELLOW}./stop.sh${RESET}"
+echo -e "  Rebuild       →  ${YELLOW}./start.sh --rebuild${RESET}"
 sep

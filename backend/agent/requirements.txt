@@ -8,3 +8,4 @@ anthropic==0.28.0
 redis==5.0.4
 prometheus-fastapi-instrumentator==6.1.0
 python-dotenv==1.0.1
+PyJWT>=2.8.0

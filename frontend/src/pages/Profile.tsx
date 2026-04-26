@@ -58,7 +58,7 @@ export default function Profile() {
           </div>
           <div>
             <p className="text-base font-semibold text-cg-txt">{currentUser.name}</p>
-            <p className="text-sm text-cg-muted mt-0.5">{currentUser.email ?? '—'}</p>
+            <p className="text-sm text-cg-muted mt-0.5">{currentUser.email ?? ''}</p>
             <span className="inline-block mt-2 px-2.5 py-0.5 rounded-full text-[11px] font-semibold
               bg-blue-500/10 text-blue-400 border border-blue-500/20">
               {currentUser.role}

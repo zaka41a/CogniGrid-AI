@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import {
   User, Lock, Mail, LogOut, Shield,
-  Check, Eye, EyeOff, Chrome, Camera,
+  Check, Eye, EyeOff, Chrome, Camera, AlertTriangle,
 } from 'lucide-react'
 import Card from '../components/ui/Card'
 import { useAppStore } from '../store'

@@ -38,21 +38,32 @@ _LOCKS: dict[str, asyncio.Task] = {}
 _http = httpx.AsyncClient(timeout=30.0)
 
 
-def get_run(run_id: str) -> RunInfo | None:
-    return _RUNS.get(run_id)
+def get_run(run_id: str, user_id: str | None = None) -> RunInfo | None:
+    info = _RUNS.get(run_id)
+    if info is None:
+        return None
+    # If user_id provided, enforce ownership
+    if user_id and info.user_id and info.user_id != user_id:
+        return None
+    return info
 
 
-def list_runs() -> list[RunInfo]:
-    return list(_RUNS.values())
+def list_runs(user_id: str | None = None) -> list[RunInfo]:
+    runs = list(_RUNS.values())
+    if user_id:
+        runs = [r for r in runs if r.user_id == user_id]
+    return runs
 
 
-async def start_run(req_yaml: str, scenario_name: str, description: str, push_to_graph: bool) -> RunInfo:
+async def start_run(req_yaml: str, scenario_name: str, description: str,
+                    push_to_graph: bool, user_id: str | None = None) -> RunInfo:
     run_id  = str(uuid.uuid4())[:8]
     run_dir = Path(settings.runs_dir) / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
 
     info = RunInfo(
         run_id=run_id,
+        user_id=user_id,
         status=RunStatus.pending,
         scenario_name=scenario_name,
         description=description,
@@ -77,9 +88,13 @@ async def cancel_run(run_id: str) -> bool:
     return False
 
 
-async def delete_run(run_id: str) -> bool:
+async def delete_run(run_id: str, user_id: str | None = None) -> bool:
     """Cancel if running, then remove from the in-memory registry."""
-    if run_id not in _RUNS:
+    info = _RUNS.get(run_id)
+    if info is None:
+        return False
+    # Enforce ownership
+    if user_id and info.user_id and info.user_id != user_id:
         return False
     task = _LOCKS.get(run_id)
     if task and not task.done():

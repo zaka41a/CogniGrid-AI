@@ -217,7 +217,7 @@ export default function DataOverview() {
               <p className="text-[10px] font-semibold text-cg-muted uppercase tracking-wide">Graph metrics</p>
               {[
                 { label: 'Avg edges / node', value: graphStats && graphStats.nodeCount > 0
-                    ? (graphStats.edgeCount / graphStats.nodeCount).toFixed(2) : '—' },
+                    ? (graphStats.edgeCount / graphStats.nodeCount).toFixed(2) : '0' },
                 { label: 'RDF triples',      value: fmtNum(graphStats?.rdfTriples ?? 0) },
               ].map(m => (
                 <div key={m.label} className="flex justify-between text-xs">

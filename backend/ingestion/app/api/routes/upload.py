@@ -108,6 +108,7 @@ async def _run_pipeline(job_id: str, file_path: str, file_name: str, user_id: st
             file_name=file_name,
             on_progress=on_progress,
         )
+        doc.user_id = user_id  # tag document with owner before pushing to graph
 
         result = await graph_client.push_document(doc)
         await qdrant.upsert_chunks(job_id, chunks, file_name=file_name, user_id=user_id)

@@ -20,13 +20,14 @@ class RunRequest(BaseModel):
 
 class RunInfo(BaseModel):
     run_id: str
+    user_id: Optional[str]       = None
     status: RunStatus
     scenario_name: str
     description: str
-    started_at: Optional[str]  = None
-    finished_at: Optional[str] = None
-    duration_s: Optional[float] = None
-    log_lines: list[str]        = []
-    error: Optional[str]        = None
+    started_at: Optional[str]    = None
+    finished_at: Optional[str]   = None
+    duration_s: Optional[float]  = None
+    log_lines: list[str]         = []
+    error: Optional[str]         = None
     results_summary: Optional[dict] = None
-    output_files: list[str]     = []
+    output_files: list[str]      = []

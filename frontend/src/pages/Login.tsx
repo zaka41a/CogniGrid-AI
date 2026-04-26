@@ -5,10 +5,10 @@ import { authApi } from '../lib/api'
 import { useAppStore } from '../store'
 
 const FEATURES = [
-  { icon: <Brain size={16} />,   text: 'AI-powered knowledge graph intelligence', bg: 'bg-blue-500/30',    fg: 'text-blue-200'    },
-  { icon: <Network size={16} />, text: 'Multi-hop GraphRAG semantic search',       bg: 'bg-indigo-500/30', fg: 'text-indigo-200'  },
-  { icon: <Shield size={16} />,  text: 'Enterprise-grade security & compliance',   bg: 'bg-emerald-500/30',fg: 'text-emerald-200' },
-  { icon: <Zap size={16} />,     text: 'Real-time analytics & AI insights',        bg: 'bg-violet-500/30', fg: 'text-violet-200'  },
+  { icon: <Brain size={16} />,   text: 'AI-powered knowledge graph intelligence',    bg: 'bg-blue-500/30',    fg: 'text-blue-200'    },
+  { icon: <Network size={16} />, text: 'Multi-hop GraphRAG semantic search',          bg: 'bg-indigo-500/30', fg: 'text-indigo-200'  },
+  { icon: <Zap size={16} />,     text: 'ASSUME electricity market simulation',        bg: 'bg-emerald-500/30',fg: 'text-emerald-200' },
+  { icon: <Shield size={16} />,  text: 'Enterprise-grade security & compliance',      bg: 'bg-violet-500/30', fg: 'text-violet-200'  },
 ]
 
 export default function Login() {
@@ -23,13 +23,6 @@ export default function Login() {
   const [error,   setError]   = useState('')
   const [success, setSuccess] = useState(false)
 
-  // ── Local offline accounts (used when gateway is not running) ────────────────
-  const LOCAL_ACCOUNTS: Record<string, { name: string; role: string }> = {
-    'zakaria@cognigrid.ai:zakaria2024':        { name: 'zakaria sabiri', role: 'ANALYST'   },
-    'demo@cognigrid.ai:demo2024':              { name: 'Demo User',      role: 'VIEWER'    },
-    'admin@cognigrid.ai:CogniGrid@Admin2024':  { name: 'Admin',          role: 'ADMIN'     },
-  }
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
@@ -37,33 +30,22 @@ export default function Login() {
     try {
       const { data } = await authApi.login({ email: form.email, password: form.password })
       const role = data.user.role
+      const initials = (data.user.fullName || data.user.email || '?')
+        .split(' ').map(n => n[0] ?? '').filter(Boolean).slice(0, 2).join('').toUpperCase() || '?'
       setAuth(
-        { name: data.user.fullName, email: data.user.email ?? form.email, role, initials: data.user.fullName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() },
+        { name: data.user.fullName, email: data.user.email ?? form.email, role, initials },
         data.accessToken,
       )
       setSuccess(true)
-      setTimeout(() => navigate(from, { replace: true }), 1000)
+      setTimeout(() => navigate(from, { replace: true }), 800)
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { message?: string } }; code?: string }
-
-      // Always try local accounts (offline fallback OR when gateway returns 401)
-      const key = `${form.email.toLowerCase().trim()}:${form.password}`
-      const local = LOCAL_ACCOUNTS[key]
-      if (local) {
-        setAuth(
-          { name: local.name, email: form.email.toLowerCase().trim(), role: local.role, initials: local.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() },
-          'local-token',
-        )
-        setSuccess(true)
-        setTimeout(() => navigate(from, { replace: true }), 800)
-        setLoading(false)
-        return
-      }
-
+      const axiosErr = err as { response?: { status?: number; data?: { message?: string } } }
       if (!axiosErr.response) {
-        setError('Backend not reachable. Use a local account: zakaria@cognigrid.ai / zakaria2024')
+        setError('Backend not reachable. Make sure the gateway is running on :8080 (run ./start.sh).')
+      } else if (axiosErr.response.status === 401 || axiosErr.response.status === 403) {
+        setError('Invalid email or password.')
       } else {
-        setError(axiosErr.response?.data?.message ?? 'Invalid email or password.')
+        setError(axiosErr.response.data?.message ?? 'Sign-in failed. Try again in a moment.')
       }
     } finally {
       setLoading(false)
@@ -99,7 +81,7 @@ export default function Login() {
           </h1>
           <p className="text-slate-300/80 text-base leading-relaxed mb-8 max-w-sm">
             CogniGrid AI transforms unstructured documents into a living knowledge graph
-            you can query, explore, and reason over.
+            you can query, explore, and reason over, with built-in ASSUME electricity market simulation.
           </p>
           <ul className="space-y-3">
             {FEATURES.map((f, i) => (
