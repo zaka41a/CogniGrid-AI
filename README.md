@@ -140,7 +140,7 @@ cd frontend && npx tsc --noEmit
 cd backend/<service> && pytest -q
 ```
 
-CI runs all of the above on every push — see [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+CI runs all of the above on every push see [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
 ## License
 
