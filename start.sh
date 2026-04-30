@@ -74,16 +74,19 @@ ok "Redis is ready."
 
 info "Waiting for Neo4j (Bolt protocol)..."
 NEO4J_PASS_VAL=$(grep "^NEO4J_PASSWORD=" "$ROOT_DIR/.env" | cut -d= -f2- | tr -d '"' | head -1)
-MAX_NEO4J=90 ; WAITED_NEO4J=0
+MAX_NEO4J=180 ; WAITED_NEO4J=0 ; NEO4J_READY=false
 until docker compose exec -T neo4j cypher-shell -u neo4j -p "${NEO4J_PASS_VAL:-cg_neo4j_2024}" "RETURN 1" >/dev/null 2>&1; do
   sleep 3
   WAITED_NEO4J=$((WAITED_NEO4J + 3))
   if [[ $WAITED_NEO4J -ge $MAX_NEO4J ]]; then
-    warn "Neo4j is not ready after ${MAX_NEO4J}s — the Graph Service may fail to start."
+    warn "Neo4j is not ready after ${MAX_NEO4J}s — the Graph Service will fail to start."
     break
   fi
 done
-ok "Neo4j is ready."
+if [[ $WAITED_NEO4J -lt $MAX_NEO4J ]]; then
+  NEO4J_READY=true
+  ok "Neo4j is ready (took ${WAITED_NEO4J}s)."
+fi
 
 # ─── Python microservices ────────────────────────────────────────────────────
 PYTHON_SERVICES="ingestion graph ai-engine graphrag agent"
@@ -99,6 +102,22 @@ else
     || warn "Some services failed to start — try ./start.sh --rebuild on first run."
 fi
 ok "Python microservices started (ingestion:8001 graph:8002 ai-engine:8003 graphrag:8004 agent:8005)."
+
+# If the Graph service crashed because Neo4j wasn't ready, restart it now.
+sleep 5
+if ! curl -fs http://localhost:8002/health >/dev/null 2>&1; then
+  warn "Graph service not responding — restarting (Neo4j was slow to wake)..."
+  docker compose restart graph >/dev/null 2>&1 || true
+  for _ in {1..20}; do
+    curl -fs http://localhost:8002/health >/dev/null 2>&1 && break
+    sleep 2
+  done
+  if curl -fs http://localhost:8002/health >/dev/null 2>&1; then
+    ok "Graph service is back online."
+  else
+    warn "Graph service still offline — check 'docker logs cg-graph'."
+  fi
+fi
 
 # ─── ASSUME Runner ───────────────────────────────────────────────────────────
 info "Starting ASSUME Runner..."
@@ -164,16 +183,23 @@ GATEWAY_JAR_NAME=$(basename "$GATEWAY_JAR")
 GATEWAY_PID=$!
 echo "$GATEWAY_PID" > "$LOGS_DIR/gateway.pid"
 
-info "Waiting for the Gateway on port 8080..."
-MAX_WAIT=150 ; WAITED=0
+info "Waiting for the Gateway on port 8080 (cold start can take 4–5 min)..."
+MAX_WAIT=360 ; WAITED=0
 until curl -fs http://localhost:8080/actuator/health >/dev/null 2>&1; do
+  # Stop early if the Java process died
+  if ! kill -0 "$GATEWAY_PID" 2>/dev/null; then
+    err "Gateway process exited unexpectedly — see $LOGS_DIR/gateway.log."
+  fi
   sleep 3
   WAITED=$((WAITED + 3))
+  if (( WAITED % 30 == 0 )); then
+    echo "  …still waiting (${WAITED}s / ${MAX_WAIT}s)"
+  fi
   if [[ $WAITED -ge $MAX_WAIT ]]; then
     err "Gateway did not start within ${MAX_WAIT}s — see $LOGS_DIR/gateway.log."
   fi
 done
-ok "Gateway is ready — http://localhost:8080"
+ok "Gateway is ready — http://localhost:8080 (took ${WAITED}s)"
 
 # ─── Frontend (Vite) ─────────────────────────────────────────────────────────
 info "Starting the Frontend (Vite)..."
