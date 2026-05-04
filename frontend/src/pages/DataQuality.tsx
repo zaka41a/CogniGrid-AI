@@ -1,17 +1,22 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import {
   ShieldCheck, AlertTriangle, AlertCircle, CheckCircle,
-  RefreshCw, Wrench, XCircle, Info, Trash2,
+  RefreshCw, Wrench, XCircle, Info, Trash2, History as HistoryIcon, ChevronDown,
 } from 'lucide-react'
 import Card from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { graphApi, graphHttp, ingestionApi, ingestHttp } from '../lib/api'
+import { useLocalStorageState } from '../hooks/useLocalStorageState'
 
 type Severity = 'critical' | 'warning' | 'info'
+type Category = 'Graph' | 'Ingestion' | 'Coverage' | 'System' | string
+const CATEGORIES: Category[] = ['Graph', 'Ingestion', 'Coverage', 'System']
+
+const DEDUCTIONS: Record<Severity, number> = { critical: 25, warning: 10, info: 2 }
 
 interface QualityIssue {
   id:        string
-  category:  string
+  category:  Category
   severity:  Severity
   title:     string
   detail:    string
@@ -19,6 +24,20 @@ interface QualityIssue {
   fixAction?: () => Promise<void>
   fixed:     boolean
 }
+
+interface QualitySnapshot {
+  ts:       number
+  score:    number
+  critical: number
+  warning:  number
+  info:     number
+}
+
+// Cap history at 30 entries — older snapshots fall off the trend chart anyway
+const MAX_SNAPSHOTS = 30
+// Skip writing a snapshot if the last one is < 60s old, to avoid every
+// quick refresh polluting the trend
+const SNAPSHOT_DEDUPE_WINDOW_MS = 60_000
 
 function SeverityIcon({ sev }: { sev: Severity }) {
   if (sev === 'critical') return <AlertCircle size={14} className="text-red-500 shrink-0" />
@@ -38,6 +57,9 @@ export default function DataQuality() {
   const [fixing,  setFixing]    = useState<string | null>(null)
   const [score,   setScore]     = useState(100)
   const [clearMsg, setClearMsg] = useState<string | null>(null)
+  const [categoryFilter, setCategoryFilter] = useState<Category | 'All'>('All')
+  const [showHistory, setShowHistory]       = useState(false)
+  const [history, setHistory]               = useLocalStorageState<QualitySnapshot[]>('cg.quality.history', [])
 
   const buildIssues = useCallback((
     graphRaw: Record<string, unknown>,
@@ -166,15 +188,28 @@ export default function DataQuality() {
       setIssues(found)
 
       // Score: start at 100, deduct per issue
-      const deductions = { critical: 25, warning: 10, info: 2 }
       const sc = Math.max(0, 100 - found
         .filter(i => !i.fixed)
-        .reduce((a, i) => a + (deductions[i.severity] ?? 0), 0))
+        .reduce((a, i) => a + (DEDUCTIONS[i.severity] ?? 0), 0))
       setScore(sc)
+
+      // Append to history. Dedupe quick refreshes within SNAPSHOT_DEDUPE_WINDOW_MS.
+      const snap: QualitySnapshot = {
+        ts:       Date.now(),
+        score:    sc,
+        critical: found.filter(i => !i.fixed && i.severity === 'critical').length,
+        warning:  found.filter(i => !i.fixed && i.severity === 'warning').length,
+        info:     found.filter(i => !i.fixed && i.severity === 'info').length,
+      }
+      setHistory(prev => {
+        const last = prev[prev.length - 1]
+        if (last && snap.ts - last.ts < SNAPSHOT_DEDUPE_WINDOW_MS) return prev
+        return [...prev, snap].slice(-MAX_SNAPSHOTS)
+      })
     } finally {
       setLoading(false)
     }
-  }, [buildIssues])
+  }, [buildIssues, setHistory])
 
   useEffect(() => { loadIssues() }, [loadIssues])
 
@@ -210,6 +245,17 @@ export default function DataQuality() {
   const scoreBar   = score >= 80 ? 'bg-emerald-500' : score >= 50 ? 'bg-amber-500' : 'bg-red-500'
   const critCount  = issues.filter(i => i.severity === 'critical' && !i.fixed).length
   const warnCount  = issues.filter(i => i.severity === 'warning'  && !i.fixed).length
+  const infoCount  = issues.filter(i => i.severity === 'info'     && !i.fixed).length
+
+  const visibleIssues = useMemo(
+    () => categoryFilter === 'All' ? issues : issues.filter(i => i.category === categoryFilter),
+    [issues, categoryFilter],
+  )
+
+  const usedCategories = useMemo(() => {
+    const set = new Set(issues.map(i => i.category))
+    return CATEGORIES.filter(c => set.has(c))
+  }, [issues])
 
   return (
     <div className="space-y-6">
@@ -248,10 +294,29 @@ export default function DataQuality() {
                 <span className={`text-xl font-bold ${scoreColor}`}>{score}</span>
               </div>
             </div>
-            <div>
+            <div className="flex items-center gap-1.5">
               <p className="text-sm font-semibold text-cg-txt">Quality Score</p>
-              <p className="text-xs text-cg-muted">out of 100</p>
+              <span
+                className="cursor-help text-cg-faint hover:text-cg-muted transition-colors"
+                title={
+                  `Starts at 100 and deducts per unresolved issue:\n` +
+                  `  • Critical: −${DEDUCTIONS.critical}\n` +
+                  `  • Warning:  −${DEDUCTIONS.warning}\n` +
+                  `  • Info:     −${DEDUCTIONS.info}\n\n` +
+                  `Current: 100 − (${critCount}×${DEDUCTIONS.critical} + ${warnCount}×${DEDUCTIONS.warning} + ${infoCount}×${DEDUCTIONS.info}) = ${score}`
+                }
+              >
+                <Info size={11} />
+              </span>
             </div>
+            <p className="text-xs text-cg-muted">
+              out of 100
+              {(critCount + warnCount + infoCount) > 0 && (
+                <span className="block text-[10px] text-cg-faint mt-0.5">
+                  −{100 - score} from {critCount + warnCount + infoCount} issue{critCount + warnCount + infoCount > 1 ? 's' : ''}
+                </span>
+              )}
+            </p>
             <div className="w-full h-1.5 bg-cg-border rounded-full overflow-hidden">
               <div className={`h-full rounded-full transition-all duration-700 ${scoreBar}`} style={{ width: `${score}%` }} />
             </div>
@@ -311,11 +376,37 @@ export default function DataQuality() {
           {fixing === 'clear-graph' ? 'Clearing…' : 'Clear graph'}
         </button>
       }>
+        {/* Category filter chips */}
+        {usedCategories.length > 1 && !loading && (
+          <div className="px-5 py-3 border-b border-cg-border flex items-center gap-2 flex-wrap">
+            <span className="text-[10px] font-semibold text-cg-faint uppercase tracking-wide mr-1">Category</span>
+            {(['All', ...usedCategories] as (Category | 'All')[]).map(c => {
+              const count = c === 'All' ? issues.length : issues.filter(i => i.category === c).length
+              const active = categoryFilter === c
+              return (
+                <button
+                  key={c}
+                  onClick={() => setCategoryFilter(c)}
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-all ${
+                    active
+                      ? 'bg-cg-primary text-white border-cg-primary'
+                      : 'bg-cg-bg text-cg-muted border-cg-border hover:text-cg-txt hover:border-cg-primary/40'
+                  }`}
+                >
+                  {c} <span className={`ml-1 font-mono ${active ? 'opacity-80' : 'opacity-60'}`}>{count}</span>
+                </button>
+              )
+            })}
+          </div>
+        )}
         <div className="divide-y divide-cg-border">
           {loading && (
             <div className="px-5 py-10 text-center text-cg-faint text-sm">Analysing data…</div>
           )}
-          {!loading && issues.map(issue => (
+          {!loading && visibleIssues.length === 0 && (
+            <div className="px-5 py-10 text-center text-cg-faint text-sm">No issues in this category.</div>
+          )}
+          {!loading && visibleIssues.map(issue => (
             <div
               key={issue.id}
               className={`flex items-start gap-4 px-5 py-4 transition-colors ${
@@ -362,6 +453,90 @@ export default function DataQuality() {
           ))}
         </div>
       </Card>
+
+      {/* Issue history (localStorage snapshots) */}
+      {history.length > 0 && (
+        <Card>
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-cg-border">
+            <button
+              onClick={() => setShowHistory(v => !v)}
+              className="flex items-center gap-2 text-sm font-semibold text-cg-txt hover:text-cg-primary transition-colors"
+            >
+              <HistoryIcon size={13} />
+              Issue History
+              <span className="text-[10px] text-cg-faint font-mono">({history.length} snapshot{history.length > 1 ? 's' : ''})</span>
+              <ChevronDown size={13} className={`transition-transform ${showHistory ? 'rotate-180' : ''}`} />
+            </button>
+            <button
+              onClick={() => { if (confirm('Clear quality history?')) setHistory([]) }}
+              className="text-xs text-cg-faint hover:text-red-500 transition-colors"
+            >
+              Clear
+            </button>
+          </div>
+          {showHistory && (
+            <div className="px-5 py-4 space-y-3">
+              {/* Sparkline-ish trend */}
+              <ScoreTrend snapshots={history} />
+              {/* Recent rows */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-cg-border text-cg-muted">
+                      <th className="text-left px-3 py-2 font-semibold">When</th>
+                      <th className="text-left px-3 py-2 font-semibold">Score</th>
+                      <th className="text-left px-3 py-2 font-semibold">Critical</th>
+                      <th className="text-left px-3 py-2 font-semibold">Warning</th>
+                      <th className="text-left px-3 py-2 font-semibold">Info</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...history].reverse().slice(0, 10).map(s => (
+                      <tr key={s.ts} className="border-b border-cg-border/50">
+                        <td className="px-3 py-2 text-cg-faint">{new Date(s.ts).toLocaleString()}</td>
+                        <td className={`px-3 py-2 font-semibold tabular-nums ${
+                          s.score >= 80 ? 'text-emerald-500' : s.score >= 50 ? 'text-amber-500' : 'text-red-500'
+                        }`}>{s.score}</td>
+                        <td className="px-3 py-2 text-red-500 tabular-nums">{s.critical}</td>
+                        <td className="px-3 py-2 text-amber-500 tabular-nums">{s.warning}</td>
+                        <td className="px-3 py-2 text-blue-400 tabular-nums">{s.info}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-[10px] text-cg-faint">
+                Snapshots are stored locally in your browser (last {MAX_SNAPSHOTS}). Server-side history will move to <code className="font-mono">quality_issues_log</code> in a later phase.
+              </p>
+            </div>
+          )}
+        </Card>
+      )}
     </div>
+  )
+}
+
+function ScoreTrend({ snapshots }: { snapshots: QualitySnapshot[] }) {
+  if (snapshots.length < 2) {
+    return <p className="text-[11px] text-cg-faint">Need at least 2 snapshots to draw a trend.</p>
+  }
+  const w = 600
+  const h = 60
+  const xs = snapshots.map((_, i) => (i / (snapshots.length - 1)) * w)
+  const ys = snapshots.map(s => h - (s.score / 100) * h)
+  const path = xs.map((x, i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)} ${ys[i].toFixed(1)}`).join(' ')
+  const last = snapshots[snapshots.length - 1].score
+  const stroke = last >= 80 ? '#10B981' : last >= 50 ? '#F59E0B' : '#EF4444'
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-12" preserveAspectRatio="none">
+      <line x1="0" y1={h * 0.2} x2={w} y2={h * 0.2} stroke="currentColor" className="text-cg-border" strokeDasharray="3 3" />
+      <line x1="0" y1={h * 0.5} x2={w} y2={h * 0.5} stroke="currentColor" className="text-cg-border" strokeDasharray="3 3" />
+      <path d={path} fill="none" stroke={stroke} strokeWidth="2" />
+      {xs.map((x, i) => (
+        <circle key={i} cx={x} cy={ys[i]} r="2" fill={stroke}>
+          <title>{`Score ${snapshots[i].score} on ${new Date(snapshots[i].ts).toLocaleString()}`}</title>
+        </circle>
+      ))}
+    </svg>
   )
 }

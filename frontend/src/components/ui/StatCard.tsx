@@ -1,5 +1,6 @@
 import { ReactNode } from 'react'
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react'
+import { Sparkline } from '../shared/Sparkline'
 
 interface StatCardProps {
   label:       string
@@ -16,9 +17,11 @@ interface StatCardProps {
   change?:     string
   suffix?:     string
   className?:  string
+  /** Optional inline trend mini-chart shown to the right of the value */
+  spark?:      number[]
 }
 
-export function StatCard({ label, value, icon, iconColor, iconBg, trend, trendLabel, change, suffix, className = '' }: StatCardProps) {
+export function StatCard({ label, value, icon, iconColor, iconBg, trend, trendLabel, change, suffix, className = '', spark }: StatCardProps) {
   const trendNum  = typeof trend === 'number' ? trend : undefined
   const trendStr  = typeof trend === 'string'  ? trend : undefined
   const up        = trendNum !== undefined ? trendNum > 0 : trendStr === 'up'
@@ -53,10 +56,15 @@ export function StatCard({ label, value, icon, iconColor, iconBg, trend, trendLa
         )}
       </div>
 
-      <p className="text-2xl font-bold text-cg-txt tabular-nums">
-        {value}
-        {suffix && <span className="text-base font-medium text-cg-muted ml-1">{suffix}</span>}
-      </p>
+      <div className="flex items-end justify-between gap-2">
+        <p className="text-2xl font-bold text-cg-txt tabular-nums">
+          {value}
+          {suffix && <span className="text-base font-medium text-cg-muted ml-1">{suffix}</span>}
+        </p>
+        {spark && spark.length > 0 && (
+          <Sparkline values={spark} stroke={iconColor ?? '#6366F1'} fill={`${iconColor ?? '#6366F1'}20`} />
+        )}
+      </div>
 
       {hasTrend && (
         <div className={`flex items-center gap-1 mt-2 text-xs font-medium ${up ? 'text-emerald-600' : down ? 'text-red-500' : 'text-cg-muted'}`}>

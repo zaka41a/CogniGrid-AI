@@ -141,3 +141,38 @@ class QdrantClient:
                 logger.error(
                     "Qdrant upsert exception for job %s: %s", job_id, e, exc_info=True
                 )
+
+    async def delete_by_filter(self, must: list[dict]) -> int:
+        """Delete all points matching the given Qdrant filter conditions.
+
+        Returns the number of points deleted (best-effort — Qdrant doesn't
+        always return an exact count; we infer from operation_id success).
+        """
+        if not must:
+            return 0
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            try:
+                resp = await client.post(
+                    f"{self.base_url}/collections/{self.collection}/points/delete?wait=true",
+                    json={"filter": {"must": must}},
+                )
+                if resp.status_code in (200, 202):
+                    logger.info("Qdrant delete OK (filter=%s)", must)
+                    return 1
+                logger.warning(
+                    "Qdrant delete returned %d: %s", resp.status_code, resp.text[:300]
+                )
+                return 0
+            except Exception as e:
+                logger.error("Qdrant delete exception: %s", e, exc_info=True)
+                return 0
+
+    async def delete_chunks_by_user(self, user_id: str) -> int:
+        return await self.delete_by_filter([
+            {"key": "user_id", "match": {"value": user_id}}
+        ])
+
+    async def delete_chunks_by_job(self, job_id: str) -> int:
+        return await self.delete_by_filter([
+            {"key": "job_id", "match": {"value": job_id}}
+        ])

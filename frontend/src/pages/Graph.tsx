@@ -2,11 +2,22 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import cytoscape from 'cytoscape'
 import {
   Play, Network, GitBranch, Database, Search,
-  Info, RefreshCw, Download, ZoomIn, ZoomOut, Maximize2, X,
+  Info, RefreshCw, Download, ZoomIn, ZoomOut, Maximize2, X, History, Image, FileJson, FileText,
 } from 'lucide-react'
 import Card from '../components/ui/Card'
 import { StatCard } from '../components/ui/StatCard'
 import { graphApi, graphHttp } from '../lib/api'
+import { LayoutSelector, layoutOptions, type LayoutName } from '../components/graph/LayoutSelector'
+import { Minimap } from '../components/graph/Minimap'
+import { registerCytoscapeExtensions } from '../components/graph/registerCytoscapeExtensions'
+import { attachGraphTooltips } from '../components/graph/GraphTooltip'
+import { exportGraph } from '../components/graph/exportGraph'
+import { useLocalStorageState } from '../hooks/useLocalStorageState'
+
+registerCytoscapeExtensions()
+
+const CYPHER_HISTORY_KEY = 'cg_cypher_history'
+const MAX_HISTORY = 10
 
 // ── Node type → color ──────────────────────────────────────────────────────
 const NODE_COLORS: Record<string, string> = {
@@ -40,6 +51,7 @@ interface NodeDetail {
 export default function Graph() {
   const cyRef       = useRef<HTMLDivElement>(null)
   const cyInstance  = useRef<cytoscape.Core | null>(null)
+  const tooltipDisposeRef = useRef<(() => void) | null>(null)
 
   const [stats, setStats]         = useState<{ nodeCount: number; edgeCount: number; rdfTriples: number; documentCount: number } | null>(null)
   const [selectedNode, setSelectedNode] = useState<NodeDetail | null>(null)
@@ -50,6 +62,14 @@ export default function Graph() {
   const [queryRunning, setQueryRunning] = useState(false)
   const [nodeCount, setNodeCount] = useState(0)
   const [fullscreen, setFullscreen] = useState(false)
+  const [layout, setLayout] = useState<LayoutName>('cose')
+  const [showMinimap, setShowMinimap] = useState(true)
+  const [history, setHistory] = useLocalStorageState<string[]>(CYPHER_HISTORY_KEY, [])
+  const [showHistory, setShowHistory] = useState(false)
+  const [showExportMenu, setShowExportMenu] = useState(false)
+  // Source filter: separates the canonical ASSUME KB from the user's own
+  // CIM/RDF uploads instead of mixing them in the same view.
+  const [scope, setScope] = useState<'all' | 'shared' | 'mine'>('all')
 
   const runCypher = useCallback(async () => {
     if (!sparql.trim() || queryRunning) return
@@ -62,13 +82,18 @@ export default function Graph() {
       } else {
         setQueryResult(JSON.stringify(data.rows, null, 2))
       }
+      // Save successful query to history (deduplicated, capped at MAX_HISTORY)
+      setHistory(prev => {
+        const next = [sparql, ...prev.filter(q => q !== sparql)]
+        return next.slice(0, MAX_HISTORY)
+      })
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? 'Query failed'
       setQueryResult(`Error: ${msg}`)
     } finally {
       setQueryRunning(false)
     }
-  }, [sparql, queryRunning])
+  }, [sparql, queryRunning, setHistory])
 
   const fmtNum = (n: number) => n >= 1_000_000
     ? (n / 1_000_000).toFixed(1) + 'M'
@@ -130,19 +155,14 @@ export default function Graph() {
           style: { 'line-color': '#6366F1', 'target-arrow-color': '#6366F1' } as cytoscape.Css.Edge,
         },
       ],
-      layout: {
-        name:             'cose',
-        animate:          true,
-        animationDuration: 600,
-        nodeRepulsion:    () => 6000,
-        idealEdgeLength:  () => 80,
-        edgeElasticity:   () => 100,
-        gravity:          0.25,
-        numIter:          500,
-        fit:              true,
-        padding:          30,
-      } as cytoscape.CoseLayoutOptions,
+      layout: layoutOptions(layout),
       wheelSensitivity: 0.3,
+    })
+
+    // Attach hover tooltips after layout settles
+    if (tooltipDisposeRef.current) { try { tooltipDisposeRef.current() } catch { /* ignore */ } }
+    cy.one('layoutstop', () => {
+      tooltipDisposeRef.current = attachGraphTooltips(cy)
     })
 
     cy.on('tap', 'node', (e) => {
@@ -166,7 +186,7 @@ export default function Graph() {
       return
     }
     setNodeCount(elements.filter(el => !el.data?.source).length)
-  }, [])
+  }, [layout])
 
   // ── Load graph data ─────────────────────────────────────────────────────
   const loadGraph = useCallback(async (query?: string) => {
@@ -194,7 +214,7 @@ export default function Graph() {
         // Full visualization mode
         type VizNode = { id: string; label: string; type: string; group: string; properties: Record<string,string> }
         type VizEdge = { source: string; target: string; label: string }
-        const { data: vizData } = await graphHttp.get<{ nodes: VizNode[]; edges: VizEdge[] }>('/api/graph/visualization', { params: { limit: 150 }, timeout: 8_000 })
+        const { data: vizData } = await graphHttp.get<{ nodes: VizNode[]; edges: VizEdge[] }>('/api/graph/visualization', { params: { limit: 150, scope }, timeout: 8_000 })
         nodes = (vizData.nodes ?? []).map(n => ({
           data: { id: n.id, label: n.label, type: n.type, group: n.group, properties: n.properties },
         }))
@@ -213,7 +233,7 @@ export default function Graph() {
     } finally {
       setLoading(false)
     }
-  }, [initCy])
+  }, [initCy, scope])
 
   useEffect(() => { loadGraph() }, [loadGraph])
 
@@ -225,33 +245,23 @@ export default function Graph() {
     return () => clearTimeout(tid)
   }, [fullscreen])
 
-  const handleExport = (fmt: 'json' | 'csv') => {
+  // Re-run layout when the user changes it
+  useEffect(() => {
     const cy = cyInstance.current
     if (!cy) return
-    const nodes = cy.nodes().map(n => ({ id: n.id(), label: n.data('label'), type: n.data('type'), ...n.data('properties') }))
-    const edges = cy.edges().map(e => ({ source: e.data('source'), target: e.data('target'), label: e.data('label') }))
+    cy.layout(layoutOptions(layout)).run()
+  }, [layout])
 
-    let content: string
-    let mime: string
-    let filename: string
+  // Cleanup tooltip listeners on unmount
+  useEffect(() => () => {
+    if (tooltipDisposeRef.current) { try { tooltipDisposeRef.current() } catch { /* ignore */ } }
+  }, [])
 
-    if (fmt === 'json') {
-      content = JSON.stringify({ nodes, edges }, null, 2)
-      mime = 'application/json'
-      filename = 'graph_export.json'
-    } else {
-      const header = 'id,label,type\n'
-      const rows = nodes.map(n => `${n.id},${String(n.label).replace(/,/g, ';')},${n.type}`).join('\n')
-      content = header + rows
-      mime = 'text/csv'
-      filename = 'graph_export.csv'
-    }
-
-    const blob = new Blob([content], { type: mime })
-    const url  = URL.createObjectURL(blob)
-    const a    = document.createElement('a')
-    a.href = url; a.download = filename; a.click()
-    URL.revokeObjectURL(url)
+  const handleExport = (fmt: 'json' | 'csv' | 'png' | 'svg') => {
+    const cy = cyInstance.current
+    if (!cy) return
+    exportGraph(cy, fmt, 'cognigrid_graph')
+    setShowExportMenu(false)
   }
 
   // Legend items (CIM types)
@@ -308,10 +318,59 @@ export default function Graph() {
               className="p-1.5 rounded-lg text-cg-muted hover:text-cg-txt hover:bg-cg-s2 transition-colors" title="Zoom out">
               <ZoomOut size={13} />
             </button>
-            <button onClick={() => handleExport('json')}
-              className="p-1.5 rounded-lg text-cg-muted hover:text-cg-txt hover:bg-cg-s2 transition-colors" title="Export JSON">
-              <Download size={13} />
+            <LayoutSelector value={layout} onChange={setLayout} />
+            {/* Source scope filter — separates ASSUME shared KB from user CIM uploads */}
+            <div className="flex items-center gap-px rounded-lg border border-cg-border overflow-hidden" title="Filter graph by source">
+              {[
+                { id: 'all',    label: 'All'    },
+                { id: 'shared', label: 'ASSUME' },
+                { id: 'mine',   label: 'Mine'   },
+              ].map(o => (
+                <button
+                  key={o.id}
+                  onClick={() => setScope(o.id as 'all' | 'shared' | 'mine')}
+                  className={`px-2 py-1 text-[11px] font-semibold transition-colors ${
+                    scope === o.id
+                      ? 'bg-cg-primary text-white'
+                      : 'bg-cg-bg text-cg-muted hover:text-cg-txt hover:bg-cg-s2'
+                  }`}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setShowMinimap(v => !v)}
+              className={`p-1.5 rounded-lg transition-colors ${showMinimap ? 'text-cg-primary bg-cg-primary-s' : 'text-cg-muted hover:text-cg-txt hover:bg-cg-s2'}`}
+              title="Toggle minimap"
+            >
+              <Network size={13} />
             </button>
+            <div className="relative">
+              <button
+                onClick={() => setShowExportMenu(v => !v)}
+                className="p-1.5 rounded-lg text-cg-muted hover:text-cg-txt hover:bg-cg-s2 transition-colors"
+                title="Export"
+              >
+                <Download size={13} />
+              </button>
+              {showExportMenu && (
+                <div className="absolute right-0 top-full mt-1 z-30 bg-cg-surface border border-cg-border rounded-xl shadow-lg p-1 min-w-[140px]">
+                  <button onClick={() => handleExport('json')} className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs text-cg-muted hover:bg-cg-s2 hover:text-cg-txt">
+                    <FileJson size={12} /> JSON
+                  </button>
+                  <button onClick={() => handleExport('csv')} className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs text-cg-muted hover:bg-cg-s2 hover:text-cg-txt">
+                    <FileText size={12} /> CSV
+                  </button>
+                  <button onClick={() => handleExport('png')} className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs text-cg-muted hover:bg-cg-s2 hover:text-cg-txt">
+                    <Image size={12} /> PNG
+                  </button>
+                  <button onClick={() => handleExport('svg')} className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs text-cg-muted hover:bg-cg-s2 hover:text-cg-txt">
+                    <Image size={12} /> SVG (HD PNG)
+                  </button>
+                </div>
+              )}
+            </div>
             <button onClick={() => { setFullscreen(f => !f); setTimeout(() => cyInstance.current?.fit(undefined, 30), 100) }}
               className="p-1.5 rounded-lg text-cg-muted hover:text-cg-txt hover:bg-cg-s2 transition-colors" title="Toggle fullscreen">
               {fullscreen ? <X size={13} /> : <Maximize2 size={13} />}
@@ -374,6 +433,7 @@ export default function Graph() {
                 </div>
               )}
               <div ref={cyRef} className={fullscreen ? 'flex-1 w-full' : 'w-full h-full'} />
+              <Minimap cy={cyInstance.current} visible={showMinimap && nodeCount > 0} />
               {!loading && nodeCount === 0 && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
                   <Network size={32} className="text-cg-faint" />
@@ -460,7 +520,39 @@ export default function Graph() {
         </Card>
 
         {/* SPARQL Editor */}
-        <Card title="Cypher Query Editor">
+        <Card title="Cypher Query Editor" action={
+          history.length > 0 && (
+            <div className="relative">
+              <button
+                onClick={() => setShowHistory(v => !v)}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs text-cg-muted hover:text-cg-txt hover:bg-cg-s2 transition-colors"
+                title="Recent queries"
+              >
+                <History size={12} /> History ({history.length})
+              </button>
+              {showHistory && (
+                <div className="absolute right-0 top-full mt-1 z-30 bg-cg-surface border border-cg-border rounded-xl shadow-lg p-1 w-80 max-h-64 overflow-auto">
+                  {history.map((q, i) => (
+                    <button
+                      key={`${i}-${q.slice(0, 20)}`}
+                      onClick={() => { setSparql(q); setShowHistory(false) }}
+                      className="w-full text-left px-3 py-2 rounded-lg text-[11px] font-mono text-cg-muted hover:bg-cg-s2 hover:text-emerald-400 transition-colors truncate"
+                      title={q}
+                    >
+                      {q.replace(/\s+/g, ' ').slice(0, 80)}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => { setHistory([]); setShowHistory(false) }}
+                    className="w-full text-left px-3 py-2 rounded-lg text-[10px] text-red-400 hover:bg-red-500/10 mt-1 border-t border-cg-border"
+                  >
+                    Clear history
+                  </button>
+                </div>
+              )}
+            </div>
+          )
+        }>
           <div className="p-4 space-y-3">
             <textarea
               value={sparql}

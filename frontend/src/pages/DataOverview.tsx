@@ -11,6 +11,7 @@ import Card from '../components/ui/Card'
 import { StatCard } from '../components/ui/StatCard'
 import { useChartColors } from '../hooks/useChartColors'
 import { graphHttp, ingestHttp } from '../lib/api'
+import { useDeepLink } from '../hooks/useDeepLink'
 
 // 8 s max-wait for stats — avoids the infinite "…" when services are starting up
 const STATS_TIMEOUT = 8_000
@@ -22,6 +23,9 @@ interface RelTypeStat  { name: string; count: number }
 
 export default function DataOverview() {
   const { grid, tick, tooltip } = useChartColors()
+  const link = useDeepLink<{ nodeTypeFilter?: string; edgeTypeFilter?: string }>()
+  const goToGraphForNodeType = (name: string) => link.go('/app/graph', { nodeTypeFilter: name })
+  const goToGraphForEdgeType = (name: string) => link.go('/app/graph', { edgeTypeFilter: name })
   const [graphStats, setGraphStats] = useState<{
     nodeCount: number; edgeCount: number; rdfTriples: number; documentCount: number
   } | null>(null)
@@ -107,7 +111,7 @@ export default function DataOverview() {
 
         {/* Node type bar chart */}
         <Card title="Node Distribution by Type" action={
-          <span className="text-xs text-cg-faint flex items-center gap-1"><Layers size={11}/> top 10</span>
+          <span className="text-xs text-cg-faint flex items-center gap-1"><Layers size={11}/> top 10 · click to explore</span>
         }>
           <div className="px-4 pb-5">
             {nodeTypes.length > 0 ? (
@@ -117,7 +121,13 @@ export default function DataOverview() {
                   <XAxis type="number" tick={{ fill: tick, fontSize: 10 }} tickLine={false} axisLine={false} />
                   <YAxis type="category" dataKey="name" tick={{ fill: tick, fontSize: 10 }} tickLine={false} axisLine={false} width={110} />
                   <Tooltip contentStyle={tooltip.contentStyle} labelStyle={tooltip.labelStyle} />
-                  <Bar dataKey="count" fill="#6366F1" radius={[0, 4, 4, 0]} />
+                  <Bar
+                    dataKey="count"
+                    fill="#6366F1"
+                    radius={[0, 4, 4, 0]}
+                    cursor="pointer"
+                    onClick={(d: { name?: string }) => d?.name && goToGraphForNodeType(d.name)}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -130,13 +140,24 @@ export default function DataOverview() {
 
         {/* Pie chart of node types */}
         <Card title="Node Type Share" action={
-          <span className="text-xs text-cg-faint flex items-center gap-1"><Hash size={11}/> proportion</span>
+          <span className="text-xs text-cg-faint flex items-center gap-1"><Hash size={11}/> proportion · click to explore</span>
         }>
           <div className="px-4 pb-5">
             {pieData.length > 0 ? (
               <ResponsiveContainer width="100%" height={240}>
                 <PieChart>
-                  <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={85} innerRadius={45} paddingAngle={2}>
+                  <Pie
+                    data={pieData}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={85}
+                    innerRadius={45}
+                    paddingAngle={2}
+                    cursor="pointer"
+                    onClick={(d: { name?: string }) => d?.name && goToGraphForNodeType(d.name)}
+                  >
                     {pieData.map((_, i) => (
                       <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
                     ))}
@@ -159,7 +180,7 @@ export default function DataOverview() {
 
         {/* Relationship types */}
         <Card title="Relationship Types" action={
-          <span className="text-xs text-cg-faint flex items-center gap-1"><TrendingUp size={11}/> edges</span>
+          <span className="text-xs text-cg-faint flex items-center gap-1"><TrendingUp size={11}/> edges · click to explore</span>
         }>
           <div className="px-4 pb-4">
             {relTypes.length > 0 ? (
@@ -169,7 +190,13 @@ export default function DataOverview() {
                   <XAxis dataKey="name" tick={{ fill: tick, fontSize: 9 }} tickLine={false} axisLine={false} />
                   <YAxis tick={{ fill: tick, fontSize: 10 }} tickLine={false} axisLine={false} />
                   <Tooltip contentStyle={tooltip.contentStyle} />
-                  <Bar dataKey="count" fill="#10B981" radius={[4, 4, 0, 0]} />
+                  <Bar
+                    dataKey="count"
+                    fill="#10B981"
+                    radius={[4, 4, 0, 0]}
+                    cursor="pointer"
+                    onClick={(d: { name?: string }) => d?.name && goToGraphForEdgeType(d.name)}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             ) : (

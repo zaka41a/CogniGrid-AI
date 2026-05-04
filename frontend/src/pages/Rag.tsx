@@ -1,8 +1,27 @@
 import { useState, useRef, useEffect } from 'react'
-import { Send, BookOpen, Network, Cpu, Sparkles, ChevronRight, Trash2, AlertCircle, CheckCircle2, Clock } from 'lucide-react'
+import { Send, BookOpen, Network, Cpu, Sparkles, ChevronRight, Trash2, AlertCircle, CheckCircle2, Clock, Zap } from 'lucide-react'
 import { ragApi, ragHttp } from '../lib/api'
 import { useAppStore } from '../store'
 import type { ChatMessage } from '../types'
+import { StreamingMessage } from '../components/chat/StreamingMessage'
+
+const RAG_URL = (import.meta.env.VITE_RAG_URL as string | undefined) ?? 'http://localhost:8004'
+
+// Per-million-token costs (US$). Rough indicative values used for the estimate
+// shown to the user — actual provider invoices are authoritative.
+const COST_PER_MTOKEN: Record<string, number> = {
+  groq:      0.59,   // llama-3.3-70b-versatile blended
+  openai:    0.30,   // gpt-4o-mini blended
+  anthropic: 1.20,   // claude-haiku-4-5 blended
+  ollama:    0,      // local
+}
+
+function estimateCost(provider: string, tokens: number): string {
+  const rate = COST_PER_MTOKEN[provider] ?? 0
+  const dollars = (tokens / 1_000_000) * rate
+  if (dollars < 0.0001) return '< $0.0001'
+  return `$${dollars.toFixed(4)}`
+}
 
 const ragHistoryKey = (email?: string) => `cg_rag_history_${email ?? 'guest'}`
 
@@ -52,7 +71,37 @@ function SourceChip({ title, chunk }: { title: string; chunk: string }) {
   )
 }
 
-function MessageBubble({ msg }: { msg: ChatMessage }) {
+/** Replace [N] / [N,M] / [N-M] markers with anchor-style spans the user can click */
+function renderWithCitations(text: string, onCite: (idx: number) => void): React.ReactNode[] {
+  const parts: React.ReactNode[] = []
+  const re = /\[(\d+(?:\s*[-,]\s*\d+)*)\]/g
+  let last = 0
+  let match: RegExpExecArray | null
+  let key = 0
+  while ((match = re.exec(text)) !== null) {
+    if (match.index > last) parts.push(text.slice(last, match.index))
+    const numbers = match[1].split(/[-,]/).map(s => parseInt(s.trim(), 10)).filter(n => !Number.isNaN(n))
+    parts.push(
+      <span key={`cite-${key++}`}>
+        {numbers.map((n, i) => (
+          <button
+            key={`${n}-${i}`}
+            onClick={() => onCite(n)}
+            className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 mx-0.5 rounded text-[10px] font-bold bg-cg-primary-s text-cg-primary border border-cg-primary/30 hover:bg-cg-primary hover:text-white transition-colors align-baseline"
+            title={`Source ${n}`}
+          >
+            {n}
+          </button>
+        ))}
+      </span>
+    )
+    last = match.index + match[0].length
+  }
+  if (last < text.length) parts.push(text.slice(last))
+  return parts
+}
+
+function MessageBubble({ msg, onCite }: { msg: ChatMessage; onCite: (idx: number) => void }) {
   const isUser = msg.role === 'user'
   const showSources = !isUser && msg.tools && msg.tools.length > 0
   const currentUser = useAppStore(s => s.currentUser)
@@ -78,21 +127,32 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
           {msg.content.split('\n').map((line, i) => {
             if (!line) return <br key={i} />
             if (line.startsWith('**') && line.endsWith('**'))
-              return <p key={i} className="font-semibold">{line.replace(/\*\*/g, '')}</p>
+              return <p key={i} className="font-semibold">{isUser ? line.replace(/\*\*/g, '') : renderWithCitations(line.replace(/\*\*/g, ''), onCite)}</p>
             if (line.startsWith('- '))
-              return <p key={i} className="ml-3 flex items-start gap-1.5"><span className="text-cg-primary mt-1">•</span>{line.slice(2)}</p>
-            return <p key={i}>{line}</p>
+              return <p key={i} className="ml-3 flex items-start gap-1.5"><span className="text-cg-primary mt-1">•</span><span>{isUser ? line.slice(2) : renderWithCitations(line.slice(2), onCite)}</span></p>
+            return <p key={i}>{isUser ? line : renderWithCitations(line, onCite)}</p>
           })}
         </div>
 
         {showSources && msg.sources && msg.sources.length > 0 && (
           <div className="w-full space-y-1.5">
             <p className="text-[10px] text-cg-faint font-medium uppercase tracking-wide px-1">Sources</p>
-            {msg.sources.map((s, i) => <SourceChip key={i} {...s} />)}
+            {msg.sources.map((s, i) => (
+              <div key={i} id={`${msg.id}-source-${i + 1}`} className="scroll-mt-32">
+                <SourceChip {...s} />
+              </div>
+            ))}
           </div>
         )}
 
-        <p className={`text-[10px] text-cg-faint px-1 ${isUser ? 'text-right' : ''}`}>{msg.timestamp}</p>
+        <p className={`text-[10px] text-cg-faint px-1 flex gap-2 items-center ${isUser ? 'flex-row-reverse' : ''}`}>
+          <span>{msg.timestamp}</span>
+          {!isUser && msg.tokens != null && msg.tokens > 0 && (
+            <span className="inline-flex items-center gap-1 text-cg-faint">
+              <Zap size={9} /> {msg.tokens.toLocaleString()} tok
+            </span>
+          )}
+        </p>
       </div>
 
       {isUser && (
@@ -100,21 +160,6 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
           ? <img src={currentUser.avatar} alt="avatar" className="w-8 h-8 rounded-xl object-cover shrink-0 mt-0.5 border border-cg-border" />
           : <div className="w-8 h-8 rounded-xl bg-cg-s2 border border-cg-border flex items-center justify-center text-xs font-bold text-cg-txt shrink-0 mt-0.5">{initials}</div>
       )}
-    </div>
-  )
-}
-
-function TypingIndicator() {
-  return (
-    <div className="flex gap-3 justify-start">
-      <div className="w-8 h-8 rounded-xl gradient-primary flex items-center justify-center shrink-0 shadow-cg">
-        <Sparkles size={14} className="text-white" />
-      </div>
-      <div className="px-4 py-3 bg-cg-surface border border-cg-border rounded-2xl rounded-tl-sm flex items-center gap-1.5">
-        <span className="typing-dot w-1.5 h-1.5 rounded-full bg-cg-primary inline-block" />
-        <span className="typing-dot w-1.5 h-1.5 rounded-full bg-cg-primary inline-block" />
-        <span className="typing-dot w-1.5 h-1.5 rounded-full bg-cg-primary inline-block" />
-      </div>
     </div>
   )
 }
@@ -132,7 +177,9 @@ export default function Rag() {
   })
   const [input, setInput] = useState('')
   const [thinking, setThinking] = useState(false)
+  const [streamingContent, setStreamingContent] = useState('')
   const [provider, setProvider] = useState('groq')
+  const streamAbortRef = useRef<AbortController | null>(null)
   const [graphStats, setGraphStats] = useState<{ nodeCount: number; documentCount: number } | null>(null)
   const [providers, setProviders] = useState<ProviderInfo[]>(
     LLM_PROVIDERS_BASE.map(p => ({ ...p, status: 'loading' as ProviderStatus }))
@@ -167,6 +214,11 @@ export default function Rag() {
     localStorage.removeItem(ragKey)
   }
 
+  const stopGeneration = () => {
+    streamAbortRef.current?.abort()
+    streamAbortRef.current = null
+  }
+
   const sendMessage = async (text: string) => {
     if (!text.trim() || thinking) return
     const ts = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
@@ -174,10 +226,106 @@ export default function Rag() {
     setMessages(prev => [...prev, userMsg])
     setInput('')
     setThinking(true)
+    setStreamingContent('')
+
+    const history = messages.map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.content }))
+
+    // Try streaming first; on any error, fall back to the existing sync endpoint
+    let streamed = ''
+    let streamingSources: { title: string; chunk: string }[] = []
+    let streamingTokens = 0
+    let streamSucceeded = false
+
     try {
-      const history = messages.map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.content }))
+      const ctrl = new AbortController()
+      streamAbortRef.current = ctrl
+      const token = localStorage.getItem('cg_token') ?? ''
+      const resp = await fetch(`${RAG_URL}/api/rag/chat/stream`, {
+        method: 'POST',
+        signal: ctrl.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'text/event-stream',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          query: text.trim(),
+          llm_provider: provider,
+          history,
+          use_graph_context: true,
+        }),
+      })
+      if (!resp.ok || !resp.body) throw new Error(`HTTP ${resp.status}`)
+
+      const reader = resp.body.getReader()
+      const decoder = new TextDecoder('utf-8')
+      let buffer = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const parts = buffer.split('\n\n')
+        buffer = parts.pop() ?? ''
+        for (const raw of parts) {
+          const eventName = raw.match(/^event:\s*(.+)$/m)?.[1] ?? 'message'
+          const dataLine = raw.split('\n').filter(l => l.startsWith('data:')).map(l => l.slice(5).trim()).join('\n')
+          if (!dataLine) continue
+          let payload: Record<string, unknown> = {}
+          try { payload = JSON.parse(dataLine) as Record<string, unknown> } catch { continue }
+
+          if (eventName === 'token') {
+            const delta = String(payload.delta ?? '')
+            streamed += delta
+            setStreamingContent(streamed)
+          } else if (eventName === 'sources') {
+            const arr = (payload.sources as Array<{ doc_id?: string; file_name?: string; text?: string }>) ?? []
+            streamingSources = arr.map(s => ({
+              title: s.file_name ?? s.doc_id ?? 'Document',
+              chunk: s.text ? (s.text.slice(0, 100) + (s.text.length > 100 ? '…' : '')) : '',
+            }))
+          } else if (eventName === 'usage') {
+            streamingTokens = Number(payload.tokens ?? 0)
+          } else if (eventName === 'error') {
+            throw new Error(String(payload.message ?? 'stream error'))
+          } else if (eventName === 'done') {
+            streamSucceeded = true
+          }
+        }
+      }
+    } catch (err: unknown) {
+      const aborted = (err as { name?: string }).name === 'AbortError'
+      if (aborted && streamed) {
+        // User pressed Stop — keep what we have
+        streamSucceeded = true
+      } else if (aborted) {
+        setThinking(false)
+        setStreamingContent('')
+        return
+      }
+      // else: fall through to sync fallback below
+    } finally {
+      streamAbortRef.current = null
+    }
+
+    if (streamSucceeded && streamed) {
+      setMessages(prev => [...prev, {
+        id: `ai-${Date.now()}`,
+        role: 'ai',
+        content: streamed,
+        timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+        tools: ['qdrant_search', 'neo4j_query'],
+        sources: streamingSources,
+        tokens: streamingTokens,
+      }])
+      setStreamingContent('')
+      setThinking(false)
+      return
+    }
+
+    // Sync fallback (older /chat endpoint, identical to pre-streaming behaviour)
+    try {
       const { data } = await ragApi.chat({ query: text.trim(), llm_provider: provider, history, use_graph_context: true })
-      const aiMsg: ChatMessage = {
+      setMessages(prev => [...prev, {
         id: `ai-${Date.now()}`,
         role: 'ai',
         content: data.answer,
@@ -187,20 +335,19 @@ export default function Rag() {
           title: s.file_name ?? s.doc_id ?? 'Document',
           chunk: s.text ? (s.text.slice(0, 100) + (s.text.length > 100 ? '…' : '')) : '',
         })),
-      }
-      setMessages(prev => [...prev, aiMsg])
+        tokens: (data as { tokens_used?: number }).tokens_used,
+      }])
     } catch (err: unknown) {
       const errMsg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
         ?? 'Backend not reachable. Make sure the GraphRAG service is running.'
-      const aiMsg: ChatMessage = {
-        id: `ai-${Date.now()}`,
-        role: 'ai',
+      setMessages(prev => [...prev, {
+        id: `ai-${Date.now()}`, role: 'ai',
         content: `Sorry, I could not process your request.\n\n${errMsg}`,
         timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
         tools: [],
-      }
-      setMessages(prev => [...prev, aiMsg])
+      }])
     } finally {
+      setStreamingContent('')
       setThinking(false)
     }
   }
@@ -344,8 +491,33 @@ export default function Rag() {
               </div>
             </div>
           )}
-          {messages.map(msg => <MessageBubble key={msg.id} msg={msg} />)}
-          {thinking && <TypingIndicator />}
+          {messages.map(msg => (
+            <MessageBubble
+              key={msg.id}
+              msg={msg}
+              onCite={n => {
+                // Scroll to the n-th source of the latest assistant message
+                const last = [...messages].reverse().find(m => m.role === 'ai')
+                if (!last) return
+                const el = document.getElementById(`${last.id}-source-${n}`)
+                el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                el?.classList.add('ring-2', 'ring-cg-primary')
+                setTimeout(() => el?.classList.remove('ring-2', 'ring-cg-primary'), 1500)
+              }}
+            />
+          ))}
+          {thinking && (
+            <StreamingMessage content={streamingContent} onStop={streamingContent ? stopGeneration : undefined} />
+          )}
+          {!thinking && messages.length > 0 && (() => {
+            const last = messages[messages.length - 1]
+            if (last.role !== 'ai' || !last.tokens) return null
+            return (
+              <p className="text-[10px] text-cg-faint text-center -mt-2">
+                ~{estimateCost(provider, last.tokens)} · {last.tokens.toLocaleString()} tokens
+              </p>
+            )
+          })()}
           <div ref={bottomRef} />
         </div>
 

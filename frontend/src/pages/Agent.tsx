@@ -1,11 +1,12 @@
-import { useState, useRef, useEffect } from 'react'
-import { Send, MessageSquare, Plus, Wrench, Bot, Trash2, Paperclip, AlertTriangle, RotateCcw } from 'lucide-react'
+import { useState, useRef, useEffect, useMemo } from 'react'
+import { Send, MessageSquare, Plus, Wrench, Bot, Trash2, Paperclip, AlertTriangle, RotateCcw, Search, Pin, PinOff, Square } from 'lucide-react'
 
 const agentConvsKey = (email?: string) => `cg_agent_conversations_${email ?? 'guest'}`
 import { agentApi } from '../lib/api'
 import type { ChatMessage } from '../types'
 import { useAppStore } from '../store'
 import { Avatar } from '../components/ui'
+import { ToolTimeline, parseTrace, type TraceStep } from '../components/chat/ToolTimeline'
 
 function UserBubble() {
   const { currentUser } = useAppStore()
@@ -21,6 +22,8 @@ interface Conversation {
   title: string
   date: string
   messages: ChatMessage[]
+  pinned?: boolean
+  rawTraces?: Record<string, string>  // messageId → raw ReAct trace before cleanAgentResponse
 }
 
 const QUICK_PROMPTS = [
@@ -97,7 +100,7 @@ function inlineMd(text: string): string {
     .replace(/`([^`]+)`/g, '<code class="bg-black/10 px-1 rounded text-[11px] font-mono">$1</code>')
 }
 
-function MessageBubble({ msg }: { msg: ChatMessage }) {
+function MessageBubble({ msg, trace }: { msg: ChatMessage; trace?: TraceStep[] }) {
   const isUser = msg.role === 'user'
   const content = isUser ? msg.content : cleanAgentResponse(msg.content)
   return (
@@ -121,6 +124,7 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
             {msg.tools.map(t => <ToolChip key={t} name={t} />)}
           </div>
         )}
+        {!isUser && trace && trace.length > 0 && <ToolTimeline trace={trace} />}
         <p className={`text-[10px] text-cg-faint px-1 ${isUser ? 'text-right' : ''}`}>{msg.timestamp}</p>
       </div>
       {isUser && (
@@ -158,10 +162,29 @@ export default function Agent() {
   })
   const [activeConvId, setActiveConvId]   = useState<string>('new')
   const [messages, setMessages]           = useState<ChatMessage[]>([])
+  const [rawTraces, setRawTraces]         = useState<Record<string, string>>({})
   const [input, setInput]                 = useState('')
   const [thinking, setThinking]   = useState(false)
   const [offline,  setOffline]    = useState(false)
+  const [search, setSearch]       = useState('')
+  const abortRef = useRef<AbortController | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+
+  // Filter and sort sidebar conversations: pinned first, then by date
+  const visibleConvs = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    const filtered = q
+      ? conversations.filter(c =>
+          c.title.toLowerCase().includes(q) ||
+          c.messages.some(m => m.content.toLowerCase().includes(q))
+        )
+      : conversations
+    return [...filtered].sort((a, b) => Number(b.pinned ?? 0) - Number(a.pinned ?? 0))
+  }, [conversations, search])
+
+  const togglePin = (id: string) => {
+    setConversations(prev => prev.map(c => c.id === id ? { ...c, pinned: !c.pinned } : c))
+  }
 
   const activeConv = conversations.find(c => c.id === activeConvId)
 
@@ -213,6 +236,8 @@ export default function Agent() {
     setMessages(prev => [...prev, userMsg])
     setInput('')
     setThinking(true)
+    const ctrl = new AbortController()
+    abortRef.current = ctrl
     try {
       const payload = {
         message: text.trim(),
@@ -221,31 +246,44 @@ export default function Agent() {
       // Retry once on network error (handles container just-started scenario)
       let data
       try {
-        ;({ data } = await agentApi.chat(payload))
-      } catch {
+        ;({ data } = await agentApi.chat(payload, { signal: ctrl.signal }))
+      } catch (e: unknown) {
+        if ((e as { name?: string }).name === 'CanceledError' || (e as { name?: string }).name === 'AbortError' || ctrl.signal.aborted) throw e
         await new Promise(r => setTimeout(r, 1500))
-        ;({ data } = await agentApi.chat(payload))
+        ;({ data } = await agentApi.chat(payload, { signal: ctrl.signal }))
       }
       setOffline(false)
+      const aiId = `ai-${Date.now()}`
       const aiMsg: ChatMessage = {
-        id: `ai-${Date.now()}`,
+        id: aiId,
         role: 'ai',
         content: data.answer,
         timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
         tools: data.tool_calls?.map(tc => tc.tool) ?? [],
       }
       setMessages(prev => [...prev, aiMsg])
-    } catch {
-      setOffline(true)
+      // Keep raw trace separately so the user can inspect ReAct reasoning
+      setRawTraces(prev => ({ ...prev, [aiId]: data.answer }))
+    } catch (e: unknown) {
+      const aborted = (e as { name?: string }).name === 'CanceledError' || (e as { name?: string }).name === 'AbortError' || ctrl.signal.aborted
+      if (!aborted) {
+        setOffline(true)
+      }
       setMessages(prev => prev.filter(m => m.id !== userMsg.id))
-      // Remove the empty conversation that was just created
       if (isNewConv) {
         setConversations(prev => prev.filter(c => c.id !== convId))
         setActiveConvId('new')
       }
     } finally {
       setThinking(false)
+      abortRef.current = null
     }
+  }
+
+  const stopGeneration = () => {
+    abortRef.current?.abort()
+    abortRef.current = null
+    setThinking(false)
   }
 
   const newConversation = () => {
@@ -287,11 +325,28 @@ export default function Agent() {
             </button>
           </div>
         </div>
+        {/* Search bar */}
+        {conversations.length > 0 && (
+          <div className="px-3 py-2 border-b border-cg-border">
+            <div className="relative">
+              <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-cg-faint pointer-events-none" />
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search…"
+                className="w-full pl-7 pr-2 py-1.5 bg-cg-bg border border-cg-border rounded-lg text-xs text-cg-txt placeholder:text-cg-faint focus:outline-none focus:border-cg-primary transition-all"
+              />
+            </div>
+          </div>
+        )}
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
           {conversations.length === 0 && (
             <p className="text-[10px] text-cg-faint text-center py-6 px-3">Start a conversation to see it here</p>
           )}
-          {conversations.map(conv => (
+          {conversations.length > 0 && visibleConvs.length === 0 && (
+            <p className="text-[10px] text-cg-faint text-center py-6 px-3">No conversation matches your search</p>
+          )}
+          {visibleConvs.map(conv => (
             <div
               key={conv.id}
               className={`group flex items-start gap-2 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
@@ -301,11 +356,18 @@ export default function Agent() {
               }`}
               onClick={() => switchConversation(conv.id)}
             >
-              <MessageSquare size={11} className="shrink-0 mt-0.5" />
+              {conv.pinned ? <Pin size={11} className="shrink-0 mt-0.5 text-amber-400" /> : <MessageSquare size={11} className="shrink-0 mt-0.5" />}
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium truncate">{conv.title || 'Conversation'}</p>
                 <p className="text-[10px] text-cg-faint mt-0.5">{conv.date}</p>
               </div>
+              <button
+                onClick={e => { e.stopPropagation(); togglePin(conv.id) }}
+                className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:text-amber-400 transition-all shrink-0"
+                title={conv.pinned ? 'Unpin' : 'Pin'}
+              >
+                {conv.pinned ? <PinOff size={10} /> : <Pin size={10} />}
+              </button>
               <button
                 onClick={e => {
                   e.stopPropagation()
@@ -379,8 +441,21 @@ export default function Agent() {
               </div>
             </div>
           )}
-          {messages.map(msg => <MessageBubble key={msg.id} msg={msg} />)}
-          {thinking && <TypingIndicator />}
+          {messages.map(msg => {
+            const trace = msg.role === 'ai' ? parseTrace(rawTraces[msg.id] ?? msg.content) : undefined
+            return <MessageBubble key={msg.id} msg={msg} trace={trace} />
+          })}
+          {thinking && (
+            <div className="space-y-1.5">
+              <TypingIndicator />
+              <button
+                onClick={stopGeneration}
+                className="ml-11 flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] text-red-400 hover:text-red-500 hover:bg-red-500/10 transition-colors"
+              >
+                <Square size={9} fill="currentColor" /> Stop
+              </button>
+            </div>
+          )}
           <div ref={bottomRef} />
         </div>
 
