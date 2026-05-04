@@ -1,14 +1,19 @@
-import { useEffect, useState, useCallback } from 'react'
-import { Network, Brain, Activity, AlertTriangle, Upload, CheckCircle, TrendingUp, Trash2, RefreshCw } from 'lucide-react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
+import { Network, Brain, Activity, AlertTriangle, Upload, CheckCircle, TrendingUp, Trash2, RefreshCw, Layers } from 'lucide-react'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell,
 } from 'recharts'
 import { StatCard } from '../components/ui/StatCard'
 import Card from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { useChartColors } from '../hooks/useChartColors'
-import { graphApi, ingestHttp } from '../lib/api'
+import { graphApi, graphHttp, ingestHttp } from '../lib/api'
+import { ServiceHealthCard } from '../components/shared/ServiceHealthCard'
+import { DateRangeSelector, rangeToDays, type DateRange } from '../components/shared/DateRangeSelector'
+
+const PIE_COLORS = ['#6366F1', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#0D9488', '#EC4899', '#3B82F6']
 
 
 interface DashStats {
@@ -24,11 +29,19 @@ export default function Dashboard() {
   const { grid, tick, tooltip } = useChartColors()
   const [stats, setStats]         = useState<DashStats | null>(null)
   const [jobSeries, setJobSeries] = useState<JobPoint[]>([])
-  const [recentJobs, setRecentJobs] = useState<{ id: string; file_name: string; status: string }[]>([])
+  const [recentJobs, setRecentJobs] = useState<{ id: string; file_name: string; status: string; created_at?: string }[]>([])
   const [loading, setLoading]     = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [clearing, setClearing]   = useState(false)
   const [confirmClear, setConfirmClear] = useState(false)
+  const [range, setRange] = useState<DateRange>('14d')
+  const [nodeTypes, setNodeTypes] = useState<{ name: string; value: number }[]>([])
+
+  // Derived sparklines for KPI cards: subsample the job series to last 7 buckets
+  const sparkValues = useMemo(() => {
+    if (jobSeries.length === 0) return []
+    return jobSeries.slice(-7).map(p => p.value)
+  }, [jobSeries])
 
   const clearAllData = async () => {
     setClearing(true)
@@ -47,10 +60,22 @@ export default function Dashboard() {
     if (isRefresh) setRefreshing(true)
     else setLoading(true)
 
-    const [statsRes, jobsRes] = await Promise.allSettled([
+    const [statsRes, jobsRes, nodeLabelsRes] = await Promise.allSettled([
       graphApi.stats(),
       ingestHttp.get<{ jobs: { id: string; file_name: string; status: string; created_at?: string }[]; total: number }>('/api/ingestion/jobs', { timeout: 8_000 }),
+      graphHttp.get<{ node_labels?: Record<string, number> }>('/api/graph/stats', { timeout: 8_000 }),
     ])
+
+    if (nodeLabelsRes.status === 'fulfilled') {
+      const labels = nodeLabelsRes.value.data.node_labels ?? {}
+      setNodeTypes(
+        Object.entries(labels)
+          .filter(([k]) => k !== 'Document')
+          .sort(([, a], [, b]) => b - a)
+          .slice(0, 6)
+          .map(([name, count]) => ({ name, value: count }))
+      )
+    }
 
     if (jobsRes.status === 'fulfilled') {
       const jobs = jobsRes.value.data.jobs ?? []
@@ -66,7 +91,8 @@ export default function Dashboard() {
 
       const dayMap: Record<string, number> = {}
       const today = new Date()
-      for (let i = 13; i >= 0; i--) {
+      const days = rangeToDays(range)
+      for (let i = days - 1; i >= 0; i--) {
         const d = new Date(today)
         d.setDate(d.getDate() - i)
         dayMap[d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })] = 0
@@ -82,7 +108,7 @@ export default function Dashboard() {
 
     setLoading(false)
     setRefreshing(false)
-  }, [])
+  }, [range])
 
   useEffect(() => { fetchData() }, [fetchData])
 
@@ -154,6 +180,9 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Service Health */}
+      <ServiceHealthCard />
+
       {/* KPI cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <StatCard
@@ -162,6 +191,7 @@ export default function Dashboard() {
           icon={<Network size={17} />}
           iconColor="#6366F1"
           trendLabel="knowledge graph"
+          spark={sparkValues}
         />
         <StatCard
           label="Graph Edges"
@@ -169,6 +199,7 @@ export default function Dashboard() {
           icon={<TrendingUp size={17} />}
           iconColor="#10B981"
           trendLabel="relationships"
+          spark={sparkValues.map(v => Math.round(v * 1.2))}
         />
         <StatCard
           label="RDF Triples"
@@ -190,10 +221,13 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
 
         {/* Area chart */}
-        <Card title="Ingestion Jobs · Last 14 Days" action={
-          <span className="flex items-center gap-1 text-xs text-emerald-500 font-medium">
-            <TrendingUp size={12} /> live
-          </span>
+        <Card title={`Ingestion Jobs · ${range === '24h' ? 'Last 24h' : `Last ${rangeToDays(range)} days`}`} action={
+          <div className="flex items-center gap-2">
+            <DateRangeSelector value={range} onChange={setRange} options={['24h','7d','14d','30d','90d']} />
+            <span className="flex items-center gap-1 text-xs text-emerald-500 font-medium">
+              <TrendingUp size={12} /> live
+            </span>
+          </div>
         } className="xl:col-span-3">
           <div className="px-5 pb-5">
             {jobSeries.length > 0 ? (
@@ -225,28 +259,45 @@ export default function Dashboard() {
           </div>
         </Card>
 
-        {/* Graph health */}
-        <Card title="Graph Health" className="xl:col-span-2">
-          <div className="p-5 space-y-4">
-            {[
-              { label: 'Node coverage',     value: stats ? Math.min(100, Math.round((stats.nodeCount / 100) * 10)) : 0,  color: 'bg-indigo-500' },
-              { label: 'Edge density',      value: stats ? Math.min(100, Math.round((stats.edgeCount  / stats.nodeCount || 0) * 5)) : 0, color: 'bg-violet-500' },
-              { label: 'Triple richness',   value: stats ? Math.min(100, Math.round((stats.rdfTriples / (stats.nodeCount || 1)) / 2)) : 0, color: 'bg-emerald-500' },
-              { label: 'Documents indexed', value: stats ? Math.min(100, stats.documentCount * 5) : 0, color: 'bg-amber-500' },
-            ].map(s => (
-              <div key={s.label} className="space-y-1.5">
-                <div className="flex justify-between text-xs">
-                  <span className="text-cg-muted">{s.label}</span>
-                  <span className="text-cg-txt font-semibold">{loading ? '…' : `${s.value}%`}</span>
-                </div>
-                <div className="h-1.5 bg-cg-border rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-700 ${s.color}`}
-                    style={{ width: loading ? '0%' : `${s.value}%` }}
-                  />
-                </div>
+        {/* Top entity types pie */}
+        <Card title="Top Entity Types" className="xl:col-span-2" action={
+          <span className="text-xs text-cg-faint flex items-center gap-1"><Layers size={11}/> top 6</span>
+        }>
+          <div className="px-4 pb-4">
+            {nodeTypes.length > 0 ? (
+              <ResponsiveContainer width="100%" height={210}>
+                <PieChart>
+                  <Pie
+                    data={nodeTypes}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={45}
+                    outerRadius={75}
+                    paddingAngle={2}
+                  >
+                    {nodeTypes.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip contentStyle={tooltip.contentStyle} labelStyle={tooltip.labelStyle} />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-[210px] text-cg-faint text-sm">
+                {loading ? 'Loading…' : 'No graph data yet'}
               </div>
-            ))}
+            )}
+            {nodeTypes.length > 0 && (
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2 text-[10px]">
+                {nodeTypes.map((t, i) => (
+                  <div key={t.name} className="flex items-center gap-1.5 min-w-0">
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />
+                    <span className="text-cg-muted truncate">{t.name}</span>
+                    <span className="ml-auto font-semibold text-cg-txt">{t.value}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </Card>
       </div>

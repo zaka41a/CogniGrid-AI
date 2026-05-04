@@ -36,11 +36,16 @@ class JobStore:
             job = result.scalar_one_or_none()
             return self._to_dict(job) if job else None
 
+    # Sentinel for jobs visible to every user (e.g. shared ASSUME KB).
+    # Must stay in sync with bootstrap.py:SHARED_USER_ID.
+    SHARED_USER_ID = "__shared__"
+
     async def list_all(self, user_id: str | None = None) -> list[dict]:
         async with AsyncSessionLocal() as session:
             q = select(JobModel).order_by(JobModel.created_at.desc())
             if user_id:
-                q = q.where(JobModel.user_id == user_id)
+                # Caller sees their own jobs + shared jobs (canonical KB)
+                q = q.where(JobModel.user_id.in_([user_id, self.SHARED_USER_ID]))
             result = await session.execute(q)
             return [self._to_dict(j) for j in result.scalars().all()]
 

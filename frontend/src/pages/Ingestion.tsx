@@ -194,12 +194,12 @@ export default function Ingestion() {
           {/* Text */}
           <div className="flex-1 min-w-0 space-y-1">
             <p className="text-sm font-bold text-amber-900">
-              Graph already contains data
+              Graph already contains your uploads
             </p>
             <p className="text-xs text-amber-800 leading-relaxed">
-              You have existing ingestion jobs. Uploading without clearing will{' '}
+              You have existing personal ingestion jobs. Uploading without clearing will{' '}
               <span className="font-bold text-amber-900">merge</span>{' '}
-              with existing data. Clear the graph first to start fresh.
+              with them. Clearing only deletes <span className="font-bold text-amber-900">your own files</span>. The shared ASSUME knowledge base is preserved.
             </p>
           </div>
           {/* Action */}
@@ -322,14 +322,17 @@ export default function Ingestion() {
                 <Trash2 size={18} className="text-red-500" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-cg-txt">Clear All Data</p>
+                <p className="text-sm font-semibold text-cg-txt">Clear my uploads</p>
                 <p className="text-xs text-cg-muted">This action cannot be undone</p>
               </div>
             </div>
 
             <p className="text-sm text-cg-muted">
-              All Neo4j graph nodes, relationships, vector embeddings, and upload job history will be permanently deleted.
-              The graph will be empty and ready for a fresh import.
+              Permanently deletes <strong className="text-cg-txt">only your personal uploads</strong>: graph nodes,
+              vector embeddings, and ingestion history that you ingested yourself.
+            </p>
+            <p className="text-xs text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+              ✓ The shared ASSUME knowledge base (134 docs) is <strong>preserved</strong> for all users.
             </p>
             <div className="flex gap-3">
               <button

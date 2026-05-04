@@ -16,6 +16,12 @@ class RAGRequest(BaseModel):
     use_graph_context: bool = True
     llm_provider: str = ""   # overrides default if set
     llm_model: str    = ""
+    # Restrict retrieval by file extension — used to keep ASSUME chats from
+    # surfacing CIM .xlsx chunks, and vice-versa, while we don't yet have a
+    # proper per-module namespace. Both lists are case-insensitive, leading
+    # dots stripped (e.g. "xlsx" matches both ".xlsx" and "xlsx").
+    file_type_include: list[str] = []
+    file_type_exclude: list[str] = []
 
 
 class SourceChunk(BaseModel):
@@ -45,6 +51,8 @@ class SearchRequest(BaseModel):
     query: str
     top_k: int = 10
     file_type_filter: str = ""
+    file_type_include: list[str] = []
+    file_type_exclude: list[str] = []
 
 
 class SearchResponse(BaseModel):

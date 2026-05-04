@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { useAppStore } from '../../store'
 import { Avatar } from '../ui/Avatar'
+import { ServiceHealthBadge } from '../shared/ServiceHealthBadge'
 
 const NAV_GROUPS = [
   {
@@ -170,6 +171,9 @@ export default function Sidebar() {
 
       {/* ── Footer ───────────────────────────────────────────────────────── */}
       <div className="shrink-0 border-t border-white/10 p-2 space-y-1">
+
+        {/* Global service health */}
+        <ServiceHealthBadge compact={!sidebarOpen} />
 
         {/* User card */}
         {sidebarOpen ? (

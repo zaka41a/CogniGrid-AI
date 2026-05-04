@@ -65,7 +65,7 @@ public class AdminUserService {
             try {
                 user.setRole(Role.valueOf(req.getRole().toUpperCase()));
             } catch (IllegalArgumentException ex) {
-                throw new AuthException("Invalid role. Use ADMIN, ANALYST, or VIEWER");
+                throw new AuthException("Invalid role. Use ADMIN or ANALYST");
             }
         }
         if (req.getActive() != null) {

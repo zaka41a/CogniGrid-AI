@@ -11,12 +11,13 @@ import {
   Zap, BookOpen, Bot, Upload, Network, Sparkles, Send,
   FileText, GitBranch, TrendingUp, ChevronRight,
   ExternalLink, CheckCircle2, Play,
-  RefreshCw, AlertCircle, Download, Cpu, Database, Layers,
+  RefreshCw, AlertCircle, Download, Database, Layers,
   FlaskConical, ArrowRight, Wand2, Activity, Copy, Check,
   BarChart3, Gauge, ChevronDown, ChevronUp, Library,
   GitCompare, Trash2, Server, Wifi, WifiOff,
 } from 'lucide-react'
-import { ragHttp, ingestHttp, graphHttp, agentHttp, runnerHttp } from '../../lib/api'
+import { ragHttp, ingestHttp, graphHttp, agentHttp, runnerHttp, ingestionApi } from '../../lib/api'
+import type { IngestJob } from '../../lib/api'
 import { useAppStore } from '../../store'
 import type { ChatMessage } from '../../types'
 
@@ -148,7 +149,7 @@ function OverviewTab({ onNavigate }: { onNavigate: (t: Tab) => void }) {
               </div>
 
               <div className="flex items-start gap-4 mb-4">
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-xl shadow-blue-500/40 shrink-0">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shrink-0">
                   <Zap size={26} className="text-white" />
                 </div>
                 <div>
@@ -382,6 +383,11 @@ function AdvisorTab() {
         llm_model: 'llama-3.3-70b-versatile',
         history,
         use_graph_context: true,
+        // Keep CIM tabular sources out of the ASSUME advisor — they pollute
+        // retrieval with .xlsx grid topology that has nothing to do with
+        // electricity-market simulation questions. Until we have proper
+        // per-module namespacing this is the simplest mitigation.
+        file_type_exclude: ['xlsx', 'csv', 'xml'],
       })
       const aiMsg: ChatMessage = {
         id: `ai-${Date.now()}`, role: 'ai',
@@ -393,10 +399,26 @@ function AdvisorTab() {
         })),
       }
       setMessages(prev => [...prev, aiMsg])
-    } catch {
+    } catch (e: unknown) {
+      // Distinguish between a real service outage and an upstream LLM
+      // rate-limit / quota error so the user knows whether to wait or
+      // restart the backend.
+      const err = e as { response?: { status?: number; data?: { detail?: string } }; message?: string }
+      const status = err?.response?.status
+      const detail = err?.response?.data?.detail ?? err?.message ?? ''
+      let content = 'Could not reach the GraphRAG service. Make sure the backend is running and ASSUME documentation is imported.'
+      if (status === 429 || /\b429\b|too many requests|rate.?limit/i.test(detail)) {
+        content = '⏱ **Groq rate limit reached.** The free tier allows a limited number of requests per minute. Please wait ~60 seconds and try again. (The platform itself is fine.)'
+      } else if (status === 413 || /\b413\b|payload too large/i.test(detail)) {
+        content = '📦 **Request too large for Groq.** Try a shorter question or disable graph context.'
+      } else if (status === 401 || status === 403) {
+        content = '🔑 **Authentication issue.** Check that GROQ_API_KEY is set in `.env` and the backend was restarted after the change.'
+      } else if (status && status >= 500) {
+        content = `⚠️ **Backend error (HTTP ${status}).** ${detail || 'Check graphrag logs.'}`
+      }
       setMessages(prev => [...prev, {
         id: `ai-${Date.now()}`, role: 'ai',
-        content: 'Could not reach the GraphRAG service. Make sure the backend is running and ASSUME documentation is imported.',
+        content,
         timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
       }])
     } finally {
@@ -452,6 +474,9 @@ function AdvisorTab() {
       else if (/^\d+\. /.test(line)) {
         const [num, ...rest] = line.split('. ')
         out.push(<p key={i} className="ml-3 flex items-start gap-2 my-0.5"><span className="text-blue-400 font-bold shrink-0 text-xs mt-0.5">{num}.</span><span>{renderInline(rest.join('. '), `il-${i}`)}</span></p>)
+      } else if (/^-{3,}\s*$/.test(line) || /^\*{3,}\s*$/.test(line)) {
+        // Markdown horizontal rule — render as a real divider, not a bare "---"
+        out.push(<hr key={i} className="my-3 border-0 border-t border-white/10" />)
       } else if (!line)
         out.push(<div key={i} className="h-2" />)
       else
@@ -476,7 +501,7 @@ function AdvisorTab() {
         {/* Identity */}
         <div className="card p-4 space-y-3">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/20 shrink-0">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shrink-0">
               <Wand2 size={13} className="text-white" />
             </div>
             <div>
@@ -485,7 +510,7 @@ function AdvisorTab() {
             </div>
           </div>
           <p className="text-[11px] text-cg-muted leading-relaxed">
-            Ask anything about ASSUME — scenario design, market config, bidding strategies, Python API.
+            Ask anything about ASSUME: scenario design, market config, bidding strategies, Python API.
           </p>
           <div className="flex items-center gap-2 text-[10px]">
             <span className="flex items-center gap-1 text-emerald-400"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />Groq · Llama 3.3 70B</span>
@@ -528,7 +553,7 @@ function AdvisorTab() {
       <div className="flex-1 flex flex-col card overflow-hidden">
         {/* Header */}
         <div className="px-5 py-3.5 border-b border-cg-border flex items-center gap-3 shrink-0">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-lg shadow-blue-500/30">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center">
             <Zap size={16} className="text-white" />
           </div>
           <div>
@@ -552,7 +577,7 @@ function AdvisorTab() {
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
           {messages.length === 0 && (
             <div className="h-full flex flex-col items-center justify-center text-center">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-xl shadow-blue-500/30 mb-5">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center mb-5">
                 <Zap size={28} className="text-white" />
               </div>
               <h3 className="text-base font-bold text-cg-txt mb-2">ASSUME Scenario Advisor</h3>
@@ -578,7 +603,7 @@ function AdvisorTab() {
             return (
               <div key={msg.id} className={`flex gap-3 ${isUser ? 'justify-end' : 'justify-start'}`}>
                 {!isUser && (
-                  <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shrink-0 mt-0.5 shadow-lg shadow-emerald-500/20">
+                  <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shrink-0 mt-0.5">
                     <Zap size={13} className="text-white" />
                   </div>
                 )}
@@ -620,7 +645,7 @@ function AdvisorTab() {
 
           {thinking && (
             <div className="flex gap-3">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-500/20 shrink-0">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shrink-0">
                 <Zap size={13} className="text-white" />
               </div>
               <div className="px-4 py-3 bg-cg-surface border border-cg-border rounded-2xl rounded-tl-sm flex items-center gap-1.5">
@@ -870,28 +895,29 @@ function KnowledgeTab() {
           </div>
         </div>
 
-        {/* ASSUME Concepts */}
+        {/* ASSUME Concepts — clickable: each chip runs a real graph search */}
         <div className="card overflow-hidden">
           <div className="flex items-center gap-3 px-5 py-4 border-b border-cg-border bg-cg-s2/40">
             <div className="w-7 h-7 rounded-lg bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center">
               <FlaskConical size={12} className="text-emerald-400" />
             </div>
-            <div>
+            <div className="flex-1">
               <p className="text-xs font-bold text-cg-txt uppercase tracking-widest">ASSUME Concepts</p>
-              <p className="text-[10px] text-cg-faint">Core domain classes in the framework</p>
+              <p className="text-[10px] text-cg-faint">Click any concept to search the knowledge graph</p>
             </div>
           </div>
           <div className="p-5 grid grid-cols-1 gap-2">
             {CONCEPTS.map(c => (
-              <div key={c.label}
-                className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl bg-cg-s2 border border-cg-border hover:border-cg-primary/30 hover:bg-cg-bg transition-all cursor-default group">
+              <button key={c.label}
+                onClick={() => { setQuery(c.label); search(c.label) }}
+                className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl bg-cg-s2 border border-cg-border hover:border-cg-primary/40 hover:bg-cg-primary-s/40 transition-all group text-left">
                 <div className="w-3 h-3 rounded-sm shrink-0 opacity-90" style={{ backgroundColor: c.color }} />
                 <div className="flex-1 min-w-0 flex items-center gap-3">
                   <span className="text-[11px] font-bold text-cg-txt font-mono">{c.label}</span>
-                  <div className="h-px flex-1 bg-cg-border opacity-50" />
+                  <div className="h-px flex-1 bg-cg-border opacity-50 group-hover:bg-cg-primary/30" />
                   <span className="text-[10px] text-cg-muted shrink-0">{c.desc}</span>
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         </div>
@@ -1128,7 +1154,7 @@ function RunnerTab({ yamlFromGenerator, nameFromGenerator }: { yamlFromGenerator
 
           <div className="card p-5 space-y-4">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
                 <Play size={15} className="text-white" />
               </div>
               <div>
@@ -1305,7 +1331,7 @@ function RunnerTab({ yamlFromGenerator, nameFromGenerator }: { yamlFromGenerator
                   {pushGraph && (
                     <div className="flex items-center gap-2 text-[11px] text-emerald-400/80">
                       <CheckCircle2 size={11} />
-                      Results pushed to Knowledge Graph — entities visible in Knowledge Map
+                      Results pushed to Knowledge Graph. Entities visible in Knowledge Map
                     </div>
                   )}
                 </div>
@@ -2153,24 +2179,13 @@ function CompareTab() {
 // ─────────────────────────────────────────────────────────────────────────────
 // IMPORT TAB
 // ─────────────────────────────────────────────────────────────────────────────
-const INGESTED_FILES = [
-  'README.md','paper.md','CONTRIBUTING.md',
-  'introduction.rst','quick_start.rst','installation.rst',
-  'market_mechanism.rst','market_config.rst','units.rst',
-  'bidding_strategies.rst','learning_algorithm.rst','scenario_loader.rst',
-  'example_simulations.rst','outputs.rst','demand_side_agent.rst',
-  'redispatch_modeling.rst','support_policies.rst','unit_forecasts.rst',
-  'unit_operator.rst','distributed_simulation.rst','release_notes.rst',
-  'world.py','market_objects.py','base.py','forecaster.py',
-  'outputs.py','units_operator.py','base_market.py',
-  'simple.py','nodal_clearing.py','contracts.py','redispatch.py',
-  'naive_strategies.py','advanced_orders.py','flexable.py',
-  'learning_strategies.py','dmas_powerplant.py',
-  'storage.py','demand.py','learning_role.py',
-  'example_01a/config.yaml','example_01b/config.yaml','example_01c/config.yaml',
-  'example_02a/config.yaml','example_02b/config.yaml','example_03/config.yaml',
-  'world_script.py','examples.py',
-]
+
+/** Extract the lowercased extension of a file name (without leading dot). */
+function fileExt(fn: string): string {
+  const base = fn.split('/').pop() ?? fn
+  const i = base.lastIndexOf('.')
+  return i >= 0 ? base.slice(i + 1).toLowerCase() : ''
+}
 
 function ImportTab() {
   const fileRef = useRef<HTMLInputElement>(null)
@@ -2181,6 +2196,53 @@ function ImportTab() {
   const [clearing, setClearing]     = useState(false)
   const [clearDone, setClearDone]   = useState(false)
   const [confirmClear, setConfirmClear] = useState(false)
+  const [jobs, setJobs]             = useState<IngestJob[]>([])
+  const [bootstrapping, setBootstrapping] = useState(false)
+  const [bootstrapMsg, setBootstrapMsg]   = useState<string | null>(null)
+
+  const loadJobs = useCallback(async () => {
+    try {
+      const { data } = await ingestionApi.jobs()
+      setJobs(data.jobs ?? [])
+    } catch { /* ignore — empty state handles it */ }
+  }, [])
+
+  useEffect(() => { loadJobs() }, [loadJobs])
+
+  // Re-poll every 5s while any ingestion is in-flight, so the user sees
+  // the file count climb without manually refreshing.
+  useEffect(() => {
+    const inFlight = jobs.some(j => j.status === 'processing' || j.status === 'pending')
+    if (!inFlight) return
+    const id = setInterval(loadJobs, 5_000)
+    return () => clearInterval(id)
+  }, [jobs, loadJobs])
+
+  const triggerBootstrap = async () => {
+    setBootstrapping(true)
+    setBootstrapMsg(null)
+    try {
+      const { data } = await ingestionApi.bootstrapAssume()
+      if (data.files_queued === 0 && data.files_skipped > 0) {
+        setBootstrapMsg(`All ${data.files_skipped} ASSUME files are already ingested.`)
+      } else {
+        setBootstrapMsg(
+          `Queued ${data.files_queued} files for ingestion ` +
+          `(skipped ${data.files_skipped} already ingested · ${data.files_total} total in repo). ` +
+          `Indexing runs in the background — refresh the list to track progress.`
+        )
+      }
+      await loadJobs()
+      setTimeout(() => setBootstrapMsg(null), 12_000)
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+        ?? (e as { message?: string })?.message
+        ?? 'Bootstrap failed'
+      setBootstrapMsg(`Failed: ${msg}`)
+    } finally {
+      setBootstrapping(false)
+    }
+  }
 
   const upload = async (file: File) => {
     setUploading(true); setDone(false); setError('')
@@ -2209,10 +2271,11 @@ function ImportTab() {
     try {
       await Promise.all([
         graphHttp.delete('/api/graph/clear'),
-        ingestHttp.delete('/api/ingestion/jobs'),
+        ingestHttp.delete('/api/ingestion/jobs'),  // also wipes Qdrant chunks server-side
       ])
       setClearDone(true)
       setConfirmClear(false)
+      await loadJobs()  // refresh the "Ingested Knowledge Base" panel — should show 0 indexed
       setTimeout(() => setClearDone(false), 4000)
     } catch { /* ignore */ }
     finally { setClearing(false) }
@@ -2393,93 +2456,127 @@ function ImportTab() {
         </div>
       )}
 
-      {/* ── Processing Pipeline ───────────────────────────────────────────── */}
-      <div className="card overflow-hidden">
-        <div className="flex items-center gap-3 px-5 py-4 border-b border-cg-border bg-cg-s2/40">
-          <div className="w-7 h-7 rounded-lg bg-blue-500/15 border border-blue-500/20 flex items-center justify-center">
-            <Cpu size={12} className="text-blue-400" />
-          </div>
-          <div className="flex-1">
-            <p className="text-xs font-bold text-cg-txt uppercase tracking-widest">Ingestion Pipeline</p>
-            <p className="text-[10px] text-cg-faint">Automated processing into Neo4j + Qdrant</p>
-          </div>
-          <div className="flex items-center gap-1.5 text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />Active
-          </div>
-        </div>
-        <div className="p-5">
-          <div className="grid grid-cols-5 gap-2">
-            {[
-              { icon: <FileText size={14} />,  label: 'Parse',   desc: 'PDF · PY · MD',   color: 'text-blue-400',    bg: 'bg-blue-500/12 border-blue-500/25',    step: '01' },
-              { icon: <Sparkles size={14} />,  label: 'Extract', desc: 'SpaCy NER',        color: 'text-violet-400',  bg: 'bg-violet-500/12 border-violet-500/25',step: '02' },
-              { icon: <Cpu size={14} />,       label: 'Embed',   desc: 'MiniLM-L6',        color: 'text-cyan-400',    bg: 'bg-cyan-500/12 border-cyan-500/25',    step: '03' },
-              { icon: <GitBranch size={14} />, label: 'Graph',   desc: 'Neo4j',            color: 'text-emerald-400', bg: 'bg-emerald-500/12 border-emerald-500/25', step: '04' },
-              { icon: <Database size={14} />,  label: 'Index',   desc: 'Qdrant',           color: 'text-amber-400',   bg: 'bg-amber-500/12 border-amber-500/25',  step: '05' },
-            ].map((s, i, arr) => (
-              <div key={s.label} className="flex flex-col items-center gap-2 relative">
-                <div className={`w-full rounded-xl border p-3 flex flex-col items-center gap-1.5 ${s.bg}`}>
-                  <span className={`text-[9px] font-bold font-mono ${s.color} opacity-60`}>{s.step}</span>
-                  <span className={s.color}>{s.icon}</span>
-                  <p className={`text-[11px] font-bold ${s.color}`}>{s.label}</p>
-                  <p className={`text-[9px] ${s.color} opacity-60`}>{s.desc}</p>
-                </div>
-                {i < arr.length - 1 && (
-                  <div className="absolute -right-1 top-1/2 -translate-y-1/2 z-10">
-                    <ChevronRight size={12} className="text-cg-faint" />
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+      {/* ── Ingested Files (real, fetched from /api/ingestion/jobs) ───────── */}
+      {(() => {
+        const completed = jobs.filter(j => j.status === 'completed')
+        const inFlight  = jobs.filter(j => j.status === 'processing' || j.status === 'pending')
+        const failed    = jobs.filter(j => j.status === 'failed')
 
-      {/* ── Ingested Files ────────────────────────────────────────────────── */}
-      <div className="card overflow-hidden">
-        <div className="flex items-center gap-3 px-5 py-4 border-b border-cg-border bg-cg-s2/40">
-          <div className="w-7 h-7 rounded-lg bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center">
-            <CheckCircle2 size={12} className="text-emerald-400" />
-          </div>
-          <div className="flex-1">
-            <p className="text-xs font-bold text-cg-txt uppercase tracking-widest">Pre-loaded ASSUME Files</p>
-            <p className="text-[10px] text-cg-faint">{INGESTED_FILES.length} files indexed in Neo4j and Qdrant</p>
-          </div>
-          <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full">
-            {INGESTED_FILES.length} files
-          </span>
-        </div>
-        <div className="p-5 space-y-4">
-          {[
-            { label: 'Documentation',  exts: ['rst', 'md'],       accent: 'text-emerald-400', border: 'border-emerald-500/25', bg: 'bg-emerald-500/8',  dot: 'bg-emerald-400' },
-            { label: 'Python Source',  exts: ['py'],              accent: 'text-blue-400',    border: 'border-blue-500/25',    bg: 'bg-blue-500/8',     dot: 'bg-blue-400'    },
-            { label: 'YAML Configs',   exts: ['yaml', 'yml'],     accent: 'text-amber-400',   border: 'border-amber-500/25',   bg: 'bg-amber-500/8',    dot: 'bg-amber-400'   },
-          ].map(group => {
-            const files = INGESTED_FILES.filter(f => group.exts.includes(f.split('.').pop() ?? ''))
-            if (!files.length) return null
-            return (
-              <div key={group.label}>
-                <div className="flex items-center gap-2 mb-2.5">
-                  <div className={`w-1.5 h-1.5 rounded-full ${group.dot}`} />
-                  <p className={`text-[10px] font-bold uppercase tracking-widest ${group.accent}`}>{group.label}</p>
-                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${group.border} ${group.bg} ${group.accent}`}>{files.length}</span>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {files.map(f => {
-                    const parts = f.split('/')
-                    const name = parts.pop() ?? f
-                    const folder = parts.length > 0 ? parts[parts.length - 1] : ''
-                    return (
-                      <span key={f} title={f} className={`text-[10px] font-mono px-2 py-0.5 rounded-lg border ${group.border} ${group.bg} ${group.accent} max-w-[180px] truncate`}>
-                        {folder ? `${folder}/${name}` : name}
-                      </span>
-                    )
-                  })}
-                </div>
+        const groups = [
+          { label: 'Documentation',  exts: ['rst', 'md'],   accent: 'text-emerald-200', border: 'border-emerald-500/40', bg: 'bg-emerald-600/30', dot: 'bg-emerald-400' },
+          { label: 'Python Source',  exts: ['py'],          accent: 'text-blue-200',    border: 'border-blue-500/40',    bg: 'bg-blue-600/30',    dot: 'bg-blue-400'    },
+          { label: 'YAML Configs',   exts: ['yaml', 'yml'], accent: 'text-amber-200',   border: 'border-amber-500/40',   bg: 'bg-amber-600/30',   dot: 'bg-amber-400'   },
+          { label: 'Other',          exts: ['*'],           accent: 'text-slate-200',   border: 'border-slate-500/40',   bg: 'bg-slate-600/30',   dot: 'bg-slate-400'   },
+        ] as const
+
+        const grouped = groups.map(g => {
+          const matching = completed.filter(j => {
+            const ext = fileExt(j.file_name)
+            if (g.exts[0] === '*') {
+              const known = ['rst','md','py','yaml','yml']
+              return !known.includes(ext)
+            }
+            return (g.exts as readonly string[]).includes(ext)
+          })
+          return { ...g, jobs: matching }
+        }).filter(g => g.jobs.length > 0)
+
+        return (
+          <div className="card overflow-hidden">
+            <div className="flex items-center gap-3 px-5 py-4 border-b border-cg-border bg-cg-s2/40">
+              <div className="w-7 h-7 rounded-lg bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center">
+                <CheckCircle2 size={12} className="text-emerald-400" />
               </div>
-            )
-          })}
-        </div>
-      </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-cg-txt uppercase tracking-widest">Ingested Knowledge Base</p>
+                <p className="text-[10px] text-cg-faint">
+                  {completed.length} indexed
+                  {inFlight.length > 0 && <> · <span className="text-amber-400">{inFlight.length} processing</span></>}
+                  {failed.length > 0   && <> · <span className="text-red-400">{failed.length} failed</span></>}
+                </p>
+              </div>
+              <button
+                onClick={triggerBootstrap}
+                disabled={bootstrapping}
+                title="Download the github.com/assume-framework/assume repo and ingest its docs + Python source + example configs into the SHARED knowledge base — visible to every user on this platform."
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold text-white bg-blue-600 border border-blue-500 hover:bg-blue-700 disabled:opacity-50 transition-all whitespace-nowrap"
+              >
+                {bootstrapping
+                  ? <><RefreshCw size={11} className="animate-spin" />Bootstrapping…</>
+                  : <><Download size={11} />Bootstrap shared ASSUME KB</>}
+              </button>
+              <button
+                onClick={loadJobs}
+                title="Refresh"
+                className="p-1.5 rounded-lg text-cg-muted hover:text-cg-txt hover:bg-cg-s2 transition-colors"
+              >
+                <RefreshCw size={11} />
+              </button>
+            </div>
+
+            {bootstrapMsg && (
+              <div className={`px-5 py-2.5 text-[11px] border-b ${
+                bootstrapMsg.startsWith('Failed')
+                  ? 'bg-red-500/10 border-red-500/25 text-red-300'
+                  : 'bg-blue-500/10 border-blue-500/25 text-blue-200'
+              }`}>
+                {bootstrapMsg}
+              </div>
+            )}
+
+            <div className="p-5 space-y-4 bg-slate-950/50">
+              {completed.length === 0 && inFlight.length === 0 && (
+                <div className="text-center py-6 space-y-2">
+                  <p className="text-sm font-semibold text-blue-300">No documents ingested yet</p>
+                  <p className="text-xs text-blue-200/85 max-w-md mx-auto leading-relaxed">
+                    Click <strong className="text-white">Bootstrap ASSUME KB</strong> to fetch the
+                    <a href="https://github.com/assume-framework/assume" target="_blank" rel="noopener noreferrer" className="text-blue-300 hover:text-blue-200 underline mx-1">ASSUME framework repository</a>
+                    and index its docs, source code, and example configs.
+                    Or drop your own files above.
+                  </p>
+                </div>
+              )}
+
+              {inFlight.length > 0 && (
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-200 flex items-center gap-2">
+                  <RefreshCw size={11} className="animate-spin" />
+                  {inFlight.length} {inFlight.length === 1 ? 'file is' : 'files are'} being indexed in the background…
+                </div>
+              )}
+
+              {grouped.map(group => (
+                <div key={group.label}>
+                  <div className="flex items-center gap-2 mb-2.5">
+                    <div className={`w-1.5 h-1.5 rounded-full ${group.dot}`} />
+                    <p className={`text-[10px] font-bold uppercase tracking-widest ${group.accent}`}>{group.label}</p>
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${group.border} ${group.bg} ${group.accent}`}>{group.jobs.length}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {group.jobs.map(j => {
+                      const parts = j.file_name.split('/')
+                      const name = parts.pop() ?? j.file_name
+                      const folder = parts.length > 0 ? parts[parts.length - 1] : ''
+                      const isShared = j.user_id === '__shared__'
+                      return (
+                        <span
+                          key={j.id}
+                          title={`${j.file_name} · ${j.nodes_extracted ?? 0} entities${isShared ? ' · shared knowledge base' : ''}`}
+                          className={`inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded-lg border ${group.border} ${group.bg} ${group.accent} max-w-[260px]`}
+                        >
+                          <span className="truncate">{folder ? `${folder}/${name}` : name}</span>
+                          {isShared && (
+                            <span className="shrink-0 text-[8px] font-bold uppercase tracking-wider px-1 py-px rounded bg-white/20 text-white border border-white/30">shared</span>
+                          )}
+                        </span>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })()}
 
       {/* ── Clear Data (Danger Zone) ──────────────────────────────────────── */}
       <div className="rounded-2xl border border-red-500/20 overflow-hidden">
@@ -2492,21 +2589,22 @@ function ImportTab() {
         {!confirmClear ? (
           <div className="flex items-center gap-4 px-5 py-4 bg-cg-bg">
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-cg-txt mb-0.5">Clear Knowledge Graph</p>
+              <p className="text-xs font-semibold text-cg-txt mb-0.5">Clear my uploads</p>
               <p className="text-[11px] text-cg-faint leading-relaxed">
-                Removes all nodes, relationships, vector embeddings and upload history. Import fresh data after clearing.
+                Removes <strong className="text-cg-muted">only your personal uploads</strong> (nodes, vectors, ingestion history).
+                The shared ASSUME knowledge base stays intact for all users.
               </p>
             </div>
             <button onClick={() => setConfirmClear(true)}
               className="shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-red-400 bg-red-500/10 border border-red-500/25 hover:bg-red-500/18 transition-all">
-              <Trash2 size={12} />Clear All Data
+              <Trash2 size={12} />Clear my data
             </button>
           </div>
         ) : (
           <div className="flex items-center gap-4 px-5 py-4 bg-red-500/5">
             <AlertCircle size={16} className="text-red-400 shrink-0" />
             <p className="text-xs text-red-400 flex-1 leading-relaxed">
-              This will permanently delete <strong>all graph nodes, relationships, vectors and ingestion history.</strong> Cannot be undone.
+              This will permanently delete <strong>your own uploads only</strong> (graph nodes, vectors, ingestion history). Shared ASSUME KB is kept. Cannot be undone.
             </p>
             <div className="flex items-center gap-2 shrink-0">
               <button onClick={() => setConfirmClear(false)}
@@ -2574,6 +2672,27 @@ function useCopyToClipboard() {
     })
   }
   return { copied, copy }
+}
+
+/**
+ * Format a duration in hours into a human-readable label.
+ * Examples:
+ *   1   → "1 hour"
+ *   24  → "24 hours · 1 day"
+ *   45  → "45 hours · 1d 21h"
+ *   72  → "72 hours · 3 days"
+ *   168 → "168 hours · 1 week"
+ */
+function formatDurationLabel(hours: number): string {
+  if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'}`
+  const days = Math.floor(hours / 24)
+  const remHours = hours % 24
+  if (remHours === 0) {
+    if (hours === 168) return `${hours} hours · 1 week`
+    if (hours === 336) return `${hours} hours · 2 weeks`
+    return `${hours} hours · ${days} day${days > 1 ? 's' : ''}`
+  }
+  return `${hours} hours · ${days}d ${remHours}h`
 }
 
 /**
@@ -2651,19 +2770,27 @@ function YamlViewer({ yaml }: { yaml: string }) {
     <div className="relative">
       {/* Schema validation banner */}
       {!schemaOk && cleanYaml.length > 20 && (
-        <div className="flex items-start gap-2.5 px-4 py-2.5 bg-amber-500/10 border-b border-amber-500/25">
-          <AlertCircle size={13} className="text-amber-400 shrink-0 mt-0.5" />
-          <div className="text-[11px] text-amber-300/90 leading-relaxed">
-            <strong>Format warning:</strong> The generated YAML is missing{' '}
-            {[!hasGeneral && '`general:`', !hasUnits && '`units:`', !hasDemand && '`demand:`'].filter(Boolean).join(', ')}.
-            {' '}The runner may fall back to default units. Click <strong>New scenario</strong> and regenerate if results look incorrect.
+        <div className="flex items-start gap-2.5 px-4 py-3 bg-amber-600 border-b border-amber-700 shadow-md shadow-amber-900/30">
+          <AlertCircle size={14} className="text-white shrink-0 mt-0.5" />
+          <div className="text-[12px] text-white font-medium leading-relaxed">
+            <strong className="font-bold">Format warning:</strong> The generated YAML is missing{' '}
+            {[!hasGeneral && <code key="g" className="px-1 py-0.5 bg-amber-800 rounded font-mono">general:</code>,
+              !hasUnits   && <code key="u" className="px-1 py-0.5 bg-amber-800 rounded font-mono">units:</code>,
+              !hasDemand  && <code key="d" className="px-1 py-0.5 bg-amber-800 rounded font-mono">demand:</code>]
+              .filter(Boolean)
+              .reduce<React.ReactNode[]>((acc, el, i, arr) => {
+                acc.push(el)
+                if (i < arr.length - 1) acc.push(<span key={`s${i}`}>, </span>)
+                return acc
+              }, [])}
+            .{' '}The runner may fall back to default units. Click <strong className="font-bold">New scenario</strong> and regenerate if results look incorrect.
           </div>
         </div>
       )}
       {schemaOk && (
-        <div className="flex items-center gap-2 px-4 py-2 bg-emerald-500/8 border-b border-emerald-500/15">
-          <CheckCircle2 size={11} className="text-emerald-400 shrink-0" />
-          <span className="text-[11px] text-emerald-400/80">Schema valid — runner will use your units and demand</span>
+        <div className="flex items-center gap-2 px-4 py-2 bg-emerald-600 border-b border-emerald-700">
+          <CheckCircle2 size={12} className="text-white shrink-0" />
+          <span className="text-[12px] text-white font-semibold">Schema valid runner will use your units and demand</span>
         </div>
       )}
 
@@ -2689,9 +2816,32 @@ function YamlViewer({ yaml }: { yaml: string }) {
           </button>
         </div>
       </div>
-      <pre className="overflow-auto max-h-[480px] p-5 text-xs font-mono text-slate-300 bg-slate-950/60 rounded-b-xl border-x border-b border-white/8 leading-relaxed">
-        <code>{cleanYaml}</code>
-      </pre>
+      {cleanYaml.trim().length < 10 ? (
+        <div className="p-6 bg-amber-50 rounded-b-xl border-x border-b border-amber-300 text-center space-y-3">
+          <div className="w-10 h-10 rounded-full bg-amber-500 mx-auto flex items-center justify-center shadow-md">
+            <AlertCircle size={20} className="text-white" />
+          </div>
+          <div>
+            <p className="text-base font-bold text-amber-900">No YAML returned</p>
+            <p className="text-sm text-amber-800 mt-1.5 max-w-md mx-auto leading-relaxed">
+              The LLM response did not contain a usable scenario configuration. This usually means the model timed out, the backend returned an empty body, or the description was too vague.
+            </p>
+            <p className="text-xs text-amber-700 mt-2">
+              Click <strong>New scenario</strong> and try a more specific description, or check that the agent service is reachable.
+            </p>
+          </div>
+          {yaml && yaml.trim().length > 0 && (
+            <details className="text-left text-xs text-amber-800 max-w-full">
+              <summary className="cursor-pointer font-semibold hover:text-amber-950 transition-colors">Show raw response ({yaml.length} chars)</summary>
+              <pre className="mt-2 p-3 bg-white border border-amber-300 rounded-lg overflow-auto max-h-48 whitespace-pre-wrap break-all text-slate-800">{yaml}</pre>
+            </details>
+          )}
+        </div>
+      ) : (
+        <pre className="overflow-auto max-h-[480px] p-5 text-xs font-mono text-slate-300 bg-slate-950/60 rounded-b-xl border-x border-b border-white/8 leading-relaxed">
+          <code>{cleanYaml}</code>
+        </pre>
+      )}
     </div>
   )
 }
@@ -2738,6 +2888,19 @@ function GeneratorTab({ onYamlGenerated }: { onYamlGenerated?: (yaml: string, na
         ...raw,
         yaml_config: sanitizeYaml(raw.yaml_config ?? ''),
       }
+      // Detect a backend "fake success": HTTP 200 but the explanation says it
+      // failed (typical when the upstream LLM returns 413 / 429 / 5xx and the
+      // backend swallows the exception into the response body).
+      const explanation = (cleanedScenario.explanation ?? '').toLowerCase()
+      const hasYaml     = cleanedScenario.yaml_config.trim().length >= 10
+      const hasFailureSignal =
+        explanation.startsWith('scenario generation failed') ||
+        /\b(client error|server error|payload too large|rate.?limit|timeout|exceeded|unauthor|forbidden|401|403|413|429|5\d\d)\b/.test(explanation)
+      if (!hasYaml || hasFailureSignal) {
+        setError(cleanedScenario.explanation || 'Backend returned no YAML.')
+        setState('error')
+        return
+      }
       setScenario(cleanedScenario)
       setState('done')
     } catch (e: unknown) {
@@ -2772,7 +2935,7 @@ function GeneratorTab({ onYamlGenerated }: { onYamlGenerated?: (yaml: string, na
       <div className="card p-6 space-y-5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
               <Sparkles size={16} className="text-white" />
             </div>
             <div>
@@ -2806,17 +2969,38 @@ function GeneratorTab({ onYamlGenerated }: { onYamlGenerated?: (yaml: string, na
           </div>
         </div>
 
-        {/* Duration slider */}
+        {/* Duration presets */}
         <div>
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs font-semibold text-cg-muted uppercase tracking-wide">Simulation Duration</p>
-            <span className="text-xs font-bold text-cg-txt">{duration} hours ({Math.round(duration / 24)} day{duration > 24 ? 's' : ''})</span>
+            <span className="text-xs font-bold text-cg-txt">{formatDurationLabel(duration)}</span>
           </div>
-          <input type="range" min={1} max={168} step={1} value={duration}
-            onChange={e => setDuration(Number(e.target.value))}
-            className="w-full h-1.5 rounded-full bg-cg-s2 appearance-none cursor-pointer accent-blue-500" />
-          <div className="flex justify-between text-[10px] text-cg-faint mt-1">
-            <span>1h</span><span>24h</span><span>72h</span><span>168h (1 week)</span>
+          <div className="grid grid-cols-6 gap-1.5">
+            {[
+              { v: 1,   label: '1h'    },
+              { v: 6,   label: '6h'    },
+              { v: 12,  label: '12h'   },
+              { v: 24,  label: '1 day' },
+              { v: 72,  label: '3 days'},
+              { v: 168, label: '1 week'},
+            ].map(({ v, label }) => {
+              const active = duration === v
+              return (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setDuration(v)}
+                  className={[
+                    'py-2 rounded-lg text-xs font-semibold border transition-all',
+                    active
+                      ? 'border-blue-500 bg-blue-500 text-white shadow shadow-blue-500/30'
+                      : 'border-cg-border bg-cg-bg text-cg-muted hover:border-blue-500/30 hover:text-blue-400 hover:bg-blue-500/5',
+                  ].join(' ')}
+                >
+                  {label}
+                </button>
+              )
+            })}
           </div>
         </div>
 
@@ -2853,15 +3037,58 @@ function GeneratorTab({ onYamlGenerated }: { onYamlGenerated?: (yaml: string, na
             : <><Sparkles size={16} />Generate ASSUME Scenario</>}
         </button>
 
-        {state === 'error' && (
-          <div className="flex items-start gap-3 p-4 rounded-xl bg-red-500/10 border border-red-500/25 text-sm text-red-400">
-            <AlertCircle size={16} className="shrink-0 mt-0.5" />
-            <div>
-              <p className="font-semibold">Generation failed</p>
-              <p className="text-xs opacity-80 mt-0.5">{error}</p>
+        {state === 'error' && (() => {
+          const isRateLimit = /\b429\b|too many requests|rate.?limit/i.test(error)
+          const isTooLarge  = /\b413\b|payload too large/i.test(error)
+          const isAuth      = /\b40[13]\b|unauthor|forbidden|api.?key/i.test(error)
+
+          if (isRateLimit) {
+            return (
+              <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-500 border border-amber-600 text-white shadow-md">
+                <RefreshCw size={16} className="shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold">Groq rate limit reached</p>
+                  <p className="text-xs mt-1 opacity-95">
+                    The free tier allows a limited number of requests per minute.
+                    <strong className="ml-1">Wait ~60 seconds and click Generate again.</strong>
+                  </p>
+                  <p className="text-[11px] mt-2 opacity-80 italic">The platform itself is fine. Only the upstream LLM is throttling.</p>
+                </div>
+              </div>
+            )
+          }
+          if (isTooLarge) {
+            return (
+              <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-600 border border-amber-700 text-white shadow-md">
+                <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold">Request too large for Groq</p>
+                  <p className="text-xs mt-1 opacity-95">Try a shorter description or contact the admin to tune the prompt size.</p>
+                </div>
+              </div>
+            )
+          }
+          if (isAuth) {
+            return (
+              <div className="flex items-start gap-3 p-4 rounded-xl bg-red-600 border border-red-700 text-white shadow-md">
+                <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold">Authentication issue with the LLM</p>
+                  <p className="text-xs mt-1 opacity-95">Check that <code className="px-1 bg-red-800 rounded">GROQ_API_KEY</code> is set in <code className="px-1 bg-red-800 rounded">.env</code> and the agent service was restarted.</p>
+                </div>
+              </div>
+            )
+          }
+          return (
+            <div className="flex items-start gap-3 p-4 rounded-xl bg-red-500/10 border border-red-500/25 text-sm text-red-400">
+              <AlertCircle size={16} className="shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold">Generation failed</p>
+                <p className="text-xs opacity-80 mt-0.5">{error}</p>
+              </div>
             </div>
-          </div>
-        )}
+          )
+        })()}
       </div>
 
       {/* ── Results ───────────────────────────────────────────────────────── */}
@@ -2869,19 +3096,22 @@ function GeneratorTab({ onYamlGenerated }: { onYamlGenerated?: (yaml: string, na
         <div className="space-y-4">
 
           {/* Success banner */}
-          <div className="flex items-center gap-3 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex-wrap">
-            <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+          <div className="flex items-center gap-3 p-4 rounded-xl bg-emerald-600 border border-emerald-400 shadow-md shadow-emerald-500/30 flex-wrap">
+            <div className="w-8 h-8 rounded-lg bg-white/15 border border-white/30 flex items-center justify-center shrink-0">
+              <CheckCircle2 size={16} className="text-white" />
+            </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-emerald-400">Scenario generated successfully</p>
-              <p className="text-xs text-emerald-300 mt-0.5">
+              <p className="text-sm font-bold text-white">Scenario generated successfully</p>
+              <p className="text-xs text-white/90 mt-0.5">
                 {scenario.similar_examples.length > 0
                   ? `Referenced ${scenario.similar_examples.length} similar ASSUME examples from the knowledge graph`
                   : 'Generated from ASSUME framework knowledge'}
               </p>
             </div>
             {scenario.warnings.filter(w => !w.toLowerCase().includes('json') && !w.toLowerCase().includes('parse error')).length > 0 && (
-              <div className="flex items-center gap-1.5 text-[11px] text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-lg shrink-0">
-                <AlertCircle size={10} />{scenario.warnings.filter(w => !w.toLowerCase().includes('json') && !w.toLowerCase().includes('parse error')).length} assumption{scenario.warnings.filter(w => !w.toLowerCase().includes('json') && !w.toLowerCase().includes('parse error')).length > 1 ? 's' : ''}
+              <div className="flex items-center gap-1.5 text-[11px] font-bold text-amber-900 bg-amber-300 border border-amber-500 px-2.5 py-1 rounded-lg shrink-0">
+                <AlertCircle size={10} />
+                {scenario.warnings.filter(w => !w.toLowerCase().includes('json') && !w.toLowerCase().includes('parse error')).length} assumption{scenario.warnings.filter(w => !w.toLowerCase().includes('json') && !w.toLowerCase().includes('parse error')).length > 1 ? 's' : ''}
               </div>
             )}
             {onYamlGenerated && scenario.yaml_config && (

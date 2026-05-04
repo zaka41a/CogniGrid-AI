@@ -32,11 +32,11 @@
 
 Upload any document (PDF, Word, Excel, PowerPoint, CSV, XML, image) → CogniGrid extracts entities and relationships, builds a per-user **Neo4j knowledge graph**, indexes chunks in **Qdrant**, and exposes them through:
 
-- **Graph Explorer** — interactive force-directed visualisation
-- **GraphRAG Chat** — multi-hop retrieval-augmented generation with cited sources
-- **AI Agent** — ReAct tool-calling agent over your graph
-- **ASSUME Workspace** — natural-language → YAML scenario generator + real `assume run` execution with live SSE log streaming
-- **Admin Console** — user management, password reset, role change, activity log
+- **Graph Explorer** interactive force-directed visualisation
+- **GraphRAG Chat** multi-hop retrieval-augmented generation with cited sources
+- **AI Agent** ReAct tool-calling agent over your graph
+- **ASSUME Workspace** natural-language → YAML scenario generator + real `assume run` execution with live SSE log streaming
+- **Admin Console** user management, password reset, role change, activity log
 
 Every layer enforces **per-user isolation** (Neo4j `user_id`, Qdrant payload filter, Postgres FK) so accounts cannot see each other's data.
 
@@ -78,7 +78,7 @@ cp .env.example .env
 Edit `.env` and add at minimum one LLM provider key:
 
 ```env
-GROQ_API_KEY=gsk_...
+GROQ_API_KEY=gsk_... 
 DEFAULT_LLM_PROVIDER=groq
 DEFAULT_LLM_MODEL=llama-3.3-70b-versatile
 JWT_SECRET=<min-32-char-random-string>

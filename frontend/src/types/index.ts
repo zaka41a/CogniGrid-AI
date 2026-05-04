@@ -101,6 +101,7 @@ export interface ChatMessage {
   timestamp: string
   tools?: string[]
   sources?: { title: string; chunk: string }[]
+  tokens?: number
 }
 
 export interface Conversation {
@@ -108,6 +109,7 @@ export interface Conversation {
   title: string
   date: string
   messages: ChatMessage[]
+  pinned?: boolean
 }
 
 // ─── Alerts ───────────────────────────────────────────────────────────────────

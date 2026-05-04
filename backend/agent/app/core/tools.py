@@ -22,24 +22,44 @@ def _hdrs(auth_header: str | None) -> dict:
     return {"Authorization": auth_header} if auth_header else {}
 
 
-async def search_knowledge_base(query: str, top_k: int = 5,
-                                auth_header: str | None = None) -> dict:
+async def search_knowledge_base(
+    query: str,
+    top_k: int = 5,
+    file_type_include: list[str] | None = None,
+    file_type_exclude: list[str] | None = None,
+    auth_header: str | None = None,
+) -> dict:
     """Semantic search in the document knowledge base."""
+    payload: dict = {"query": query, "top_k": top_k}
+    if file_type_include:
+        payload["file_type_include"] = file_type_include
+    if file_type_exclude:
+        payload["file_type_exclude"] = file_type_exclude
     resp = await _http.post(
         f"{settings.rag_service_url}/api/rag/search",
-        json={"query": query, "top_k": top_k},
+        json=payload,
         headers=_hdrs(auth_header),
     )
     resp.raise_for_status()
     return resp.json()
 
 
-async def ask_knowledge_base(query: str, use_graph: bool = True,
-                              auth_header: str | None = None) -> dict:
+async def ask_knowledge_base(
+    query: str,
+    use_graph: bool = True,
+    file_type_include: list[str] | None = None,
+    file_type_exclude: list[str] | None = None,
+    auth_header: str | None = None,
+) -> dict:
     """Full GraphRAG Q&A over ingested documents."""
+    payload: dict = {"query": query, "use_graph_context": use_graph}
+    if file_type_include:
+        payload["file_type_include"] = file_type_include
+    if file_type_exclude:
+        payload["file_type_exclude"] = file_type_exclude
     resp = await _http.post(
         f"{settings.rag_service_url}/api/rag/chat",
-        json={"query": query, "use_graph_context": use_graph},
+        json=payload,
         headers=_hdrs(auth_header),
     )
     resp.raise_for_status()
@@ -123,20 +143,39 @@ async def generate_assume_scenario(
       - similar_examples: list — example configs referenced
       - warnings: list     — any assumptions made
     """
+    # File types we never want to retrieve for ASSUME prompts. CIM tabular
+    # exports (`.xlsx`, `.csv`) and CIM/RDF (`.xml`) describe power-grid
+    # topology, not electricity-market simulations — they only pollute the
+    # context and inflate the payload past Groq's 413 limit.
+    _ASSUME_EXCLUDE = ["xlsx", "csv", "xml"]
+    # Per-chunk character budget. 6 × 1200 = 7.2 KB max for the knowledge
+    # block, well within Groq's request size limit even with the rest of the
+    # prompt.
+    _MAX_CHUNK_CHARS = 1200
+    _MAX_RAG_CONTEXT = 1500
+
     # ── 1. Pull relevant context from the knowledge graph ────────────────────
     context_chunks: list[str] = []
     similar_examples: list[str] = []
 
     try:
         search_query = f"ASSUME scenario {market_type} {description}"
-        kg_resp = await search_knowledge_base(query=search_query, top_k=8, auth_header=auth_header)
+        kg_resp = await search_knowledge_base(
+            query=search_query,
+            top_k=6,
+            file_type_exclude=_ASSUME_EXCLUDE,
+            auth_header=auth_header,
+        )
         for chunk in kg_resp.get("results", []):
-            src  = chunk.get("source", "")
-            text = chunk.get("text", "")
-            if text:
-                context_chunks.append(f"[{src}]\n{text}")
-                if "config.yaml" in src or "example" in src.lower():
-                    similar_examples.append(src)
+            src  = chunk.get("source", "") or chunk.get("file_name", "")
+            text = (chunk.get("text", "") or "").strip()
+            if not text:
+                continue
+            if len(text) > _MAX_CHUNK_CHARS:
+                text = text[:_MAX_CHUNK_CHARS].rstrip() + "…"
+            context_chunks.append(f"[{src}]\n{text}")
+            if "config.yaml" in src or "example" in src.lower():
+                similar_examples.append(src)
     except Exception as e:
         logger.warning("KG search failed in generate_assume_scenario: %s", e)
 
@@ -146,14 +185,17 @@ async def generate_assume_scenario(
         rag_resp = await ask_knowledge_base(
             query=f"How to configure an ASSUME {market_type} market with {description}?",
             use_graph=True,
+            file_type_exclude=_ASSUME_EXCLUDE,
             auth_header=auth_header,
         )
-        rag_context = rag_resp.get("answer", "")
+        rag_context = (rag_resp.get("answer", "") or "").strip()
+        if len(rag_context) > _MAX_RAG_CONTEXT:
+            rag_context = rag_context[:_MAX_RAG_CONTEXT].rstrip() + "…"
     except Exception as e:
         logger.warning("GraphRAG call failed in generate_assume_scenario: %s", e)
 
     # ── 3. Build LLM prompt ───────────────────────────────────────────────────
-    knowledge_block = "\n\n---\n".join(context_chunks[:6]) if context_chunks else "No specific examples found."
+    knowledge_block = "\n\n---\n".join(context_chunks[:4]) if context_chunks else "No specific examples found."
 
     import datetime as _dt
     start_dt = _dt.datetime(2024, 1, 1)
@@ -381,22 +423,31 @@ async def predict_assume_outcome(
 
     Returns predicted price range, dispatch order, and confidence level.
     """
+    # Same payload-size discipline as generate_assume_scenario.
+    _ASSUME_EXCLUDE = ["xlsx", "csv", "xml"]
+    _MAX_CHUNK_CHARS = 1200
+
     context_chunks: list[str] = []
 
     try:
         kg_resp = await search_knowledge_base(
             query=f"ASSUME simulation results clearing price dispatch {question}",
-            top_k=6,
+            top_k=4,
+            file_type_exclude=_ASSUME_EXCLUDE,
             auth_header=auth_header,
         )
         for chunk in kg_resp.get("results", []):
-            text = chunk.get("text", "")
-            if text:
-                context_chunks.append(f"[{chunk.get('source', '')}]\n{text}")
+            text = (chunk.get("text", "") or "").strip()
+            if not text:
+                continue
+            if len(text) > _MAX_CHUNK_CHARS:
+                text = text[:_MAX_CHUNK_CHARS].rstrip() + "…"
+            src = chunk.get("source", "") or chunk.get("file_name", "")
+            context_chunks.append(f"[{src}]\n{text}")
     except Exception as e:
         logger.warning("KG search failed in predict_assume_outcome: %s", e)
 
-    knowledge_block = "\n\n---\n".join(context_chunks[:5]) or "No matching historical results found."
+    knowledge_block = "\n\n---\n".join(context_chunks[:4]) or "No matching historical results found."
 
     system_prompt = (
         "You are an electricity market simulation expert. Given an ASSUME scenario "

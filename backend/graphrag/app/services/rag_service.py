@@ -26,17 +26,21 @@ Be precise, cite sources with [N] markers, and acknowledge when information is n
 """
 
 # ── Prompt size guards ────────────────────────────────────────────────────────
-# Groq's llama-3.3-70b-versatile accepts ~32k tokens (~120k chars). To stay safely
-# below that — and to keep latency low — we truncate aggressively on the prompt
-# side. These bounds are characters, not tokens.
-MAX_CHUNK_CHARS    = 1500   # per source chunk
-MAX_TOTAL_CTX_CHARS = 12000  # total characters fed to the LLM as document context
-MAX_SOURCES        = 6       # absolute cap on chunks injected into the prompt
-MIN_SCORE          = 0.20    # discard chunks below this similarity threshold
+# Groq's llama-3.3-70b-versatile model technically accepts ~32k tokens, BUT the
+# free tier enforces a TPM (tokens per minute) cap around ~6k. A single bulky
+# request consumes the whole minute's budget and the next call gets HTTP 429
+# even with a fresh API key. We therefore truncate aggressively on the prompt
+# side so a typical query stays well under ~1.5k tokens (≈ 6k chars), letting
+# users run 3-4 requests per minute on the free tier without hitting 429.
+MAX_CHUNK_CHARS     = 700    # per source chunk
+MAX_TOTAL_CTX_CHARS = 5000   # total characters fed to the LLM as document context
+MAX_SOURCES         = 4      # absolute cap on chunks injected into the prompt
+MIN_SCORE           = 0.20   # discard chunks below this similarity threshold
 EMPTY_STATE_ANSWER = (
-    "I don't have any documents indexed for your account yet. "
-    "Upload a file in **Data Ingestion** and wait for the job to reach `completed`, "
-    "then try your question again."
+    "I couldn't find any document chunks matching your question with sufficient similarity. "
+    "This usually means the question is too short or vague (try a full sentence with concrete terms), "
+    "or no indexed document covers this topic. "
+    "Try a more specific ASSUME-related question, or upload more documents in **Data Ingestion**."
 )
 
 
@@ -49,6 +53,8 @@ class RAGService:
         raw_chunks = await semantic_search(
             query=req.query,
             top_k=req.top_k or settings.top_k,
+            file_type_include=req.file_type_include,
+            file_type_exclude=req.file_type_exclude,
             user_id=user_id,
         )
         # Filter out very weak matches — they pollute the prompt without adding

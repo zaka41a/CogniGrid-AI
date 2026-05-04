@@ -13,7 +13,7 @@ import { Avatar } from '../components/ui/Avatar'
 import { useAppStore } from '../store'
 import { adminApi, type AdminUser, type AdminStats, type ActivityEvent } from '../lib/api'
 
-type RoleFilter   = 'all' | 'ADMIN' | 'ANALYST' | 'VIEWER'
+type RoleFilter   = 'all' | 'ADMIN' | 'ANALYST'
 type StatusFilter = 'all' | 'active' | 'suspended'
 
 function fmtDate(iso: string | null): string {
@@ -25,9 +25,8 @@ function fmtDate(iso: string | null): string {
 }
 
 function roleBadge(role: string) {
-  if (role === 'ADMIN')   return <Badge variant="accent"  dot><Crown size={10} className="mr-0.5" />Admin</Badge>
-  if (role === 'ANALYST') return <Badge variant="primary" dot>Analyst</Badge>
-  return <Badge variant="neutral" dot>Viewer</Badge>
+  if (role === 'ADMIN') return <Badge variant="accent"  dot><Crown size={10} className="mr-0.5" />Admin</Badge>
+  return <Badge variant="primary" dot>Analyst</Badge>
 }
 
 function initials(name: string): string {
@@ -125,7 +124,7 @@ export default function Admin() {
     }
   }
 
-  const handleRoleChange = async (u: AdminUser, role: 'ADMIN' | 'ANALYST' | 'VIEWER') => {
+  const handleRoleChange = async (u: AdminUser, role: 'ADMIN' | 'ANALYST') => {
     setBusyId(u.id)
     try {
       const { data } = await adminApi.updateUser(u.id, { role })
@@ -243,7 +242,7 @@ export default function Admin() {
             />
           </div>
           <div className="flex gap-1">
-            {(['all', 'ADMIN', 'ANALYST', 'VIEWER'] as const).map(r => (
+            {(['all', 'ADMIN', 'ANALYST'] as const).map(r => (
               <button key={r}
                 onClick={() => setRoleFilter(r)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all capitalize ${
@@ -310,14 +309,13 @@ export default function Admin() {
                     <td className="px-5 py-3.5">
                       <select
                         value={u.role}
-                        onChange={e => handleRoleChange(u, e.target.value as 'ADMIN' | 'ANALYST' | 'VIEWER')}
+                        onChange={e => handleRoleChange(u, e.target.value as 'ADMIN' | 'ANALYST')}
                         disabled={busyId === u.id || isSelf}
                         className="bg-cg-bg border border-cg-border rounded-lg px-2 py-1 text-xs font-medium text-cg-txt
                           focus:outline-none focus:border-cg-primary disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <option value="ADMIN">ADMIN</option>
                         <option value="ANALYST">ANALYST</option>
-                        <option value="VIEWER">VIEWER</option>
                       </select>
                     </td>
                     <td className="px-5 py-3.5">

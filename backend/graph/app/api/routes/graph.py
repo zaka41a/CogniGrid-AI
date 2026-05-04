@@ -22,9 +22,21 @@ async def graph_stats(request: Request):
 
 
 @router.get("/visualization")
-async def get_visualization(request: Request, limit: int = Query(150, ge=1, le=500)):
+async def get_visualization(
+    request: Request,
+    limit: int = Query(150, ge=1, le=500),
+    scope: str = Query("all", pattern="^(all|shared|mine)$"),
+):
+    """Return graph nodes + edges for visualisation.
+
+    Query params:
+      - limit: max nodes to return (1..500, default 150)
+      - scope: "all" (default), "shared" (ASSUME canonical KB only), or
+               "mine" (caller's personal uploads only — useful to inspect
+               just the CIM/RDF documents you ingested yourself).
+    """
     user_id = get_user_id(request)
-    return await service.get_visualization(limit=limit, user_id=user_id)
+    return await service.get_visualization(limit=limit, user_id=user_id, scope=scope)
 
 
 @router.get("/alerts")

@@ -26,6 +26,25 @@ from app.models.schemas import (
 
 logger = logging.getLogger(__name__)
 
+# Sentinel user_id for graph nodes visible to every authenticated user
+# (e.g. the canonical ASSUME knowledge base bootstrapped once globally).
+# Must stay in sync with backend/ingestion/.../bootstrap.py:SHARED_USER_ID
+# and backend/graphrag/.../vector_store.py:SHARED_USER_ID.
+SHARED_USER_ID = "__shared__"
+
+
+def _visible_user_ids(user_id: str | None) -> list[str] | None:
+    """Return the list of user_ids the caller may see.
+
+    When the caller has a user_id, they see (a) their own documents and
+    (b) anything tagged as shared. When no user_id is provided (legacy /
+    internal callers), we return None so the calling Cypher path can keep
+    its "see everything" branch.
+    """
+    if not user_id:
+        return None
+    return [user_id, SHARED_USER_ID]
+
 
 class GraphService:
 
@@ -151,11 +170,11 @@ class GraphService:
         result = await run_query(
             """
             MATCH (d:Document {doc_id: $doc_id})
-            WHERE $user_id IS NULL OR d.user_id = $user_id
+            WHERE $user_ids IS NULL OR d.user_id IN $user_ids
             OPTIONAL MATCH (d)-[:MENTIONS]->(e:Entity)
             RETURN d, collect(e) AS entities
             """,
-            {"doc_id": doc_id, "user_id": user_id},
+            {"doc_id": doc_id, "user_ids": _visible_user_ids(user_id)},
         )
         if not result:
             return None
@@ -169,12 +188,12 @@ class GraphService:
         result = await run_query(
             """
             MATCH (d:Document)
-            WHERE $user_id IS NULL OR d.user_id = $user_id
+            WHERE $user_ids IS NULL OR d.user_id IN $user_ids
             RETURN d
             ORDER BY d.file_name
             SKIP $skip LIMIT $limit
             """,
-            {"skip": skip, "limit": limit, "user_id": user_id},
+            {"skip": skip, "limit": limit, "user_ids": _visible_user_ids(user_id)},
         )
         return [dict(r["d"]) for r in result]
 
@@ -183,13 +202,13 @@ class GraphService:
         result = await run_query(
             """
             MATCH (d:Document)-[:MENTIONS|HAS_KEYWORD]->(e:Entity)
-            WHERE ($user_id IS NULL OR d.user_id = $user_id)
+            WHERE ($user_ids IS NULL OR d.user_id IN $user_ids)
               AND (toLower(e.text) CONTAINS toLower($query)
                 OR toLower(e.label) CONTAINS toLower($query))
             RETURN DISTINCT e
             LIMIT $limit
             """,
-            {"query": query, "limit": limit, "user_id": user_id},
+            {"query": query, "limit": limit, "user_ids": _visible_user_ids(user_id)},
         )
         nodes = [
             NodeResponse(
@@ -203,21 +222,22 @@ class GraphService:
 
     async def get_neighbors(self, node_id: str, hops: int = 1,
                             user_id: str | None = None) -> list[dict]:
-        # Verify the start node is reachable from one of the user's documents.
-        # If user_id is None we allow it (legacy/internal callers).
+        # Verify the start node is reachable from one of the user's documents
+        # OR from a shared document. If user_id is None we allow it
+        # (legacy / internal callers).
         cypher = """
         MATCH (start {entity_id: $node_id})
-        WHERE $user_id IS NULL
-           OR ('Document' IN labels(start) AND start.user_id = $user_id)
-           OR EXISTS { MATCH (d:Document {user_id: $user_id})-[*1..3]-(start) }
+        WHERE $user_ids IS NULL
+           OR ('Document' IN labels(start) AND start.user_id IN $user_ids)
+           OR EXISTS { MATCH (d:Document)-[*1..3]-(start) WHERE d.user_id IN $user_ids }
         MATCH path = (start)-[*1..3]-(neighbor)
-        WHERE $user_id IS NULL
-           OR ('Document' IN labels(neighbor) AND neighbor.user_id = $user_id)
-           OR EXISTS { MATCH (d:Document {user_id: $user_id})-[*1..3]-(neighbor) }
+        WHERE $user_ids IS NULL
+           OR ('Document' IN labels(neighbor) AND neighbor.user_id IN $user_ids)
+           OR EXISTS { MATCH (d:Document)-[*1..3]-(neighbor) WHERE d.user_id IN $user_ids }
         RETURN DISTINCT neighbor, labels(neighbor) AS labels
         LIMIT 50
         """
-        result = await run_query(cypher, {"node_id": node_id, "user_id": user_id})
+        result = await run_query(cypher, {"node_id": node_id, "user_ids": _visible_user_ids(user_id)})
         return [
             {"node": dict(r["neighbor"]), "labels": r["labels"]}
             for r in result
@@ -228,16 +248,16 @@ class GraphService:
         result = await run_query(
             """
             MATCH (a {entity_id: $source_id}), (b {entity_id: $target_id})
-            WHERE $user_id IS NULL OR (
-              EXISTS { MATCH (d:Document {user_id: $user_id})-[*0..3]-(a) }
+            WHERE $user_ids IS NULL OR (
+              EXISTS { MATCH (d:Document)-[*0..3]-(a)  WHERE d.user_id  IN $user_ids }
               AND
-              EXISTS { MATCH (d2:Document {user_id: $user_id})-[*0..3]-(b) }
+              EXISTS { MATCH (d2:Document)-[*0..3]-(b) WHERE d2.user_id IN $user_ids }
             )
             MATCH path = shortestPath((a)-[*]-(b))
             RETURN [n IN nodes(path) | {id: n.entity_id, text: n.text, label: n.label}] AS path,
                    length(path) AS length
             """,
-            {"source_id": source_id, "target_id": target_id, "user_id": user_id},
+            {"source_id": source_id, "target_id": target_id, "user_ids": _visible_user_ids(user_id)},
         )
         if not result:
             return PathResult(path=[], length=0)
@@ -245,28 +265,29 @@ class GraphService:
         return PathResult(path=row["path"], length=row["length"])
 
     async def get_graph_stats(self, user_id: str | None = None) -> GraphStats:
-        if user_id:
-            # Count only this user's documents and their connected entities
+        user_ids = _visible_user_ids(user_id)
+        if user_ids:
+            # Count this user's documents (private + shared) and their entities
             label_result = await run_query(
                 """
-                MATCH (d:Document {user_id: $user_id})
+                MATCH (d:Document) WHERE d.user_id IN $user_ids
                 WITH collect(d) AS docs
                 UNWIND docs AS n
                 WITH n, 'Document' AS lbl
                 RETURN lbl, count(*) AS cnt
                 UNION ALL
-                MATCH (d:Document {user_id: $user_id})-[]->(e:Entity)
+                MATCH (d:Document)-[]->(e:Entity) WHERE d.user_id IN $user_ids
                 UNWIND labels(e) AS lbl
                 RETURN lbl, count(DISTINCT e) AS cnt
                 """,
-                {"user_id": user_id},
+                {"user_ids": user_ids},
             )
             rel_result = await run_query(
                 """
-                MATCH (d:Document {user_id: $user_id})-[r]->()
+                MATCH (d:Document)-[r]->() WHERE d.user_id IN $user_ids
                 RETURN type(r) AS rel_type, count(r) AS cnt ORDER BY cnt DESC
                 """,
-                {"user_id": user_id},
+                {"user_ids": user_ids},
             )
         else:
             label_result = await run_query(
@@ -289,6 +310,9 @@ class GraphService:
         )
 
     async def delete_document(self, doc_id: str, user_id: str | None = None) -> dict:
+        # Note: we do NOT include the shared scope here — deleting a shared
+        # doc requires going through the dedicated admin/clear path so a
+        # regular user can't accidentally wipe the canonical knowledge base.
         result = await run_query(
             """
             MATCH (d:Document {doc_id: $doc_id})
@@ -301,20 +325,38 @@ class GraphService:
         return {"doc_id": doc_id, "deleted": result[0]["deleted"] if result else 0}
 
     async def get_visualization(self, limit: int = 150,
-                                user_id: str | None = None) -> dict:
-        """Return nodes + edges for Cytoscape — scoped to user's documents."""
+                                user_id: str | None = None,
+                                scope: str = "all") -> dict:
+        """Return nodes + edges for Cytoscape.
+
+        ``scope`` controls which subgraph the caller sees:
+          - "all"    → caller's own docs + shared KB (default, legacy behaviour)
+          - "shared" → only the canonical shared knowledge base (e.g. ASSUME)
+          - "mine"   → only the caller's personal uploads (CIM, etc.)
+
+        This lets the Graph Explorer page separate user-uploaded CIM/RDF data
+        from the bootstrapped ASSUME knowledge base instead of mixing them.
+        """
+        # Resolve the user_id list to query Neo4j with, based on scope
+        if scope == "shared":
+            user_ids: list[str] | None = [SHARED_USER_ID]
+        elif scope == "mine":
+            user_ids = [user_id] if user_id else None
+        else:  # "all"
+            user_ids = _visible_user_ids(user_id)
+
         nodes_result = await run_query(
             """
             MATCH (n)
-            WHERE $user_id IS NULL
-               OR ('Document' IN labels(n) AND n.user_id = $user_id)
+            WHERE $user_ids IS NULL
+               OR ('Document' IN labels(n) AND n.user_id IN $user_ids)
                OR (NOT 'Document' IN labels(n) AND EXISTS {
-                   MATCH (d:Document {user_id: $user_id})-[]->(n)
+                   MATCH (d:Document)-[]->(n) WHERE d.user_id IN $user_ids
                })
             RETURN n, labels(n) AS lbls
             LIMIT $limit
             """,
-            {"limit": limit, "user_id": user_id},
+            {"limit": limit, "user_ids": user_ids},
         )
         nodes = []
         for r in nodes_result:
@@ -334,16 +376,16 @@ class GraphService:
         edges_result = await run_query(
             """
             MATCH (a)-[r]->(b)
-            WHERE $user_id IS NULL
-               OR EXISTS { MATCH (d:Document {user_id: $user_id})-[]->(a) }
-               OR ('Document' IN labels(a) AND a.user_id = $user_id)
+            WHERE $user_ids IS NULL
+               OR EXISTS { MATCH (d:Document)-[]->(a) WHERE d.user_id IN $user_ids }
+               OR ('Document' IN labels(a) AND a.user_id IN $user_ids)
             RETURN
               coalesce(a.entity_id, a.doc_id) AS src,
               coalesce(b.entity_id, b.doc_id) AS tgt,
               type(r) AS rel_type
             LIMIT $limit
             """,
-            {"limit": limit * 2, "user_id": user_id},
+            {"limit": limit * 2, "user_ids": user_ids},
         )
         edges = [
             {"source": r["src"], "target": r["tgt"], "label": r["rel_type"]}
@@ -356,15 +398,15 @@ class GraphService:
         """Auto-generate alerts from graph data, scoped to user's documents."""
         alerts = []
 
-        # 1. Isolated entities connected to user's documents only
+        # 1. Isolated entities connected to user's documents (or shared) only
         isolated = await run_query(
             """
             MATCH (d:Document)-[:MENTIONS]->(e:Entity)
-            WHERE ($user_id IS NULL OR d.user_id = $user_id)
+            WHERE ($user_ids IS NULL OR d.user_id IN $user_ids)
               AND NOT (e)-[:RELATED_TO]-()
             RETURN DISTINCT e LIMIT 20
             """,
-            {"user_id": user_id},
+            {"user_ids": _visible_user_ids(user_id)},
         )
         for r in isolated:
             props = dict(r["e"])
@@ -383,11 +425,11 @@ class GraphService:
         line_issues = await run_query(
             """
             MATCH (d:Document)-[:MENTIONS]->(e:LINE_SEGMENT)
-            WHERE ($user_id IS NULL OR d.user_id = $user_id)
+            WHERE ($user_ids IS NULL OR d.user_id IN $user_ids)
               AND e.r IS NOT NULL AND toFloat(e.r) < 0.001
             RETURN DISTINCT e LIMIT 10
             """,
-            {"user_id": user_id},
+            {"user_ids": _visible_user_ids(user_id)},
         )
         for r in line_issues:
             props = dict(r["e"])
@@ -406,12 +448,12 @@ class GraphService:
         orphan_subs = await run_query(
             """
             MATCH (d:Document)-[:MENTIONS]->(s:SUBSTATION)
-            WHERE ($user_id IS NULL OR d.user_id = $user_id)
+            WHERE ($user_ids IS NULL OR d.user_id IN $user_ids)
               AND NOT (s)-[:SUBSTATION]->(:VOLTAGE_LEVEL)
               AND NOT (:VOLTAGE_LEVEL)-[:SUBSTATION]->(s)
             RETURN DISTINCT s LIMIT 10
             """,
-            {"user_id": user_id},
+            {"user_ids": _visible_user_ids(user_id)},
         )
         for r in orphan_subs:
             props = dict(r["s"])

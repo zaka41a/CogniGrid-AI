@@ -105,6 +105,9 @@ export interface IngestJob {
   progress:        number
   nodes_extracted?: number
   error?:          string | null
+  created_at?:     string
+  chunks_indexed?: number
+  user_id?:        string  // "__shared__" for the canonical knowledge base
 }
 
 export const ingestionApi = {
@@ -121,6 +124,21 @@ export const ingestionApi = {
   jobById:      (id: string) => ingestHttp.get<IngestJob>(`/api/ingestion/jobs/${id}`),
   deleteJob:    (id: string) => ingestHttp.delete(`/api/ingestion/jobs/${id}`),
   clearAllJobs: ()           => ingestHttp.delete<{ message: string; deleted: number }>('/api/ingestion/jobs'),
+  /**
+   * Trigger the one-shot ASSUME Knowledge Base bootstrap. The backend
+   * downloads `github.com/assume-framework/assume`, filters relevant docs
+   * and source files, and queues them under the SHARED scope so every
+   * authenticated user sees them in retrieval.
+   * Idempotent: files already in the shared KB are skipped.
+   */
+  bootstrapAssume: () => ingestHttp.post<{
+    source: string
+    scope?: string
+    files_total:   number
+    files_skipped: number
+    files_queued:  number
+    jobs: { job_id: string; file_name: string }[]
+  }>('/api/ingestion/bootstrap/assume', null, { timeout: 180_000 }),
 }
 
 // ─── RAG / GraphRAG endpoints (graphrag service :8004) ────────────────────────
@@ -147,8 +165,9 @@ export interface AgentResponse {
 }
 
 export const agentApi = {
-  chat:  (data: AgentRequest) => agentHttp.post<AgentResponse>('/api/agent/chat', data),
-  tools: ()                   => agentHttp.get<{ name: string; description: string }[]>('/api/agent/tools'),
+  chat:  (data: AgentRequest, opts?: { signal?: AbortSignal }) =>
+    agentHttp.post<AgentResponse>('/api/agent/chat', data, { signal: opts?.signal }),
+  tools: () => agentHttp.get<{ name: string; description: string }[]>('/api/agent/tools'),
 }
 
 // ─── Profile / Subscription endpoints (gateway :8080) ────────────────────────
@@ -169,7 +188,7 @@ export interface AdminUser {
   id:          string
   email:       string
   fullName:    string
-  role:        'ADMIN' | 'ANALYST' | 'VIEWER'
+  role:        'ADMIN' | 'ANALYST'
   active:      boolean
   lastLoginAt: string | null
   createdAt:   string
