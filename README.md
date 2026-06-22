@@ -1,9 +1,9 @@
 <!--
   ┌────────────────────────────────────────────────────────────────────┐
   │  Copyright © 2026 Zakaria Sabiri.                                  │
-  │  Licensed under the PolyForm Noncommercial License 1.0.0.          │
-  │  Commercial use is PROHIBITED without a separate written license.  │
-  │  See LICENSE file for full terms.                                  │
+  │  Licensed under the GNU Affero General Public License v3.0.        │
+  │  This program is free software: see the LICENSE file for terms.    │
+  │  SPDX-License-Identifier: AGPL-3.0-or-later                        │
   └────────────────────────────────────────────────────────────────────┘
 -->
 
@@ -20,7 +20,7 @@
 [![React](https://img.shields.io/badge/React-18.3-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev)
 [![Neo4j](https://img.shields.io/badge/Neo4j-5.18-008CC1?style=flat-square&logo=neo4j&logoColor=white)](https://neo4j.com)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&logo=docker&logoColor=white)](https://docs.docker.com/compose/)
-[![License: PolyForm NC](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-orange?style=flat-square)](LICENSE)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue?style=flat-square)](LICENSE)
 
 [**Quick Start**](#quick-start) · [Architecture](docs/architecture.md) · [API Reference](docs/api.md) · [Admin Guide](docs/admin.md)
 
@@ -144,19 +144,21 @@ CI runs all of the above on every push see [`.github/workflows/ci.yml`](.github/
 
 ## License
 
-CogniGrid AI is **source-available** under the [**PolyForm Noncommercial License 1.0.0**](LICENSE).
+CogniGrid AI is **free and open-source software** licensed under the
+[**GNU Affero General Public License v3.0**](LICENSE) (`AGPL-3.0-or-later`).
 
-| You **may** | You **may NOT** without a separate commercial license |
+| You **may** | You **must** |
 |---|---|
-| View, study, modify the source | Sell or host CogniGrid AI as a paid service |
-| Run it locally for personal study, research, experimentation | Embed it (or any non-trivial part) into a commercial product |
-| Use it in non-profit / academic / public-interest organizations | Use it for paid consulting, SaaS, or integration services |
-|   | Re-publish under another license (including MIT / Apache / GPL) |
+| Use, study, modify and run the software for any purpose, including commercially | Keep the same AGPL-3.0 license on any distributed copy or derivative |
+| Distribute copies and modified versions | Disclose your complete corresponding source code |
+| Host it as a network service | Make the source available to **users interacting with it over a network** |
+| Build on top of it | Preserve copyright and license notices |
 
-**Copyright © 2026 Zakaria Sabiri.** All rights reserved beyond those granted by the license.
-For commercial licensing, contact **zaksab98@gmail.com**.
+The AGPL-3.0 "network use" clause (§13) means that if you run a modified
+CogniGrid AI as a hosted service, you must offer its source code to your users.
 
-> ⚠️ This is **NOT** an OSI-approved Open Source license. Cloning, forking or running this repository implies acceptance of [`LICENSE`](LICENSE).
+**Copyright © 2026 Zakaria Sabiri.**
+This program is distributed WITHOUT ANY WARRANTY; see the [`LICENSE`](LICENSE) file for full terms.
 
 ---
 

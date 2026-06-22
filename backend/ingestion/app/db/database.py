@@ -24,15 +24,20 @@ async def init_db():
     """Create all tables on startup and apply lightweight migrations."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        # Add user_id column if it doesn't exist (migration for existing DBs)
-        try:
+
+    # Add user_id column if it doesn't exist (migration for pre-existing DBs).
+    # This MUST run in its own transaction: on PostgreSQL a failed statement
+    # (e.g. the column already exists) aborts the whole transaction, which would
+    # otherwise roll back the create_all above and leave the DB with no tables.
+    try:
+        async with engine.begin() as conn:
             await conn.execute(
                 __import__('sqlalchemy').text(
                     "ALTER TABLE ingestion_jobs ADD COLUMN user_id VARCHAR(256)"
                 )
             )
-        except Exception:
-            pass  # Column already exists — safe to ignore
+    except Exception:
+        pass  # Column already exists — safe to ignore
 
 
 async def get_db() -> AsyncSession:

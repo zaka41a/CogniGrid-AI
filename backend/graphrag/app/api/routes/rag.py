@@ -31,13 +31,49 @@ def _sse_event(event: str, payload: dict) -> bytes:
     return f"event: {event}\ndata: {json.dumps(payload, default=str)}\n\n".encode("utf-8")
 
 
+def _classify_pipeline_error(e: Exception) -> HTTPException:
+    """Map a raw pipeline exception to a semantic HTTP error.
+
+    The /chat path used to collapse every failure into a bare 500, so the UI
+    could not tell a missing LLM key from an unreachable database. Mapping the
+    common failure modes to distinct status codes + actionable messages lets the
+    frontend surface something the user can act on.
+    """
+    if isinstance(e, httpx.HTTPStatusError):
+        code = e.response.status_code
+        if code in (401, 403):
+            return HTTPException(502, "The LLM provider rejected the API key. Check "
+                                      "GROQ_API_KEY / OPENAI_API_KEY / ANTHROPIC_API_KEY in your .env.")
+        if code == 429:
+            return HTTPException(429, "The LLM provider quota is exhausted (rate limit). "
+                                      "Wait a minute and retry, or switch provider.")
+        return HTTPException(502, f"The LLM provider returned an error (HTTP {code}).")
+    if isinstance(e, (httpx.ConnectError, httpx.ConnectTimeout)):
+        return HTTPException(503, "A backend dependency is unreachable (LLM provider, "
+                                  "Qdrant or Neo4j). Check the services are running.")
+    if isinstance(e, httpx.TimeoutException):
+        return HTTPException(504, "The request timed out waiting for the LLM or a database. Try again.")
+    # Database driver errors — detected by module name to avoid hard imports.
+    mod = type(e).__module__ or ""
+    if mod.startswith("neo4j"):
+        return HTTPException(503, "The Neo4j knowledge graph is unavailable. "
+                                  "Check the neo4j container and credentials.")
+    if mod.startswith("qdrant"):
+        return HTTPException(503, "The Qdrant vector store is unavailable. "
+                                  "Check the qdrant container is running.")
+    return HTTPException(500, f"RAG pipeline failed: {e}")
+
+
 @router.post("/chat", response_model=RAGResponse)
 async def chat(request: Request, req: RAGRequest):
     try:
         user_id = get_user_id(request)
         return await service.answer(req, user_id=user_id)
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(500, f"RAG pipeline failed: {e}")
+        logger.exception("RAG /chat failed")
+        raise _classify_pipeline_error(e)
 
 
 @router.post("/chat/stream")

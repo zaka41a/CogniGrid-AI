@@ -19,7 +19,14 @@ type StatusFilter = 'all' | 'active' | 'suspended'
 function fmtDate(iso: string | null): string {
   if (!iso) return '—'
   try {
-    const d = new Date(iso)
+    // Java LocalDateTime serializes as "YYYY-MM-DDTHH:mm:ss[.ffffff]" without
+    // a timezone suffix. Truncate microseconds to ms and treat as UTC.
+    let s = iso
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?$/.test(s)) {
+      s = s.replace(/(\.\d{3})\d+/, '$1') + 'Z'
+    }
+    const d = new Date(s)
+    if (isNaN(d.getTime())) return '—'
     return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
   } catch { return '—' }
 }
@@ -504,14 +511,21 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
 // ─── Password reset modal ─────────────────────────────────────────────────────
 // ─── Activity log modal ───────────────────────────────────────────────────────
 function ActivityLogModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [events, setEvents] = useState<ActivityEvent[]>([])
+  const [events,  setEvents]  = useState<ActivityEvent[]>([])
   const [loading, setLoading] = useState(false)
-  const [err, setErr] = useState('')
+  const [err,     setErr]     = useState('')
+
+  // Filters + pagination (client-side — backend already returns up to 200)
+  const [typeFilter, setTypeFilter] = useState<string>('all')
+  const [search,     setSearch]     = useState<string>('')
+  const [page,       setPage]       = useState(0)
+  const PAGE_SIZE = 25
 
   useEffect(() => {
     if (!open) return
     setLoading(true)
     setErr('')
+    setPage(0)
     adminApi.activity(200)
       .then(res => setEvents(res.data))
       .catch(e => {
@@ -521,22 +535,46 @@ function ActivityLogModal({ open, onClose }: { open: boolean; onClose: () => voi
       .finally(() => setLoading(false))
   }, [open])
 
+  const types = useMemo(
+    () => Array.from(new Set(events.map(e => e.type))).sort(),
+    [events],
+  )
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return events.filter(e => {
+      if (typeFilter !== 'all' && e.type !== typeFilter) return false
+      if (!q) return true
+      return (
+        (e.actorEmail  ?? '').toLowerCase().includes(q) ||
+        (e.targetEmail ?? '').toLowerCase().includes(q) ||
+        (e.detail      ?? '').toLowerCase().includes(q) ||
+        (e.ipAddress   ?? '').toLowerCase().includes(q)
+      )
+    })
+  }, [events, typeFilter, search])
+
+  useEffect(() => { setPage(0) }, [typeFilter, search])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const pageRows   = filtered.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE)
+
   const typeBadge = (type: string) => {
-    if (type.startsWith('LOGIN_OK')) return <Badge variant="success" dot>{type}</Badge>
-    if (type.startsWith('LOGIN_FAIL')) return <Badge variant="danger" dot>{type}</Badge>
+    if (type.startsWith('LOGIN_OK'))   return <Badge variant="success" dot>{type}</Badge>
+    if (type.startsWith('LOGIN_FAIL')) return <Badge variant="danger"  dot>{type}</Badge>
     if (type === 'PASSWORD_RESET' || type === 'PASSWORD_CHANGE') return <Badge variant="warning" dot>{type}</Badge>
-    if (type === 'SUSPEND' || type === 'DELETE_USER') return <Badge variant="danger" dot>{type}</Badge>
-    if (type === 'ACTIVATE') return <Badge variant="success" dot>{type}</Badge>
+    if (type === 'SUSPEND' || type === 'DELETE_USER')             return <Badge variant="danger"  dot>{type}</Badge>
+    if (type === 'ACTIVATE')                                      return <Badge variant="success" dot>{type}</Badge>
     return <Badge variant="info" dot>{type}</Badge>
   }
 
   const typeIcon = (type: string) => {
-    if (type === 'LOGIN_OK') return <LogIn size={12} className="text-emerald-500" />
-    if (type === 'LOGIN_FAIL') return <LogOut size={12} className="text-red-500" />
-    if (type === 'PASSWORD_RESET' || type === 'PASSWORD_CHANGE') return <KeyRound size={12} className="text-amber-500" />
-    if (type === 'DELETE_USER') return <Trash2 size={12} className="text-red-500" />
-    if (type === 'SUSPEND') return <UserX size={12} className="text-amber-500" />
-    if (type === 'ACTIVATE') return <UserCheck size={12} className="text-emerald-500" />
+    if (type === 'LOGIN_OK')                                       return <LogIn      size={12} className="text-emerald-500" />
+    if (type === 'LOGIN_FAIL')                                     return <LogOut     size={12} className="text-red-500"     />
+    if (type === 'PASSWORD_RESET' || type === 'PASSWORD_CHANGE')   return <KeyRound   size={12} className="text-amber-500"   />
+    if (type === 'DELETE_USER')                                    return <Trash2     size={12} className="text-red-500"     />
+    if (type === 'SUSPEND')                                        return <UserX      size={12} className="text-amber-500"   />
+    if (type === 'ACTIVATE')                                       return <UserCheck  size={12} className="text-emerald-500" />
     return <Activity size={12} className="text-cg-muted" />
   }
 
@@ -556,31 +594,86 @@ function ActivityLogModal({ open, onClose }: { open: boolean; onClose: () => voi
         <EmptyState icon={<Activity size={28} />} title="No activity yet" description="Events appear here as users log in and admins make changes." />
       )}
       {!loading && !err && events.length > 0 && (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-cg-border">
-                {['When', 'Type', 'Actor', 'Target', 'Detail', 'IP'].map(h => (
-                  <th key={h} className="text-left px-3 py-2 text-xs font-semibold text-cg-muted whitespace-nowrap">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {events.map(e => (
-                <tr key={e.id} className="border-b border-cg-border/50 hover:bg-cg-s2">
-                  <td className="px-3 py-2 text-xs text-cg-muted whitespace-nowrap">{fmtDate(e.createdAt)}</td>
-                  <td className="px-3 py-2"><span className="flex items-center gap-1.5">{typeIcon(e.type)} {typeBadge(e.type)}</span></td>
-                  <td className="px-3 py-2 text-xs text-cg-txt font-mono truncate max-w-[180px]">{e.actorEmail}</td>
-                  <td className="px-3 py-2 text-xs text-cg-muted font-mono truncate max-w-[180px]">{e.targetEmail || '—'}</td>
-                  <td className="px-3 py-2 text-xs text-cg-faint truncate max-w-[260px]">{e.detail || '—'}</td>
-                  <td className="px-3 py-2 text-xs text-cg-faint font-mono">{e.ipAddress || '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div className="px-3 py-2 border-t border-cg-border text-xs text-cg-faint">
-            Showing {events.length} most recent events
+        <div className="flex flex-col gap-3">
+          {/* Filters row */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-cg-faint" />
+              <input
+                type="text"
+                value={search}
+                onChange={ev => setSearch(ev.target.value)}
+                placeholder="Search actor / target / detail / IP…"
+                className="w-full pl-8 pr-3 py-1.5 text-xs bg-cg-s2 border border-cg-border rounded-md focus:outline-none focus:ring-1 focus:ring-cg-accent"
+              />
+            </div>
+            <select
+              value={typeFilter}
+              onChange={ev => setTypeFilter(ev.target.value)}
+              className="px-2 py-1.5 text-xs bg-cg-s2 border border-cg-border rounded-md focus:outline-none focus:ring-1 focus:ring-cg-accent"
+            >
+              <option value="all">All types</option>
+              {types.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+            <span className="text-xs text-cg-faint ml-auto">
+              {filtered.length} / {events.length} events
+            </span>
           </div>
+
+          {/* Table */}
+          <div className="overflow-x-auto border border-cg-border rounded-md">
+            <table className="w-full text-sm table-fixed">
+              <colgroup>
+                <col style={{ width: '160px' }} />
+                <col style={{ width: '180px' }} />
+                <col style={{ width: '200px' }} />
+                <col style={{ width: '200px' }} />
+                <col />
+                <col style={{ width: '130px' }} />
+              </colgroup>
+              <thead>
+                <tr className="border-b border-cg-border bg-cg-s2/40">
+                  {['When', 'Type', 'Actor', 'Target', 'Detail', 'IP'].map(h => (
+                    <th key={h} className="text-left px-3 py-2 text-xs font-semibold text-cg-muted whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {pageRows.map(e => (
+                  <tr key={e.id} className="border-b border-cg-border/50 hover:bg-cg-s2">
+                    <td className="px-3 py-2 text-xs text-cg-muted whitespace-nowrap" title={e.createdAt}>{fmtDate(e.createdAt)}</td>
+                    <td className="px-3 py-2"><span className="flex items-center gap-1.5">{typeIcon(e.type)} {typeBadge(e.type)}</span></td>
+                    <td className="px-3 py-2 text-xs text-cg-txt   font-mono truncate" title={e.actorEmail ?? ''}>{e.actorEmail}</td>
+                    <td className="px-3 py-2 text-xs text-cg-muted font-mono truncate" title={e.targetEmail ?? ''}>{e.targetEmail || '—'}</td>
+                    <td className="px-3 py-2 text-xs text-cg-faint truncate"            title={e.detail ?? ''}>{e.detail || '—'}</td>
+                    <td className="px-3 py-2 text-xs text-cg-faint font-mono truncate"  title={e.ipAddress ?? ''}>{e.ipAddress || '—'}</td>
+                  </tr>
+                ))}
+                {pageRows.length === 0 && (
+                  <tr><td colSpan={6} className="px-3 py-8 text-center text-xs text-cg-faint">No events match the current filter.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          {filtered.length > PAGE_SIZE && (
+            <div className="flex items-center justify-between text-xs text-cg-faint">
+              <span>Page {page + 1} of {totalPages}</span>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => setPage(p => Math.max(0, p - 1))}
+                  disabled={page === 0}
+                  className="px-2 py-1 rounded border border-cg-border disabled:opacity-40 hover:bg-cg-s2"
+                >Prev</button>
+                <button
+                  onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+                  disabled={page >= totalPages - 1}
+                  className="px-2 py-1 rounded border border-cg-border disabled:opacity-40 hover:bg-cg-s2"
+                >Next</button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </Modal>

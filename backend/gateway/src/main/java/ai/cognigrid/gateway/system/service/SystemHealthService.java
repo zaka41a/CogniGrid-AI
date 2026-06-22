@@ -32,13 +32,25 @@ public class SystemHealthService {
 
     private record ServiceTarget(String name, String url) {}
 
+    /**
+     * Resolve a health-check URL from an environment variable, falling back to a
+     * localhost default. In Docker the gateway runs in a container, so the
+     * services must be reached by their compose service name (e.g.
+     * {@code http://ingestion:8001/health}); locally (java -jar on the host) the
+     * localhost defaults apply. The env vars are set in docker-compose.yml.
+     */
+    private static String healthUrl(String envKey, String dflt) {
+        String v = System.getenv(envKey);
+        return (v != null && !v.isBlank()) ? v : dflt;
+    }
+
     private static final List<ServiceTarget> TARGETS = List.of(
-            new ServiceTarget("ingestion",     "http://localhost:8001/health"),
-            new ServiceTarget("graph",         "http://localhost:8002/health"),
-            new ServiceTarget("ai-engine",     "http://localhost:8003/health"),
-            new ServiceTarget("graphrag",      "http://localhost:8004/health"),
-            new ServiceTarget("agent",         "http://localhost:8005/health"),
-            new ServiceTarget("assume-runner", "http://localhost:8006/health")
+            new ServiceTarget("ingestion",     healthUrl("INGESTION_HEALTH_URL",     "http://localhost:8001/health")),
+            new ServiceTarget("graph",         healthUrl("GRAPH_HEALTH_URL",         "http://localhost:8002/health")),
+            new ServiceTarget("ai-engine",     healthUrl("AI_ENGINE_HEALTH_URL",     "http://localhost:8003/health")),
+            new ServiceTarget("graphrag",      healthUrl("GRAPHRAG_HEALTH_URL",      "http://localhost:8004/health")),
+            new ServiceTarget("agent",         healthUrl("AGENT_HEALTH_URL",         "http://localhost:8005/health")),
+            new ServiceTarget("assume-runner", healthUrl("ASSUME_RUNNER_HEALTH_URL", "http://localhost:8006/health"))
     );
 
     private final HttpClient http = HttpClient.newBuilder()

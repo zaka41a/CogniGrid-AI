@@ -106,7 +106,10 @@ services:
 
   # ── MinIO (File Storage S3-compatible) ──────────────────────────────────────
   minio:
-    image: minio/minio:latest
+    # Pinned: minio:latest is built for x86-64-v2 and crashes ("Fatal glibc
+    # error: CPU does not support x86-64-v2") on baseline x86-64 (v1) VMs.
+    # This release runs on v1 CPUs.
+    image: minio/minio:RELEASE.2023-09-30T07-02-29Z
     container_name: cg-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
@@ -169,6 +172,14 @@ services:
       JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS}
       JWT_REFRESH_EXPIRATION_MS: ${JWT_REFRESH_EXPIRATION_MS}
       CORS_ORIGINS: ${CORS_ORIGINS}
+      # System-health dashboard targets — reached by compose service name
+      # because the gateway runs inside the Docker network (not on localhost).
+      INGESTION_HEALTH_URL: http://ingestion:8001/health
+      GRAPH_HEALTH_URL: http://graph:8002/health
+      AI_ENGINE_HEALTH_URL: http://ai-engine:8003/health
+      GRAPHRAG_HEALTH_URL: http://graphrag:8004/health
+      AGENT_HEALTH_URL: http://agent:8005/health
+      ASSUME_RUNNER_HEALTH_URL: http://assume-runner:8006/health
     ports:
       - "${GATEWAY_PORT}:8080"
     depends_on:
@@ -181,6 +192,28 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+    networks:
+      - cognigrid-net
+
+  # ── Frontend (React + Vite, served by nginx) ────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # VITE_* URLs are baked into the bundle at build time. Set them in .env
+        # to the host the BROWSER will use (e.g. http://10.26.5.71:8080 on a VM).
+        VITE_GATEWAY_URL: ${VITE_GATEWAY_URL:-http://localhost:8080}
+        VITE_GRAPH_URL: ${VITE_GRAPH_URL:-http://localhost:8002}
+        VITE_INGESTION_URL: ${VITE_INGESTION_URL:-http://localhost:8001}
+        VITE_RAG_URL: ${VITE_RAG_URL:-http://localhost:8004}
+        VITE_AGENT_URL: ${VITE_AGENT_URL:-http://localhost:8005}
+        VITE_RUNNER_URL: ${VITE_RUNNER_URL:-http://localhost:8006}
+        VITE_AI_ENGINE_URL: ${VITE_AI_ENGINE_URL:-http://localhost:8003}
+    container_name: cg-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-5173}:80"
     networks:
       - cognigrid-net
 
