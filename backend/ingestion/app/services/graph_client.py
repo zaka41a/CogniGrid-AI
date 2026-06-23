@@ -202,3 +202,31 @@ class QdrantClient:
         return await self.delete_by_filter([
             {"key": "job_id", "match": {"value": job_id}}
         ])
+
+    async def get_chunks_by_job(self, job_id: str, limit: int = 10) -> list[dict]:
+        """Return a job's indexed chunks (text + index) for document preview."""
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            try:
+                resp = await client.post(
+                    f"{self.base_url}/collections/{self.collection}/points/scroll",
+                    json={
+                        "filter": {"must": [{"key": "job_id", "match": {"value": job_id}}]},
+                        "with_payload": True,
+                        "limit": limit,
+                    },
+                )
+                if resp.status_code != 200:
+                    return []
+                points = resp.json().get("result", {}).get("points", [])
+                rows = [
+                    {
+                        "text":      p.get("payload", {}).get("text", ""),
+                        "chunk_idx": p.get("payload", {}).get("chunk_idx", 0),
+                    }
+                    for p in points
+                ]
+                rows.sort(key=lambda r: r["chunk_idx"])
+                return rows
+            except Exception as e:
+                logger.warning("Qdrant scroll for preview failed: %s", e)
+                return []

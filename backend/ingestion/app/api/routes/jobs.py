@@ -36,6 +36,19 @@ async def get_job(job_id: str, request: Request):
     return job
 
 
+@router.get("/jobs/{job_id}/preview")
+async def preview_job(job_id: str, request: Request):
+    """Return a job's indexed chunks so the UI can preview the document."""
+    user_id = get_user_id(request)
+    job = await job_store.get(job_id)
+    if not job:
+        raise HTTPException(404, "Job not found")
+    if user_id and job.get("user_id") and job["user_id"] != user_id:
+        raise HTTPException(404, "Job not found")
+    chunks = await qdrant.get_chunks_by_job(job_id)
+    return {"chunks": chunks}
+
+
 @router.delete("/jobs")
 async def clear_all_jobs(request: Request):
     """Delete current user's ingestion jobs AND their Qdrant vector chunks.

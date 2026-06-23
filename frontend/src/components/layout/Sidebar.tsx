@@ -158,27 +158,6 @@ export default function Sidebar() {
           ))
         )}
 
-        {/* ── Administration (ADMIN only) ───────────────────────────────── */}
-        {currentUser.role === 'ADMIN' && (
-          <>
-            <div className="mx-3 my-2 h-px bg-white/10" />
-            {sidebarOpen && (
-              <p className="px-4 pb-1 pt-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-white/25 select-none">
-                Administration
-              </p>
-            )}
-            {!sidebarOpen && <div className="h-2" />}
-            <div className="space-y-0.5 px-2">
-              <NavItem
-                to="/app/admin"
-                icon={<Shield size={17} />}
-                label="Admin Console"
-                sidebarOpen={sidebarOpen}
-                accent
-              />
-            </div>
-          </>
-        )}
       </nav>
 
       {/* ── Footer ───────────────────────────────────────────────────────── */}
@@ -233,6 +212,29 @@ export default function Sidebar() {
             </>
           )}
         </NavLink>
+
+        {/* Admin Console (ADMIN only) — sits just below Settings */}
+        {currentUser.role === 'ADMIN' && (
+          <NavLink to="/app/admin"
+            className={({ isActive }) => [
+              'flex items-center rounded-xl text-[12px] font-medium transition-all group relative',
+              sidebarOpen ? 'gap-2.5 px-2.5 py-2' : 'justify-center py-2',
+              isActive ? 'text-white/90 bg-white/10' : 'text-white/30 hover:text-white/70 hover:bg-white/8',
+            ].join(' ')}
+          >
+            {({ isActive }) => (
+              <>
+                <Shield size={14} className={isActive ? 'text-white/80' : ''} />
+                {sidebarOpen && <span>Admin Console</span>}
+                {!sidebarOpen && (
+                  <span className="absolute left-full ml-3 px-2.5 py-1.5 rounded-lg z-50 bg-slate-800 border border-white/15 text-white text-xs font-medium whitespace-nowrap shadow-xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+                    Admin Console
+                  </span>
+                )}
+              </>
+            )}
+          </NavLink>
+        )}
 
         {/* Collapse toggle */}
         <button onClick={toggleSidebar}

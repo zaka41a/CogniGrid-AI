@@ -202,7 +202,7 @@ export default function Documents() {
         const text = (r.data.chunks ?? []).map(c => c.text).slice(0, 5).join('\n\n---\n\n')
         setPreviewBody(text || '(no preview content available)')
       })
-      .catch(() => setPreviewBody('(preview endpoint unavailable — content may not be indexed yet)'))
+      .catch(() => setPreviewBody('(could not load preview)'))
       .finally(() => setPreviewLoading(false))
   }, [previewId])
 

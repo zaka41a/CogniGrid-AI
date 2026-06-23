@@ -6,7 +6,7 @@ const UNIVERSES = [
   {
     id: 'kg',
     title: 'Knowledge Graph Studio',
-    desc: 'Upload your documents, build a knowledge graph, and explore it with GraphRAG chat and an AI agent — all scoped to your own data.',
+    desc: 'Upload your documents, build a knowledge graph, and explore it with GraphRAG chat and an AI agent over your own data.',
     to: '/app/dashboard',
     icon: <Database size={26} />,
     iconWrap: 'bg-emerald-500/15 text-emerald-400',
@@ -18,7 +18,7 @@ const UNIVERSES = [
   {
     id: 'assume',
     title: 'ASSUME Lab',
-    desc: 'Design, run and analyse electricity-market simulations with the ASSUME framework and its expert assistant.',
+    desc: 'Design, run and analyse electricity market simulations with the ASSUME framework and its expert assistant.',
     to: '/app/assume',
     icon: <Zap size={26} />,
     iconWrap: 'bg-blue-500/15 text-blue-400',
