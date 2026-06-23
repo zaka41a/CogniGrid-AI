@@ -1,6 +1,8 @@
 # Environment
 .env
 !.env.example
+.env.local
+**/.env.local
 
 # Java
 **/target/

@@ -420,16 +420,22 @@ async def _execute(run_id: str, run_dir: Path, push_to_graph: bool) -> None:
         elapsed = time.monotonic() - t0
         info.duration_s = round(elapsed, 2)
 
-        if proc.returncode == 0:
+        actual_out   = _find_output_dir(output_dir)
+        output_files = [f.name for f in actual_out.glob("*.csv")] if actual_out.exists() else []
+
+        if proc.returncode == 0 and output_files:
             info.status          = RunStatus.completed
-            # ASSUME writes CSVs into output/<scenario>_<study_case>/ subdir
-            actual_out = _find_output_dir(output_dir)
             info.results_summary = _parse_results(actual_out)
-            info.output_files    = [f.name for f in actual_out.glob("*.csv")]
+            info.output_files    = output_files
             info.finished_at     = datetime.now(timezone.utc).isoformat()
             logger.info("Run %s completed in %.1fs", run_id, elapsed)
             if push_to_graph:
                 await _push_results_to_graph(run_id, info)
+        elif proc.returncode == 0 and not output_files:
+            info.status      = RunStatus.failed
+            info.error       = "ASSUME exited cleanly but produced no output — check the log for an aborted simulation."
+            info.finished_at = datetime.now(timezone.utc).isoformat()
+            logger.error("Run %s produced no output despite exit 0", run_id)
         else:
             info.status      = RunStatus.failed
             info.error       = f"ASSUME exited with code {proc.returncode}"
