@@ -35,7 +35,7 @@ Be precise, cite sources with [N] markers, and acknowledge when information is n
 MAX_CHUNK_CHARS     = 700    # per source chunk
 MAX_TOTAL_CTX_CHARS = 5000   # total characters fed to the LLM as document context
 MAX_SOURCES         = 4      # absolute cap on chunks injected into the prompt
-MIN_SCORE           = 0.20   # discard chunks below this similarity threshold
+MIN_SCORE           = 0.12   # discard chunks below this similarity threshold
 EMPTY_STATE_ANSWER = (
     "I couldn't find any document chunks matching your question with sufficient similarity. "
     "This usually means the question is too short or vague (try a full sentence with concrete terms), "

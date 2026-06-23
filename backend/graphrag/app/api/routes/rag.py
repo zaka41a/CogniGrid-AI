@@ -14,7 +14,7 @@ from fastapi.responses import StreamingResponse
 import httpx
 
 from app.models.schemas import RAGRequest, RAGResponse, SearchRequest, SearchResponse, SourceChunk
-from app.services.rag_service import RAGService
+from app.services.rag_service import RAGService, MIN_SCORE
 from app.core.vector_store import semantic_search
 from app.core.llm_client import generate_stream, _FinalUsage
 from app.core.graph_context import get_graph_context
@@ -99,7 +99,7 @@ async def chat_stream(request: Request, req: RAGRequest):
                 file_type_exclude=req.file_type_exclude,
                 user_id=user_id,
             )
-            raw_chunks = [c for c in raw_chunks if (c.get("score") or 0) >= 0.20]
+            raw_chunks = [c for c in raw_chunks if (c.get("score") or 0) >= MIN_SCORE]
             sources = [SourceChunk(**c) for c in raw_chunks][:6]
 
             graph_ctx = []
