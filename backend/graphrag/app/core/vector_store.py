@@ -54,6 +54,7 @@ async def semantic_search(
     file_type_include: list[str] | None = None,
     file_type_exclude: list[str] | None = None,
     user_id: str | None = None,
+    scope: str = "personal",
 ) -> list[dict]:
     """Search for chunks semantically similar to the query, scoped to user_id.
 
@@ -75,16 +76,13 @@ async def semantic_search(
         must_conditions = []
         if file_type_filter:
             must_conditions.append(FieldCondition(key="file_type", match=MatchValue(value=file_type_filter)))
-        if user_id:
-            # Match the caller's own chunks OR any chunk in the shared scope
-            # (e.g. the canonical ASSUME knowledge base bootstrapped once for
-            # all users). Without this, every new account would see an empty
-            # knowledge base until they re-ran Bootstrap themselves.
+        # Scope decides whose chunks are searched:
+        #   "assume"   → only the shared ASSUME knowledge base
+        #   "personal" → only the caller's own chunks
+        scope_ids = [SHARED_USER_ID] if scope == "assume" else ([user_id] if user_id else None)
+        if scope_ids:
             must_conditions.append(
-                FieldCondition(
-                    key="user_id",
-                    match=MatchAny(any=[user_id, SHARED_USER_ID]),
-                )
+                FieldCondition(key="user_id", match=MatchAny(any=scope_ids))
             )
 
         qfilter = Filter(must=must_conditions) if must_conditions else None

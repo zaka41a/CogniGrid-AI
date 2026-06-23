@@ -56,6 +56,7 @@ class RAGService:
             file_type_include=req.file_type_include,
             file_type_exclude=req.file_type_exclude,
             user_id=user_id,
+            scope=req.scope,
         )
         # Filter out very weak matches — they pollute the prompt without adding
         # any signal, especially for short queries like "hi" that have no semantic
@@ -68,6 +69,7 @@ class RAGService:
         if req.use_graph_context:
             graph_ctx = await get_graph_context(
                 req.query, hops=settings.graph_context_hops, user_id=user_id,
+                scope=req.scope,
             )
 
         # 2b. Empty-state short-circuit — don't bother the LLM if we have nothing

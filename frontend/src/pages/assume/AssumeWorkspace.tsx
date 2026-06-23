@@ -383,11 +383,7 @@ function AdvisorTab() {
         llm_model: 'llama-3.3-70b-versatile',
         history,
         use_graph_context: true,
-        // Keep CIM tabular sources out of the ASSUME advisor — they pollute
-        // retrieval with .xlsx grid topology that has nothing to do with
-        // electricity-market simulation questions. Until we have proper
-        // per-module namespacing this is the simplest mitigation.
-        file_type_exclude: ['xlsx', 'csv', 'xml'],
+        scope: 'assume',
       })
       const aiMsg: ChatMessage = {
         id: `ai-${Date.now()}`, role: 'ai',

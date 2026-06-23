@@ -98,6 +98,7 @@ async def chat_stream(request: Request, req: RAGRequest):
                 file_type_include=req.file_type_include,
                 file_type_exclude=req.file_type_exclude,
                 user_id=user_id,
+                scope=req.scope,
             )
             raw_chunks = [c for c in raw_chunks if (c.get("score") or 0) >= MIN_SCORE]
             sources = [SourceChunk(**c) for c in raw_chunks][:6]
@@ -108,6 +109,7 @@ async def chat_stream(request: Request, req: RAGRequest):
                     req.query,
                     hops=settings.graph_context_hops,
                     user_id=user_id,
+                    scope=req.scope,
                 )
 
             # Emit sources first so the UI can render the citation panel before

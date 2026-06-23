@@ -34,16 +34,18 @@ SHARED_USER_ID = "__shared__"
 
 
 def _visible_user_ids(user_id: str | None) -> list[str] | None:
-    """Return the list of user_ids the caller may see.
+    """Return the list of user_ids the caller may see in Knowledge Graph Studio.
 
-    When the caller has a user_id, they see (a) their own documents and
-    (b) anything tagged as shared. When no user_id is provided (legacy /
-    internal callers), we return None so the calling Cypher path can keep
-    its "see everything" branch.
+    The caller sees ONLY their own documents. The shared ASSUME knowledge base
+    is intentionally excluded here so it never pollutes the personal graph,
+    dashboard, search or network views — it is reached explicitly via the
+    ASSUME scope (e.g. get_visualization(scope="shared")). When no user_id is
+    provided (legacy / internal callers), return None to keep the
+    "see everything" branch.
     """
     if not user_id:
         return None
-    return [user_id, SHARED_USER_ID]
+    return [user_id]
 
 
 class GraphService:

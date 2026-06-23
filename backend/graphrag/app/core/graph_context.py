@@ -11,6 +11,8 @@ logger = logging.getLogger(__name__)
 
 _driver = None
 
+SHARED_USER_ID = "__shared__"
+
 
 def _get_driver():
     global _driver
@@ -23,7 +25,8 @@ def _get_driver():
 
 
 async def get_graph_context(query: str, hops: int = 2,
-                            user_id: str | None = None) -> list[GraphContextNode]:
+                            user_id: str | None = None,
+                            scope: str = "personal") -> list[GraphContextNode]:
     """
     Keyword-based entity lookup, scoped to the caller's documents.
     1. Split query into words
@@ -34,13 +37,16 @@ async def get_graph_context(query: str, hops: int = 2,
     if not words:
         return []
 
+    # "assume" scope reads the shared ASSUME KB; otherwise the caller's own graph.
+    effective_id = SHARED_USER_ID if scope == "assume" else user_id
+
     # Build OR filter for entity text matches (parameterised per word)
     word_params = {f"w{i}": w.lower() for i, w in enumerate(words[:5])}
     conditions = " OR ".join(
         [f"toLower(e.text) CONTAINS $w{i}" for i in range(len(word_params))]
     )
 
-    if user_id:
+    if effective_id:
         cypher = f"""
         MATCH (d:Document {{user_id: $user_id}})-[:MENTIONS|HAS_KEYWORD]->(e:Entity)
         WHERE {conditions}
@@ -61,8 +67,8 @@ async def get_graph_context(query: str, hops: int = 2,
         """
 
     params = {**word_params}
-    if user_id:
-        params["user_id"] = user_id
+    if effective_id:
+        params["user_id"] = effective_id
 
     try:
         async with _get_driver().session() as session:

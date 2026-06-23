@@ -44,8 +44,9 @@ class JobStore:
         async with AsyncSessionLocal() as session:
             q = select(JobModel).order_by(JobModel.created_at.desc())
             if user_id:
-                # Caller sees their own jobs + shared jobs (canonical KB)
-                q = q.where(JobModel.user_id.in_([user_id, self.SHARED_USER_ID]))
+                # Knowledge Graph Studio shows ONLY the caller's own uploads.
+                # The shared ASSUME knowledge base lives in the ASSUME workspace.
+                q = q.where(JobModel.user_id == user_id)
             result = await session.execute(q)
             return [self._to_dict(j) for j in result.scalars().all()]
 

@@ -14,6 +14,7 @@ class RAGRequest(BaseModel):
     history: list[ChatMessage] = []
     top_k: int = 5
     use_graph_context: bool = True
+    scope: str = "personal"   # "personal" = caller's own data, "assume" = shared ASSUME KB
     llm_provider: str = ""   # overrides default if set
     llm_model: str    = ""
     # Restrict retrieval by file extension — used to keep ASSUME chats from
