@@ -8,12 +8,13 @@ DELETE /api/ingestion/jobs/{id}  → supprimer un job
 """
 from fastapi import APIRouter, HTTPException, Request
 from app.db.job_store import JobStore
-from app.services.graph_client import QdrantClient
+from app.services.graph_client import QdrantClient, GraphClient
 from app.api.auth import get_user_id
 
 router    = APIRouter()
 job_store = JobStore()
 qdrant    = QdrantClient()
+graph     = GraphClient()
 
 
 @router.get("/jobs")
@@ -47,6 +48,7 @@ async def clear_all_jobs(request: Request):
     count = await job_store.delete_all(user_id=user_id)
     if user_id:
         await qdrant.delete_chunks_by_user(user_id)
+    await graph.clear_all(request.headers.get("Authorization"))
     return {"message": "Jobs cleared", "deleted": count}
 
 
@@ -61,6 +63,8 @@ async def delete_job(job_id: str, request: Request):
     deleted = await job_store.delete(job_id)
     if not deleted:
         raise HTTPException(404, "Job not found")
-    # Also remove this job's vector chunks from Qdrant — see clear_all_jobs.
+    # Also remove this job's vector chunks (Qdrant) and graph nodes (Neo4j).
+    # doc_id in the graph equals the job_id (see GraphClient.push_document).
     await qdrant.delete_chunks_by_job(job_id)
+    await graph.delete_document(job_id, request.headers.get("Authorization"))
     return {"message": "Job deleted", "job_id": job_id}

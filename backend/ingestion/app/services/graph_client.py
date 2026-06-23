@@ -72,6 +72,32 @@ class GraphClient:
                 logger.warning(f"Graph service unavailable — continuing without graph push: {e}")
                 return {"nodes_created": 0, "warning": "graph_service_unavailable"}
 
+    async def delete_document(self, doc_id: str, auth_header: str | None = None) -> dict:
+        """Delete a document (and its orphaned entities) from the graph."""
+        headers = {"Authorization": auth_header} if auth_header else {}
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            try:
+                resp = await client.delete(
+                    f"{self.base_url}/api/graph/documents/{doc_id}", headers=headers,
+                )
+                return resp.json() if resp.status_code == 200 else {}
+            except httpx.HTTPError as e:
+                logger.warning(f"Graph delete_document failed: {e}")
+                return {}
+
+    async def clear_all(self, auth_header: str | None = None) -> dict:
+        """Clear the caller's documents and entities from the graph."""
+        headers = {"Authorization": auth_header} if auth_header else {}
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            try:
+                resp = await client.delete(
+                    f"{self.base_url}/api/graph/clear", headers=headers,
+                )
+                return resp.json() if resp.status_code == 200 else {}
+            except httpx.HTTPError as e:
+                logger.warning(f"Graph clear failed: {e}")
+                return {}
+
 
 class QdrantClient:
     """Client pour indexer les chunks dans Qdrant."""

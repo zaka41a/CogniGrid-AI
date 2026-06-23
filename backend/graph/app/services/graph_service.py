@@ -309,6 +309,21 @@ class GraphService:
             relationship_types=rel_types,
         )
 
+    async def _delete_orphan_entities(self) -> None:
+        """Remove Entity nodes no longer mentioned by any Document.
+
+        DETACH DELETE on a Document drops the doc and its edges but leaves the
+        Entity nodes behind. Without this cleanup, deleted documents keep
+        polluting Graph Explorer / Network Topology with dangling entities.
+        """
+        await run_query(
+            """
+            MATCH (e:Entity)
+            WHERE NOT EXISTS { MATCH (:Document)-[:MENTIONS|HAS_KEYWORD]->(e) }
+            DETACH DELETE e
+            """
+        )
+
     async def delete_document(self, doc_id: str, user_id: str | None = None) -> dict:
         # Note: we do NOT include the shared scope here — deleting a shared
         # doc requires going through the dedicated admin/clear path so a
@@ -322,6 +337,7 @@ class GraphService:
             """,
             {"doc_id": doc_id, "user_id": user_id},
         )
+        await self._delete_orphan_entities()
         return {"doc_id": doc_id, "deleted": result[0]["deleted"] if result else 0}
 
     async def get_visualization(self, limit: int = 150,
@@ -562,6 +578,7 @@ class GraphService:
                 """
             )
             deleted = (r1[0]["deleted"] if r1 else 0) + (r2[0]["deleted"] if r2 else 0)
+            await self._delete_orphan_entities()
         else:
             result = await run_query(
                 "MATCH (n) DETACH DELETE n RETURN count(n) AS deleted"
