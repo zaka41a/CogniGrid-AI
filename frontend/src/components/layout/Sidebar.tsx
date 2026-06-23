@@ -103,7 +103,7 @@ export default function Sidebar() {
                 <span style={{ color: '#10B981' }}> AI</span>
               </span>
               <span className="text-[9px] text-white/30 truncate leading-tight">
-                {isAssume ? 'ASSUME Lab' : 'Knowledge Graph Studio'}
+                Knowledge Graph + ASSUME
               </span>
             </div>
           </div>
@@ -130,12 +130,6 @@ export default function Sidebar() {
 
       {/* ── Nav (universe-aware) ─────────────────────────────────────────── */}
       <nav className="flex-1 overflow-y-auto overflow-x-hidden py-3 no-scrollbar">
-        {sidebarOpen && (
-          <p className={`px-4 pb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] select-none ${isAssume ? 'text-blue-400/70' : 'text-emerald-400/70'}`}>
-            {isAssume ? 'ASSUME Lab' : 'Knowledge Graph'}
-          </p>
-        )}
-
         {isAssume ? (
           <div className="space-y-0.5 px-2">
             <NavItem to="/app/assume" icon={<Zap size={17} />} label="ASSUME Workspace" sidebarOpen={sidebarOpen} accent />
