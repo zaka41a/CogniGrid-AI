@@ -1,5 +1,6 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, Outlet } from 'react-router-dom'
 import Layout         from './components/layout/Layout'
+import Hub            from './pages/Hub'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 import AdminRoute     from './components/auth/AdminRoute'
 import Admin          from './pages/Admin'
@@ -30,31 +31,34 @@ export default function App() {
       {/* Protected app pages */}
       <Route path="/app" element={
         <ProtectedRoute>
-          <Layout />
+          <Outlet />
         </ProtectedRoute>
       }>
-        <Route index element={<Navigate to="/app/dashboard" replace />} />
-        {/* Platform */}
-        <Route path="dashboard"     element={<Dashboard />} />
-        <Route path="ingestion"     element={<Ingestion />} />
-        <Route path="documents"     element={<Documents />} />
-        {/* Intelligence */}
-        <Route path="graph"         element={<Graph />} />
-        <Route path="network"       element={<Network />} />
-        <Route path="rag"           element={<Rag />} />
-        <Route path="agent"         element={<Agent />} />
-        {/* Operations */}
-        <Route path="alerts"        element={<Alerts />} />
-        <Route path="data-overview" element={<DataOverview />} />
-        <Route path="data-quality"  element={<DataQuality />} />
-        {/* Simulation */}
-        <Route path="assume"        element={<AssumeWorkspace />} />
-        {/* Account */}
-        <Route path="settings"      element={<Settings />} />
-        {/* Admin (gated by ADMIN role inside the protected layout) */}
-        <Route path="admin"         element={<AdminRoute><Admin /></AdminRoute>} />
-        {/* Legacy redirect */}
-        <Route path="profile"       element={<Navigate to="/app/settings" replace />} />
+        {/* Universe chooser (full screen, no sidebar) */}
+        <Route index element={<Hub />} />
+
+        {/* Working pages — rendered inside the Layout (sidebar + navbar) */}
+        <Route element={<Layout />}>
+          {/* Knowledge Graph Studio */}
+          <Route path="dashboard"     element={<Dashboard />} />
+          <Route path="ingestion"     element={<Ingestion />} />
+          <Route path="documents"     element={<Documents />} />
+          <Route path="graph"         element={<Graph />} />
+          <Route path="network"       element={<Network />} />
+          <Route path="rag"           element={<Rag />} />
+          <Route path="agent"         element={<Agent />} />
+          <Route path="alerts"        element={<Alerts />} />
+          <Route path="data-overview" element={<DataOverview />} />
+          <Route path="data-quality"  element={<DataQuality />} />
+          {/* ASSUME Lab */}
+          <Route path="assume"        element={<AssumeWorkspace />} />
+          {/* Account */}
+          <Route path="settings"      element={<Settings />} />
+          {/* Admin (gated by ADMIN role) */}
+          <Route path="admin"         element={<AdminRoute><Admin /></AdminRoute>} />
+          {/* Legacy redirect */}
+          <Route path="profile"       element={<Navigate to="/app/settings" replace />} />
+        </Route>
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -1,7 +1,7 @@
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Upload, FileText, GitBranch,
-  Bot, Sparkles, Bell, Zap,
+  Bot, Sparkles, Bell, Zap, LayoutGrid,
   ChevronLeft, ChevronRight, LogOut,
   BarChart3, ShieldCheck, Settings, Network, Shield,
 } from 'lucide-react'
@@ -9,7 +9,7 @@ import { useAppStore } from '../../store'
 import { Avatar } from '../ui/Avatar'
 import { ServiceHealthBadge } from '../shared/ServiceHealthBadge'
 
-const NAV_GROUPS = [
+const KG_GROUPS = [
   {
     label: 'Platform',
     items: [
@@ -77,7 +77,11 @@ function NavItem({ to, icon, label, sidebarOpen, accent = false }: {
 export default function Sidebar() {
   const { sidebarOpen, toggleSidebar, currentUser, clearAuth } = useAppStore()
   const navigate = useNavigate()
+  const location = useLocation()
   const handleSignOut = () => { clearAuth(); navigate('/login') }
+
+  // Which universe are we in? ASSUME Lab vs Knowledge Graph Studio.
+  const isAssume = location.pathname.startsWith('/app/assume')
 
   return (
     <aside className={[
@@ -99,7 +103,7 @@ export default function Sidebar() {
                 <span style={{ color: '#10B981' }}> AI</span>
               </span>
               <span className="text-[9px] text-white/30 truncate leading-tight">
-                Knowledge Graph + ASSUME
+                {isAssume ? 'ASSUME Lab' : 'Knowledge Graph Studio'}
               </span>
             </div>
           </div>
@@ -108,43 +112,51 @@ export default function Sidebar() {
         )}
       </div>
 
-      {/* ── Nav ──────────────────────────────────────────────────────────── */}
+      {/* ── Hub switcher ─────────────────────────────────────────────────── */}
+      <div className="px-2 pt-3">
+        <button
+          onClick={() => navigate('/app')}
+          title={!sidebarOpen ? 'Back to Hub' : undefined}
+          className={[
+            'w-full flex items-center rounded-xl text-[13px] font-semibold transition-all',
+            sidebarOpen ? 'gap-2.5 px-3 py-2' : 'justify-center py-2.5',
+            'text-white/70 hover:text-white bg-white/5 hover:bg-white/10',
+          ].join(' ')}
+        >
+          <LayoutGrid size={16} className="shrink-0" />
+          {sidebarOpen && <span>Hub</span>}
+        </button>
+      </div>
+
+      {/* ── Nav (universe-aware) ─────────────────────────────────────────── */}
       <nav className="flex-1 overflow-y-auto overflow-x-hidden py-3 no-scrollbar">
-
-        {/* Main nav groups */}
-        {NAV_GROUPS.map((group, gi) => (
-          <div key={group.label} className={gi > 0 ? 'mt-1' : ''}>
-            {gi > 0 && <div className="mx-3 my-2 h-px bg-white/10" />}
-            {sidebarOpen ? (
-              <p className="px-4 pb-1 pt-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-white/25 select-none">
-                {group.label}
-              </p>
-            ) : <div className="h-2" />}
-            <div className="space-y-0.5 px-2">
-              {group.items.map(item => (
-                <NavItem key={item.to} {...item} sidebarOpen={sidebarOpen} />
-              ))}
-            </div>
-          </div>
-        ))}
-
-        {/* ── Simulation ────────────────────────────────────────────────── */}
-        <div className="mx-3 my-2 h-px bg-white/10" />
         {sidebarOpen && (
-          <p className="px-4 pb-1 pt-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-white/25 select-none">
-            Simulation
+          <p className={`px-4 pb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] select-none ${isAssume ? 'text-blue-400/70' : 'text-emerald-400/70'}`}>
+            {isAssume ? 'ASSUME Lab' : 'Knowledge Graph'}
           </p>
         )}
-        {!sidebarOpen && <div className="h-2" />}
-        <div className="space-y-0.5 px-2">
-          <NavItem
-            to="/app/assume"
-            icon={<Zap size={17} />}
-            label="ASSUME Workspace"
-            sidebarOpen={sidebarOpen}
-            accent
-          />
-        </div>
+
+        {isAssume ? (
+          <div className="space-y-0.5 px-2">
+            <NavItem to="/app/assume" icon={<Zap size={17} />} label="ASSUME Workspace" sidebarOpen={sidebarOpen} accent />
+          </div>
+        ) : (
+          KG_GROUPS.map((group, gi) => (
+            <div key={group.label} className={gi > 0 ? 'mt-1' : ''}>
+              {gi > 0 && <div className="mx-3 my-2 h-px bg-white/10" />}
+              {sidebarOpen ? (
+                <p className="px-4 pb-1 pt-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-white/25 select-none">
+                  {group.label}
+                </p>
+              ) : <div className="h-2" />}
+              <div className="space-y-0.5 px-2">
+                {group.items.map(item => (
+                  <NavItem key={item.to} {...item} sidebarOpen={sidebarOpen} />
+                ))}
+              </div>
+            </div>
+          ))
+        )}
 
         {/* ── Administration (ADMIN only) ───────────────────────────────── */}
         {currentUser.role === 'ADMIN' && (

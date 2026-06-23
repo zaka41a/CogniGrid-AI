@@ -15,7 +15,7 @@ export default function Login() {
   const navigate  = useNavigate()
   const location  = useLocation()
   const setAuth   = useAppStore(s => s.setAuth)
-  const from      = (location.state as { from?: Location })?.from?.pathname ?? '/app/dashboard'
+  const from      = (location.state as { from?: Location })?.from?.pathname ?? '/app'
 
   const [showPassword, setShowPassword] = useState(false)
   const [form,    setForm]    = useState({ email: '', password: '' })

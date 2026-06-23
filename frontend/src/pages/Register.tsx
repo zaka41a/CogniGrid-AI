@@ -55,7 +55,7 @@ export default function Register() {
         data.accessToken,
       )
       setSuccess(true)
-      setTimeout(() => navigate('/app/dashboard', { replace: true }), 1000)
+      setTimeout(() => navigate('/app', { replace: true }), 1000)
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })
         ?.response?.data?.message
