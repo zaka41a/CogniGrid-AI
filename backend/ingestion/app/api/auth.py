@@ -29,8 +29,8 @@ def _decode(token: str) -> dict | None:
     """Decode a token, verifying signature when JWT_SECRET is configured."""
     try:
         if JWT_SECRET:
-            return jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
-        return jwt.decode(token, options={"verify_signature": False}, algorithms=["HS256"])
+            return jwt.decode(token, JWT_SECRET, algorithms=["HS256", "HS384", "HS512"])
+        return jwt.decode(token, options={"verify_signature": False}, algorithms=["HS256", "HS384", "HS512"])
     except jwt.ExpiredSignatureError:
         logger.info("[auth] token rejected: expired")
         return None
