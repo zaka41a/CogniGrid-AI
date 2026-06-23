@@ -476,7 +476,7 @@ export default function Home() {
                   Start for free <ArrowRight size={16} />
                 </Link>
                 <Link
-                  to="/app/dashboard"
+                  to="/app"
                   className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold
                     bg-white/8 border border-white/20 text-white/80
                     hover:bg-white/15 hover:text-white transition-all"
