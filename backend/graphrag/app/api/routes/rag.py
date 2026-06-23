@@ -100,8 +100,10 @@ async def chat_stream(request: Request, req: RAGRequest):
                 user_id=user_id,
                 scope=req.scope,
             )
-            raw_chunks = [c for c in raw_chunks if (c.get("score") or 0) >= MIN_SCORE]
-            sources = [SourceChunk(**c) for c in raw_chunks][:6]
+            scored = [c for c in raw_chunks if (c.get("score") or 0) >= MIN_SCORE]
+            if not scored and raw_chunks:
+                scored = raw_chunks
+            sources = [SourceChunk(**c) for c in scored][:6]
 
             graph_ctx = []
             if req.use_graph_context:

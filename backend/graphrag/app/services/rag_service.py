@@ -61,8 +61,13 @@ class RAGService:
         # Filter out very weak matches — they pollute the prompt without adding
         # any signal, especially for short queries like "hi" that have no semantic
         # overlap with anything indexed.
-        raw_chunks = [c for c in raw_chunks if (c.get("score") or 0) >= MIN_SCORE]
-        sources = [SourceChunk(**c) for c in raw_chunks][:MAX_SOURCES]
+        scored = [c for c in raw_chunks if (c.get("score") or 0) >= MIN_SCORE]
+        # Fallback: if nothing clears the threshold but we DID retrieve the
+        # user's chunks, use the best ones anyway so vague but legitimate
+        # questions ("explain the file") still get answered.
+        if not scored and raw_chunks:
+            scored = raw_chunks
+        sources = [SourceChunk(**c) for c in scored][:MAX_SOURCES]
 
         # 2. Graph context (scoped to the requesting user's subgraph)
         graph_ctx: list[GraphContextNode] = []
