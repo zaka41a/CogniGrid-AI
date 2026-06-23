@@ -67,9 +67,9 @@ export default function Graph() {
   const [history, setHistory] = useLocalStorageState<string[]>(CYPHER_HISTORY_KEY, [])
   const [showHistory, setShowHistory] = useState(false)
   const [showExportMenu, setShowExportMenu] = useState(false)
-  // Source filter: separates the canonical ASSUME KB from the user's own
-  // CIM/RDF uploads instead of mixing them in the same view.
-  const [scope, setScope] = useState<'all' | 'shared' | 'mine'>('all')
+  // Graph Explorer is part of Knowledge Graph Studio — it shows the user's
+  // own graph only. The shared ASSUME KB lives in the ASSUME workspace.
+  const scope = 'mine'
 
   const runCypher = useCallback(async () => {
     if (!sparql.trim() || queryRunning) return
@@ -319,26 +319,6 @@ export default function Graph() {
               <ZoomOut size={13} />
             </button>
             <LayoutSelector value={layout} onChange={setLayout} />
-            {/* Source scope filter — separates ASSUME shared KB from user CIM uploads */}
-            <div className="flex items-center gap-px rounded-lg border border-cg-border overflow-hidden" title="Filter graph by source">
-              {[
-                { id: 'all',    label: 'All'    },
-                { id: 'shared', label: 'ASSUME' },
-                { id: 'mine',   label: 'Mine'   },
-              ].map(o => (
-                <button
-                  key={o.id}
-                  onClick={() => setScope(o.id as 'all' | 'shared' | 'mine')}
-                  className={`px-2 py-1 text-[11px] font-semibold transition-colors ${
-                    scope === o.id
-                      ? 'bg-cg-primary text-white'
-                      : 'bg-cg-bg text-cg-muted hover:text-cg-txt hover:bg-cg-s2'
-                  }`}
-                >
-                  {o.label}
-                </button>
-              ))}
-            </div>
             <button
               onClick={() => setShowMinimap(v => !v)}
               className={`p-1.5 rounded-lg transition-colors ${showMinimap ? 'text-cg-primary bg-cg-primary-s' : 'text-cg-muted hover:text-cg-txt hover:bg-cg-s2'}`}
