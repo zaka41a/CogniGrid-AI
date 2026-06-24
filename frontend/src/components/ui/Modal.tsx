@@ -37,13 +37,13 @@ export function Modal({ open, onClose, title, children, footer, size = 'md', hid
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/40 backdrop-blur-sm anim-fade-in"
+        className="absolute inset-0 bg-slate-950/60 backdrop-blur-md anim-fade-in"
         onClick={onClose}
       />
 
       {/* Panel */}
       <div className={[
-        'relative w-full card shadow-cg-lg anim-scale-in',
+        'relative w-full card shadow-cg-lg ring-1 ring-black/5 anim-scale-in',
         'flex flex-col max-h-[90vh]',
         sizes[size],
       ].join(' ')}>

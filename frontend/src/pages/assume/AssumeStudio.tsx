@@ -1,5 +1,5 @@
 import { type ReactNode, type ComponentType } from 'react'
-import { PencilRuler, LineChart, Play, BarChart3, GitCompare, Sparkles, Zap, Check } from 'lucide-react'
+import { PencilRuler, LineChart, Play, BarChart3, GitCompare, Bot, Check } from 'lucide-react'
 import { useStudio, type StudioStep } from './studioStore'
 import AdvisorStep from './steps/AdvisorStep'
 import DesignStep from './steps/DesignStep'
@@ -37,9 +37,6 @@ export default function AssumeStudio() {
         <div className="absolute inset-0 opacity-[0.05] bg-gradient-to-br from-cg-primary to-cg-accent" />
         <div className="relative flex flex-wrap items-center justify-between gap-4 p-5">
           <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-2xl gradient-primary text-white flex items-center justify-center shadow-cg">
-              <Zap size={24} />
-            </div>
             <div>
               <h1 className="text-xl font-bold text-cg-txt tracking-tight leading-none">ASSUME Studio</h1>
               <div className="flex items-center gap-2 mt-1.5">
@@ -57,7 +54,7 @@ export default function AssumeStudio() {
                 step === 'advisor'
                   ? 'border-cg-primary/40 text-cg-primary bg-cg-primary-s'
                   : 'border-cg-border text-cg-muted hover:text-cg-txt hover:bg-cg-s2'}`}>
-              <Sparkles size={15} /> Advisor
+              <Bot size={15} /> Advisor
             </button>
             <button onClick={() => setStep('run')}
               className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold gradient-primary text-white shadow-cg hover:shadow-cg-md hover:-translate-y-px transition-all">
@@ -79,7 +76,7 @@ export default function AssumeStudio() {
               {step === 'advisor' && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-7 rounded-r-full gradient-primary" />}
               <span className={`w-7 h-7 shrink-0 rounded-full flex items-center justify-center ${
                 step === 'advisor' ? 'gradient-primary text-white shadow-cg' : 'bg-cg-primary-s text-cg-primary'}`}>
-                <Sparkles size={14} />
+                <Bot size={14} />
               </span>
               <span className="min-w-0">
                 <span className={`block text-sm font-semibold leading-tight ${step === 'advisor' ? 'text-cg-primary' : 'text-cg-txt'}`}>Advisor</span>

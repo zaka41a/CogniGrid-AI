@@ -4,6 +4,7 @@ import Card from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { StatCard } from '../components/ui/StatCard'
 import { EmptyState } from '../components/ui/EmptyState'
+import { Modal } from '../components/ui/Modal'
 import { ingestionApi, ingestHttp } from '../lib/api'
 import type { IngestJob } from '../lib/api'
 import { useDeepLink } from '../hooks/useDeepLink'
@@ -80,6 +81,7 @@ export default function Documents() {
   const [previewId, setPreviewId] = useState<string | null>(null)
   const [previewBody, setPreviewBody] = useState<string>('')
   const [previewLoading, setPreviewLoading] = useState(false)
+  const [confirmDel, setConfirmDel] = useState<{ kind: 'one' | 'bulk'; id?: string } | null>(null)
 
   const loadDocs = useCallback(async () => {
     setLoading(true)
@@ -122,8 +124,7 @@ export default function Documents() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Delete this document?')) return
+  const doDelete = async (id: string) => {
     setDeleting(id)
     try {
       await ingestionApi.deleteJob(id)
@@ -136,9 +137,7 @@ export default function Documents() {
     }
   }
 
-  const handleBulkDelete = async () => {
-    if (selected.size === 0) return
-    if (!confirm(`Delete ${selected.size} document${selected.size > 1 ? 's' : ''}?`)) return
+  const doBulkDelete = async () => {
     setDeleting('__bulk__')
     try {
       await Promise.allSettled(Array.from(selected).map(id => ingestionApi.deleteJob(id)))
@@ -148,6 +147,9 @@ export default function Documents() {
       setDeleting(null)
     }
   }
+
+  const handleDelete = (id: string) => setConfirmDel({ kind: 'one', id })
+  const handleBulkDelete = () => { if (selected.size) setConfirmDel({ kind: 'bulk' }) }
 
   const toggleSort = (key: SortKey) => {
     setSort(prev => prev.key === key
@@ -424,6 +426,36 @@ export default function Documents() {
           </div>
         </Card>
       )}
+
+      <Modal
+        open={!!confirmDel}
+        onClose={() => setConfirmDel(null)}
+        title={confirmDel?.kind === 'bulk' ? 'Delete documents' : 'Delete document'}
+        size="sm"
+        footer={
+          <>
+            <button onClick={() => setConfirmDel(null)}
+              className="px-4 py-2 rounded-xl text-sm font-medium text-cg-muted hover:text-cg-txt hover:bg-cg-s2 transition-colors">
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                const c = confirmDel
+                setConfirmDel(null)
+                if (c?.kind === 'one' && c.id) doDelete(c.id)
+                else if (c?.kind === 'bulk') doBulkDelete()
+              }}
+              className="px-4 py-2 rounded-xl text-sm font-semibold bg-cg-danger text-white hover:opacity-90 transition-opacity">
+              Delete
+            </button>
+          </>
+        }>
+        <p className="text-sm text-cg-muted">
+          {confirmDel?.kind === 'bulk'
+            ? `Permanently delete ${selected.size} document${selected.size > 1 ? 's' : ''}? This also removes their graph nodes and vector chunks.`
+            : 'Permanently delete this document? This also removes its graph nodes and vector chunks.'}
+        </p>
+      </Modal>
 
       </div>
     </div>

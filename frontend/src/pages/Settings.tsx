@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import {
   User, Lock, Mail, LogOut, Shield,
-  Check, Eye, EyeOff, Chrome, Camera, AlertTriangle,
+  Check, Eye, EyeOff, Camera, AlertTriangle,
 } from 'lucide-react'
 import Card from '../components/ui/Card'
 import { useAppStore } from '../store'
@@ -201,23 +201,6 @@ export default function Settings() {
             </div>
           </Card>
 
-          {/* Connect with Google */}
-          <Card title="Connected Accounts">
-            <div className="p-6 space-y-3">
-              <div className="flex items-center gap-4 p-4 bg-cg-bg border border-cg-border rounded-xl">
-                <div className="w-10 h-10 rounded-xl bg-white border border-cg-border flex items-center justify-center shadow-sm shrink-0">
-                  <Chrome size={20} className="text-blue-500" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-cg-txt">Google</p>
-                  <p className="text-xs text-cg-muted">Sign in with your Google account</p>
-                </div>
-                <button className="px-4 py-2 rounded-xl text-xs font-semibold border border-cg-primary/30 text-cg-primary hover:bg-cg-primary-s transition-all">
-                  Connect
-                </button>
-              </div>
-            </div>
-          </Card>
         </div>
       )}
 
