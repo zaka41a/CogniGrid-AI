@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type StudioStep = 'design' | 'timeseries' | 'run' | 'results' | 'compare'
+export type StudioStep = 'advisor' | 'design' | 'timeseries' | 'run' | 'results' | 'compare'
 
 export interface TimeseriesEntry {
   fileName: string

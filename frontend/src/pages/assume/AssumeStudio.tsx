@@ -1,7 +1,7 @@
-import { useState, type ReactNode, type ComponentType } from 'react'
+import { type ReactNode, type ComponentType } from 'react'
 import { PencilRuler, LineChart, Play, BarChart3, GitCompare, Sparkles, Zap, Check } from 'lucide-react'
 import { useStudio, type StudioStep } from './studioStore'
-import AdvisorPanel from './AdvisorPanel'
+import AdvisorStep from './steps/AdvisorStep'
 import DesignStep from './steps/DesignStep'
 import TimeseriesStep from './steps/TimeseriesStep'
 import RunStep from './steps/RunStep'
@@ -17,6 +17,7 @@ const STEPS: { id: StudioStep; label: string; desc: string; icon: ReactNode }[] 
 ]
 
 const STEP_VIEWS: Record<StudioStep, ComponentType> = {
+  advisor: AdvisorStep,
   design: DesignStep,
   timeseries: TimeseriesStep,
   run: RunStep,
@@ -26,7 +27,6 @@ const STEP_VIEWS: Record<StudioStep, ComponentType> = {
 
 export default function AssumeStudio() {
   const { step, setStep, scenarioName } = useStudio()
-  const [advisorOpen, setAdvisorOpen] = useState(true)
   const StepView = STEP_VIEWS[step]
   const activeIdx = STEPS.findIndex(s => s.id === step)
 
@@ -52,9 +52,9 @@ export default function AssumeStudio() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => setAdvisorOpen(v => !v)}
+            <button onClick={() => setStep('advisor')}
               className={`flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-sm font-medium border transition-all ${
-                advisorOpen
+                step === 'advisor'
                   ? 'border-cg-primary/40 text-cg-primary bg-cg-primary-s'
                   : 'border-cg-border text-cg-muted hover:text-cg-txt hover:bg-cg-s2'}`}>
               <Sparkles size={15} /> Advisor
@@ -69,12 +69,33 @@ export default function AssumeStudio() {
 
       {/* ── Body ───────────────────────────────────────────────────────── */}
       <div className="flex gap-5 items-start">
-        {/* stepper rail */}
+        {/* rail */}
         <nav className="w-52 shrink-0">
           <div className="rounded-2xl border border-cg-border bg-cg-surface shadow-cg p-2 space-y-0.5">
+            {/* Advisor (dedicated) */}
+            <button onClick={() => setStep('advisor')}
+              className={`relative w-full flex items-center gap-3 pl-3 pr-2 py-2.5 rounded-xl text-left transition-all ${
+                step === 'advisor' ? 'bg-cg-primary-s' : 'hover:bg-cg-s2'}`}>
+              {step === 'advisor' && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-7 rounded-r-full gradient-primary" />}
+              <span className={`w-7 h-7 shrink-0 rounded-full flex items-center justify-center ${
+                step === 'advisor' ? 'gradient-primary text-white shadow-cg' : 'bg-cg-primary-s text-cg-primary'}`}>
+                <Sparkles size={14} />
+              </span>
+              <span className="min-w-0">
+                <span className={`block text-sm font-semibold leading-tight ${step === 'advisor' ? 'text-cg-primary' : 'text-cg-txt'}`}>Advisor</span>
+                <span className="block text-[11px] text-cg-faint leading-tight mt-0.5">ask the AI</span>
+              </span>
+            </button>
+
+            <div className="my-1.5 mx-2 flex items-center gap-2">
+              <span className="h-px flex-1 bg-cg-border" />
+              <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-cg-faint">Workflow</span>
+              <span className="h-px flex-1 bg-cg-border" />
+            </div>
+
             {STEPS.map((s, i) => {
               const active = step === s.id
-              const done = i < activeIdx
+              const done = activeIdx >= 0 && i < activeIdx
               return (
                 <button key={s.id} onClick={() => setStep(s.id)}
                   className={`relative w-full flex items-center gap-3 pl-3 pr-2 py-2.5 rounded-xl text-left transition-all ${
@@ -98,17 +119,10 @@ export default function AssumeStudio() {
           </div>
         </nav>
 
-        {/* step content */}
+        {/* content */}
         <div className="flex-1 min-w-0 rounded-2xl border border-cg-border bg-cg-surface shadow-cg p-5">
           <StepView />
         </div>
-
-        {/* advisor */}
-        {advisorOpen && (
-          <aside className="w-80 shrink-0 rounded-2xl border border-cg-border bg-cg-surface shadow-cg overflow-hidden sticky top-2 h-[calc(100vh-9rem)]">
-            <AdvisorPanel />
-          </aside>
-        )}
       </div>
     </div>
   )
