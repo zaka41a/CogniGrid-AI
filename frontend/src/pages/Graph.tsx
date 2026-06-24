@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import cytoscape from 'cytoscape'
 import {
-  Play, Network, GitBranch, Database, Search,
-  Info, RefreshCw, Download, ZoomIn, ZoomOut, Maximize2, X, History, Image, FileJson, FileText,
+  Network, GitBranch, Database, Search,
+  Info, RefreshCw, Download, ZoomIn, ZoomOut, Maximize2, X, Image, FileJson, FileText,
 } from 'lucide-react'
 import Card from '../components/ui/Card'
 import { StatCard } from '../components/ui/StatCard'
@@ -12,12 +12,8 @@ import { Minimap } from '../components/graph/Minimap'
 import { registerCytoscapeExtensions } from '../components/graph/registerCytoscapeExtensions'
 import { attachGraphTooltips } from '../components/graph/GraphTooltip'
 import { exportGraph } from '../components/graph/exportGraph'
-import { useLocalStorageState } from '../hooks/useLocalStorageState'
 
 registerCytoscapeExtensions()
-
-const CYPHER_HISTORY_KEY = 'cg_cypher_history'
-const MAX_HISTORY = 10
 
 // ── Node type → color ──────────────────────────────────────────────────────
 const NODE_COLORS: Record<string, string> = {
@@ -38,11 +34,6 @@ const NODE_COLORS: Record<string, string> = {
 }
 function getColor(type: string) { return NODE_COLORS[type] ?? NODE_COLORS.default }
 
-const MOCK_CYPHER = `MATCH (n)-[r]->(m)
-WHERE n.name CONTAINS 'Substation'
-RETURN n, r, m
-LIMIT 25`
-
 interface NodeDetail {
   id: string; label: string; type: string
   properties: Record<string, string>
@@ -57,43 +48,14 @@ export default function Graph() {
   const [selectedNode, setSelectedNode] = useState<NodeDetail | null>(null)
   const [searchQ, setSearchQ]     = useState('')
   const [loading, setLoading]     = useState(true)
-  const [sparql, setSparql]       = useState(MOCK_CYPHER)
-  const [queryResult, setQueryResult] = useState<string | null>(null)
-  const [queryRunning, setQueryRunning] = useState(false)
   const [nodeCount, setNodeCount] = useState(0)
   const [fullscreen, setFullscreen] = useState(false)
   const [layout, setLayout] = useState<LayoutName>('cose')
   const [showMinimap, setShowMinimap] = useState(true)
-  const [history, setHistory] = useLocalStorageState<string[]>(CYPHER_HISTORY_KEY, [])
-  const [showHistory, setShowHistory] = useState(false)
   const [showExportMenu, setShowExportMenu] = useState(false)
   // Graph Explorer is part of Knowledge Graph Studio — it shows the user's
   // own graph only. The shared ASSUME KB lives in the ASSUME workspace.
   const scope = 'mine'
-
-  const runCypher = useCallback(async () => {
-    if (!sparql.trim() || queryRunning) return
-    setQueryRunning(true)
-    setQueryResult(null)
-    try {
-      const { data } = await graphApi.cypher(sparql)
-      if (data.count === 0) {
-        setQueryResult('No results returned.')
-      } else {
-        setQueryResult(JSON.stringify(data.rows, null, 2))
-      }
-      // Save successful query to history (deduplicated, capped at MAX_HISTORY)
-      setHistory(prev => {
-        const next = [sparql, ...prev.filter(q => q !== sparql)]
-        return next.slice(0, MAX_HISTORY)
-      })
-    } catch (e: unknown) {
-      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? 'Query failed'
-      setQueryResult(`Error: ${msg}`)
-    } finally {
-      setQueryRunning(false)
-    }
-  }, [sparql, queryRunning, setHistory])
 
   const fmtNum = (n: number) => n >= 1_000_000
     ? (n / 1_000_000).toFixed(1) + 'M'
