@@ -5,9 +5,9 @@ import { runnerApi, type RunInfo } from '../runner'
 
 function Kpi({ label, value, unit }: { label: string; value: string | number; unit?: string }) {
   return (
-    <div className="rounded-xl border border-cg-border bg-cg-surface p-4">
-      <p className="text-[11px] text-cg-faint mb-1">{label}</p>
-      <p className="text-xl font-bold text-cg-txt">{value}<span className="text-xs text-cg-muted font-normal"> {unit}</span></p>
+    <div className="rounded-2xl border border-cg-border bg-cg-bg p-4">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-cg-faint mb-1.5">{label}</p>
+      <p className="text-2xl font-bold text-cg-txt leading-none">{value}<span className="text-xs text-cg-muted font-normal"> {unit}</span></p>
     </div>
   )
 }

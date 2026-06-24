@@ -40,11 +40,13 @@ function Card({ def }: { def: (typeof DEFS)[number] }) {
   }
 
   return (
-    <div className="rounded-xl border border-cg-border bg-cg-surface p-4 space-y-3">
+    <div className="rounded-2xl border border-cg-border bg-cg-bg p-4 space-y-3 hover:shadow-cg-sm transition-shadow">
       <div className="flex items-center gap-2">
-        <FileSpreadsheet size={15} className="text-cg-primary" />
+        <span className="w-7 h-7 rounded-lg bg-cg-primary-s text-cg-primary flex items-center justify-center">
+          <FileSpreadsheet size={14} />
+        </span>
         <span className="text-sm font-bold text-cg-txt">{def.title}</span>
-        {entry && <CheckCircle2 size={14} className="text-emerald-400 ml-auto" />}
+        {entry && <CheckCircle2 size={15} className="text-cg-primary ml-auto" />}
       </div>
       <p className="text-[11px] text-cg-faint">{def.hint}</p>
 

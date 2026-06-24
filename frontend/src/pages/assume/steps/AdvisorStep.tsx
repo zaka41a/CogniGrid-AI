@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Send, Sparkles, Loader2, Wand2 } from 'lucide-react'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { ragHttp } from '../../lib/api'
+import { ragHttp } from '../../../lib/api'
 import { ASSUME_SYSTEM } from '../studioStore'
 
 interface Msg { role: 'user' | 'assistant'; content: string }
