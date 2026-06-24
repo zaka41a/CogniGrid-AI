@@ -15,7 +15,7 @@ import Alerts         from './pages/Alerts'
 import DataOverview   from './pages/DataOverview'
 import DataQuality    from './pages/DataQuality'
 import Settings       from './pages/Settings'
-import AssumeWorkspace from './pages/assume/AssumeWorkspace'
+import AssumeStudio from './pages/assume/AssumeStudio'
 import Login    from './pages/Login'
 import Register from './pages/Register'
 import Home     from './pages/Home'
@@ -51,7 +51,7 @@ export default function App() {
           <Route path="data-overview" element={<DataOverview />} />
           <Route path="data-quality"  element={<DataQuality />} />
           {/* ASSUME Lab */}
-          <Route path="assume"        element={<AssumeWorkspace />} />
+          <Route path="assume"        element={<AssumeStudio />} />
           {/* Account */}
           <Route path="settings"      element={<Settings />} />
           {/* Admin (gated by ADMIN role) */}
