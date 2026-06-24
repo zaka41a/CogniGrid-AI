@@ -10,6 +10,7 @@ from .parsers.csv_parser   import CSVParser, ExcelParser
 from .parsers.image_parser import ImageParser
 from .parsers.text_parser  import TextParser, JSONParser
 from .parsers.cim_xml_parser import CIMXMLParser
+from .parsers.cim_excel_parser import CIMExcelParser
 
 
 class FileRouter:
@@ -20,6 +21,7 @@ class FileRouter:
             PDFParser(),
             DocxParser(),
             CSVParser(),
+            CIMExcelParser(),  # CIM grid spreadsheets (falls back to ExcelParser)
             ExcelParser(),
             ImageParser(),
             JSONParser(),
