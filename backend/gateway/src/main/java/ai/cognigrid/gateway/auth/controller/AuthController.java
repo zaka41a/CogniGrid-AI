@@ -59,4 +59,19 @@ public class AuthController {
         authService.changePassword(principal.getUsername(), body.get("currentPassword"), body.get("newPassword"));
         return ResponseEntity.ok(Map.of("message", "Password updated successfully"));
     }
+
+    @GetMapping("/me")
+    @Operation(summary = "Get the authenticated user's profile")
+    public ResponseEntity<AuthResponse.UserInfo> me(@AuthenticationPrincipal UserDetails principal) {
+        return ResponseEntity.ok(authService.getCurrentUser(principal.getUsername()));
+    }
+
+    @PutMapping("/me")
+    @Operation(summary = "Update the authenticated user's profile")
+    public ResponseEntity<AuthResponse.UserInfo> updateMe(
+            @AuthenticationPrincipal UserDetails principal,
+            @RequestBody Map<String, String> body) {
+        return ResponseEntity.ok(authService.updateProfile(
+                principal.getUsername(), body.get("fullName"), body.get("email")));
+    }
 }
