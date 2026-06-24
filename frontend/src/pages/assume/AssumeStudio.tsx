@@ -1,5 +1,5 @@
 import { useState, type ReactNode, type ComponentType } from 'react'
-import { PencilRuler, LineChart, Play, BarChart3, GitCompare, Sparkles, Zap } from 'lucide-react'
+import { PencilRuler, LineChart, Play, BarChart3, GitCompare, Sparkles, Zap, Check } from 'lucide-react'
 import { useStudio, type StudioStep } from './studioStore'
 import AdvisorPanel from './AdvisorPanel'
 import DesignStep from './steps/DesignStep'
@@ -8,12 +8,12 @@ import RunStep from './steps/RunStep'
 import ResultsStep from './steps/ResultsStep'
 import CompareStep from './steps/CompareStep'
 
-const STEPS: { id: StudioStep; label: string; icon: ReactNode }[] = [
-  { id: 'design',     label: 'Design',     icon: <PencilRuler size={15} /> },
-  { id: 'timeseries', label: 'Timeseries', icon: <LineChart size={15} /> },
-  { id: 'run',        label: 'Run',        icon: <Play size={15} /> },
-  { id: 'results',    label: 'Results',    icon: <BarChart3 size={15} /> },
-  { id: 'compare',    label: 'Compare',    icon: <GitCompare size={15} /> },
+const STEPS: { id: StudioStep; label: string; desc: string; icon: ReactNode }[] = [
+  { id: 'design',     label: 'Design',     desc: 'markets & units',   icon: <PencilRuler size={15} /> },
+  { id: 'timeseries', label: 'Timeseries', desc: 'demand & prices',   icon: <LineChart size={15} /> },
+  { id: 'run',        label: 'Run',        desc: 'execute',           icon: <Play size={15} /> },
+  { id: 'results',    label: 'Results',    desc: 'analyse',           icon: <BarChart3 size={15} /> },
+  { id: 'compare',    label: 'Compare',    desc: 'benchmark',         icon: <GitCompare size={15} /> },
 ]
 
 const STEP_VIEWS: Record<StudioStep, ComponentType> = {
@@ -28,60 +28,84 @@ export default function AssumeStudio() {
   const { step, setStep, scenarioName } = useStudio()
   const [advisorOpen, setAdvisorOpen] = useState(true)
   const StepView = STEP_VIEWS[step]
+  const activeIdx = STEPS.findIndex(s => s.id === step)
 
   return (
-    <div>
-      {/* top bar */}
-      <div className="flex items-center justify-between gap-3 mb-5">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-blue-500/15 text-blue-400 flex items-center justify-center">
-            <Zap size={18} />
+    <div className="space-y-5">
+      {/* ── Hero header ────────────────────────────────────────────────── */}
+      <div className="relative overflow-hidden rounded-2xl border border-cg-border bg-cg-surface shadow-cg">
+        <div className="absolute inset-0 opacity-[0.05] bg-gradient-to-br from-cg-primary to-cg-accent" />
+        <div className="relative flex flex-wrap items-center justify-between gap-4 p-5">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl gradient-primary text-white flex items-center justify-center shadow-cg">
+              <Zap size={24} />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-cg-txt tracking-tight leading-none">ASSUME Studio</h1>
+              <div className="flex items-center gap-2 mt-1.5">
+                <span className="text-xs text-cg-muted">Electricity market simulation</span>
+                <span className="w-1 h-1 rounded-full bg-cg-border" />
+                <span className="inline-flex items-center gap-1 text-[11px] font-mono font-semibold text-cg-primary bg-cg-primary-s px-2 py-0.5 rounded-md">
+                  {scenarioName || 'scenario'}
+                </span>
+              </div>
+            </div>
           </div>
-          <div>
-            <h1 className="text-lg font-bold text-cg-txt leading-tight">ASSUME Studio</h1>
-            <p className="text-xs text-cg-faint font-mono">{scenarioName}</p>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setAdvisorOpen(v => !v)}
+              className={`flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-sm font-medium border transition-all ${
+                advisorOpen
+                  ? 'border-cg-primary/40 text-cg-primary bg-cg-primary-s'
+                  : 'border-cg-border text-cg-muted hover:text-cg-txt hover:bg-cg-s2'}`}>
+              <Sparkles size={15} /> Advisor
+            </button>
+            <button onClick={() => setStep('run')}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold gradient-primary text-white shadow-cg hover:shadow-cg-md hover:-translate-y-px transition-all">
+              <Play size={15} /> Run simulation
+            </button>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setAdvisorOpen(v => !v)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border transition-colors ${
-              advisorOpen ? 'border-blue-500/50 text-blue-400 bg-blue-500/10' : 'border-cg-border text-cg-muted hover:text-cg-txt'}`}>
-            <Sparkles size={15} /> Advisor
-          </button>
-          <button onClick={() => setStep('run')}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-cg-primary text-white shadow-cg hover:opacity-90 transition-opacity">
-            <Play size={15} /> Run sim
-          </button>
         </div>
       </div>
 
-      {/* body */}
-      <div className="flex gap-4 items-start">
-        {/* step rail */}
-        <nav className="w-44 shrink-0 space-y-1">
-          {STEPS.map((s, i) => {
-            const active = step === s.id
-            return (
-              <button key={s.id} onClick={() => setStep(s.id)}
-                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                  active ? 'bg-cg-primary-s text-cg-primary' : 'text-cg-muted hover:text-cg-txt hover:bg-cg-s2'}`}>
-                <span className={`w-5 h-5 shrink-0 rounded-full text-[10px] font-bold flex items-center justify-center ${
-                  active ? 'bg-cg-primary text-white' : 'bg-cg-s2 text-cg-faint'}`}>{i + 1}</span>
-                {s.icon}
-                {s.label}
-              </button>
-            )
-          })}
+      {/* ── Body ───────────────────────────────────────────────────────── */}
+      <div className="flex gap-5 items-start">
+        {/* stepper rail */}
+        <nav className="w-52 shrink-0">
+          <div className="rounded-2xl border border-cg-border bg-cg-surface shadow-cg p-2 space-y-0.5">
+            {STEPS.map((s, i) => {
+              const active = step === s.id
+              const done = i < activeIdx
+              return (
+                <button key={s.id} onClick={() => setStep(s.id)}
+                  className={`relative w-full flex items-center gap-3 pl-3 pr-2 py-2.5 rounded-xl text-left transition-all ${
+                    active ? 'bg-cg-primary-s' : 'hover:bg-cg-s2'}`}>
+                  {active && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-7 rounded-r-full gradient-primary" />}
+                  <span className={`w-7 h-7 shrink-0 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                    active ? 'gradient-primary text-white shadow-cg'
+                    : done ? 'bg-cg-primary-s text-cg-primary'
+                    : 'bg-cg-s2 text-cg-faint'}`}>
+                    {done ? <Check size={14} /> : i + 1}
+                  </span>
+                  <span className="min-w-0">
+                    <span className={`flex items-center gap-1.5 text-sm font-semibold leading-tight ${active ? 'text-cg-primary' : 'text-cg-txt'}`}>
+                      {s.icon}{s.label}
+                    </span>
+                    <span className="block text-[11px] text-cg-faint leading-tight mt-0.5">{s.desc}</span>
+                  </span>
+                </button>
+              )
+            })}
+          </div>
         </nav>
 
         {/* step content */}
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 rounded-2xl border border-cg-border bg-cg-surface shadow-cg p-5">
           <StepView />
         </div>
 
         {/* advisor */}
         {advisorOpen && (
-          <aside className="w-80 shrink-0 rounded-xl border border-cg-border bg-cg-surface overflow-hidden sticky top-2 h-[calc(100vh-9rem)]">
+          <aside className="w-80 shrink-0 rounded-2xl border border-cg-border bg-cg-surface shadow-cg overflow-hidden sticky top-2 h-[calc(100vh-9rem)]">
             <AdvisorPanel />
           </aside>
         )}

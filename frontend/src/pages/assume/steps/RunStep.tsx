@@ -123,7 +123,7 @@ export default function RunStep() {
                 )}
               </div>
               {current.error && <div className="px-4 py-2 text-xs text-red-400 bg-red-500/10">{current.error}</div>}
-              <div ref={logRef} className="h-[340px] overflow-y-auto bg-cg-bg p-3 text-[11px] font-mono text-cg-muted whitespace-pre-wrap">
+              <div ref={logRef} className="h-[340px] overflow-y-auto bg-slate-950 p-3 text-[11px] font-mono text-slate-300 whitespace-pre-wrap leading-relaxed">
                 {(current.log_lines || []).join('\n') || 'Waiting for output...'}
               </div>
             </div>
