@@ -296,7 +296,11 @@ export default function VisualBuilder({ yaml, onChange }: { yaml: string; onChan
 
   const general = doc.general ?? {}
   const markets = Object.keys(doc.markets ?? {})
-  const num = (section: Section, key: string, field: string) => (e: React.ChangeEvent<HTMLInputElement>) => setField(section, key, field, Number(e.target.value))
+  const num = (section: Section, key: string, field: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const n = parseFloat(e.target.value)
+    setField(section, key, field, Number.isFinite(n) ? n : 0)
+  }
+  const blurOnEnter = (e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === 'Enter') e.currentTarget.blur() }
 
   const ent = sel?.kind === 'ent' ? (doc[sel.section] ?? {})[sel.key] : null
 
@@ -326,13 +330,18 @@ export default function VisualBuilder({ yaml, onChange }: { yaml: string; onChan
             <Controls showInteractive={false} />
             <MiniMap pannable zoomable nodeColor={n => MINIMAP_COLOR[n.type ?? 'unit'] ?? '#94a3b8'} maskColor="rgba(148,163,184,0.15)" />
           </ReactFlow>
+          {nodes.length === 0 && (
+            <div className="absolute inset-0 z-[5] flex items-center justify-center pointer-events-none">
+              <p className="text-sm text-cg-faint text-center max-w-xs">Empty scenario. Use the toolbar above to add an operator, power plant, storage or demand.</p>
+            </div>
+          )}
         </div>
 
         <div className="w-72 shrink-0 rounded-xl border border-cg-border bg-cg-surface p-3 overflow-y-auto">
           {sel?.kind === 'op' ? (
             <div className="space-y-3">
               <PanelHead label="operator" onClose={() => setSel(null)} />
-              <Field label="Operator name"><input key={sel.name} defaultValue={sel.name} onBlur={e => renameOperator(sel.name, e.target.value)} className={INPUT} /></Field>
+              <Field label="Operator name"><input key={sel.name} defaultValue={sel.name} onBlur={e => renameOperator(sel.name, e.target.value)} onKeyDown={blurOnEnter} className={INPUT} /></Field>
               <p className="text-[11px] text-cg-faint">{membersOf(doc, sel.name).length} unit(s). Use the toolbar to add a node into this operator.</p>
               <button onClick={() => removeOperator(sel.name)} className="flex items-center gap-1.5 text-[11px] font-semibold text-cg-danger hover:underline"><Trash2 size={12} /> Delete operator and its nodes</button>
             </div>
@@ -345,7 +354,7 @@ export default function VisualBuilder({ yaml, onChange }: { yaml: string; onChan
           ) : sel?.kind === 'ent' && ent ? (
             <div className="space-y-3">
               <PanelHead label={sel.section === 'storage_units' ? 'storage' : sel.section.slice(0, -1)} onClose={() => setSel(null)} />
-              <Field label="Name"><input key={sel.key} defaultValue={sel.key} onBlur={e => renameEntity(sel.section, sel.key, e.target.value)} className={INPUT} /></Field>
+              <Field label="Name"><input key={sel.key} defaultValue={sel.key} onBlur={e => renameEntity(sel.section, sel.key, e.target.value)} onKeyDown={blurOnEnter} className={INPUT} /></Field>
               <Field label="Operator">
                 <select value={operatorOf(ent)} onChange={e => setField(sel.section, sel.key, 'unit_operator', e.target.value)} className={INPUT}>
                   {ops.map(o => <option key={o}>{o}</option>)}
