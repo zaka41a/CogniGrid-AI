@@ -348,6 +348,45 @@ async def _execute(run_id: str, run_dir: Path, push_to_graph: bool) -> None:
             w.writerows(dm_rows)
         _log(info, f"[runner] demand_units.csv written ({len(dm_rows)} units)")
 
+        # ── 5b. storage_units.csv (optional, written only when present) ────────
+        storage_raw = user_cfg.get("storage_units", user_cfg.get("storages", []))
+        if isinstance(storage_raw, dict):
+            storage_raw = [{"name": k, **v} for k, v in storage_raw.items()]
+        st_rows: list[dict] = []
+        for su in storage_raw or []:
+            if not isinstance(su, dict):
+                continue
+            bidding = "flexable_eom_storage"
+            bs = su.get("bidding_strategies")
+            if isinstance(bs, dict) and bs:
+                bidding = str(next(iter(bs.values())))
+            st_rows.append({
+                "name":                 str(su.get("name", f"storage_{len(st_rows)}")),
+                "unit_operator":        str(su.get("unit_operator", "StorageCo")),
+                "technology":           "storage",
+                "max_power_charge":     float(su.get("max_power_charge", 100)),
+                "max_power_discharge":  float(su.get("max_power_discharge", 100)),
+                "max_volume":           float(su.get("max_volume", su.get("max_soc", 400))),
+                "min_volume":           float(su.get("min_volume", 0)),
+                "efficiency_charge":    float(su.get("efficiency_charge", 0.95)),
+                "efficiency_discharge": float(su.get("efficiency_discharge", 0.95)),
+                "initial_soc":          float(su.get("initial_soc", 0)),
+                "additional_cost":      float(su.get("additional_cost", 0)),
+                "emission_factor":      float(su.get("emission_factor", 0)),
+                bidding_col:            bidding,
+            })
+        if st_rows:
+            st_fields = [
+                "name", "unit_operator", "technology", "max_power_charge", "max_power_discharge",
+                "max_volume", "min_volume", "efficiency_charge", "efficiency_discharge",
+                "initial_soc", "additional_cost", "emission_factor", bidding_col,
+            ]
+            with open(scenario_dir / "storage_units.csv", "w", newline="") as f:
+                w = csv.DictWriter(f, fieldnames=st_fields)
+                w.writeheader()
+                w.writerows(st_rows)
+            _log(info, f"[runner] storage_units.csv written ({len(st_rows)} units)")
+
         # ── 6. demand_df.csv — synthetic daily demand curve ───────────────────
         step_h = max(time_step, 1)
         timestamps: list[datetime] = []
