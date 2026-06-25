@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import ReactFlow, {
   Background, Controls, MiniMap, Handle, Position, MarkerType, useNodesState,
   type Node, type Edge, type NodeProps, type NodeChange,
@@ -81,14 +82,14 @@ function OperatorNode({ data, selected }: NodeProps) {
       <div className="flex items-center gap-1.5 px-3 h-9 rounded-t-2xl text-[11px] font-bold text-white" style={{ background: data.color }}>
         <Users size={12} />{data.label}<span className="ml-auto font-normal opacity-80">{data.count}</span>
       </div>
-      <Handle type="source" position={Position.Right} className="!w-2.5 !h-2.5" style={{ background: data.color }} />
+      <Handle type="source" position={data.side === 'demand' ? Position.Left : Position.Right} className="!w-2.5 !h-2.5" style={{ background: data.color }} />
     </div>
   )
 }
 function MarketNode({ data, selected }: NodeProps) {
   return (
     <div className={`rounded-2xl border-2 bg-indigo-50 px-4 py-3 shadow min-w-[180px] ${selected ? 'border-indigo-500' : 'border-indigo-500/50'}`}>
-      <Handle id="from-ops" type="target" position={Position.Left} className="!bg-indigo-500" />
+      <Handle id="from-supply" type="target" position={Position.Left} className="!w-2.5 !h-2.5 !bg-emerald-500" />
       <div className="flex items-center gap-1.5 text-sm font-bold text-slate-800"><Building2 size={14} className="text-indigo-600" />{data.label}</div>
       <div className="text-[10px] text-slate-500 mt-0.5">operator: {data.operator}</div>
       <div className="flex flex-wrap gap-1 mt-2">
@@ -96,6 +97,10 @@ function MarketNode({ data, selected }: NodeProps) {
           <span key={i} className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-700 border border-indigo-500/20">{p}</span>
         ))}
       </div>
+      <div className="flex justify-between mt-2 text-[8px] font-bold uppercase tracking-wide text-slate-400">
+        <span className="text-emerald-600">supply</span><span className="text-blue-600">demand</span>
+      </div>
+      <Handle id="from-demand" type="target" position={Position.Right} className="!w-2.5 !h-2.5 !bg-blue-500" />
     </div>
   )
 }
@@ -109,21 +114,30 @@ function productChips(doc: Doc, market: string): string[] {
   return prods.map((p: any) => `${p?.count ?? '?'}x ${p?.duration ?? '1h'}`)
 }
 
+function isDemandOp(doc: Doc, op: string): boolean {
+  const m = membersOf(doc, op)
+  return m.length > 0 && m.every(x => x.section === 'demand')
+}
+
 function buildGraph(doc: Doc, ops: string[], sel: Sel, pos: Record<string, XY>): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = []
   const edges: Edge[] = []
   const colorOf = (i: number) => OP_COLORS[i % OP_COLORS.length]
-  let runningY = 20
+  const LEFT_X = 20, MARKET_X = 460, RIGHT_X = 760
+  const market = Object.keys(doc.markets ?? {})[0]
+  let yL = 20, yR = 20
 
   ops.forEach((op, i) => {
     const members = membersOf(doc, op)
     const height = HEAD_H + Math.max(members.length, 1) * (CHILD_H + 10) + 12
+    const demand = isDemandOp(doc, op)
     const opId = `op:${op}`
-    const p = pos[opId] ?? { x: 20, y: runningY }
-    runningY += height + 24
+    const def = demand ? { x: RIGHT_X, y: yR } : { x: LEFT_X, y: yL }
+    if (demand) yR += height + 24; else yL += height + 24
+    const p = pos[opId] ?? def
     nodes.push({
       id: opId, type: 'operator', position: p, draggable: true,
-      style: { width: CONT_W, height }, data: { label: op, color: colorOf(i), count: members.length },
+      style: { width: CONT_W, height }, data: { label: op, color: colorOf(i), count: members.length, side: demand ? 'demand' : 'supply' },
       selected: sel?.kind === 'op' && sel.name === op,
     })
     members.forEach((m, j) => {
@@ -138,9 +152,8 @@ function buildGraph(doc: Doc, ops: string[], sel: Sel, pos: Record<string, XY>):
         data: { label: m.key, sub }, selected: sel?.kind === 'ent' && sel.section === m.section && sel.key === m.key,
       })
     })
-    const market = Object.keys(doc.markets ?? {})[0]
     if (market) edges.push({
-      id: `e-${op}`, source: opId, target: `market:${market}`, targetHandle: 'from-ops',
+      id: `e-${op}`, source: opId, target: `market:${market}`, targetHandle: demand ? 'from-demand' : 'from-supply',
       animated: true, style: { stroke: colorOf(i), strokeWidth: 1.5 }, markerEnd: { type: MarkerType.ArrowClosed, color: colorOf(i) },
     })
   })
@@ -148,7 +161,7 @@ function buildGraph(doc: Doc, ops: string[], sel: Sel, pos: Record<string, XY>):
   Object.keys(doc.markets ?? {}).forEach((k, i) => {
     const id = `market:${k}`
     nodes.push({
-      id, type: 'market', position: pos[id] ?? { x: 560, y: 60 + i * 200 }, draggable: true,
+      id, type: 'market', position: pos[id] ?? { x: MARKET_X, y: 80 + i * 220 }, draggable: true,
       data: { label: k, operator: doc.markets[k]?.operator ?? k, products: productChips(doc, k) },
       selected: sel?.kind === 'ent' && sel.section === ('markets' as Section) && sel.key === k,
     })
@@ -173,11 +186,21 @@ export default function VisualBuilder({ yaml, onChange }: { yaml: string; onChan
 
   useEffect(() => { setNodes(graph.nodes) }, [graph, setNodes])
   useEffect(() => {
-    if (!full) return
-    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') setFull(false) }
-    window.addEventListener('keydown', h)
-    return () => window.removeEventListener('keydown', h)
-  }, [full])
+    const onChange = () => { if (!document.fullscreenElement) setFull(false) }
+    document.addEventListener('fullscreenchange', onChange)
+    return () => document.removeEventListener('fullscreenchange', onChange)
+  }, [])
+
+  const toggleFull = useCallback(() => {
+    setFull(prev => {
+      const next = !prev
+      try {
+        if (next) document.documentElement.requestFullscreen?.()
+        else if (document.fullscreenElement) document.exitFullscreen?.()
+      } catch { /* fall back to the portal overlay */ }
+      return next
+    })
+  }, [])
 
   const commit = useCallback((next: Doc) => { setDoc(next); onChange(stringify(next)) }, [onChange])
   const handleNodesChange = useCallback((changes: NodeChange[]) => {
@@ -275,8 +298,8 @@ export default function VisualBuilder({ yaml, onChange }: { yaml: string; onChan
 
   const ent = sel?.kind === 'ent' ? (doc[sel.section] ?? {})[sel.key] : null
 
-  return (
-    <div className={full ? 'fixed inset-0 z-50 bg-cg-bg p-4 flex flex-col gap-3' : 'space-y-3'}>
+  const body = (
+    <div className={full ? 'fixed inset-0 z-[100] bg-cg-bg p-4 flex flex-col gap-3 overflow-auto' : 'space-y-3'}>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 rounded-xl border border-cg-border bg-cg-surface p-3 shrink-0">
         <div className="col-span-2 sm:col-span-4 flex items-center gap-1.5 text-xs font-semibold text-cg-muted"><SlidersHorizontal size={13} className="text-cg-primary" /> General</div>
         <Field label="Scenario name"><input value={general.scenario_name ?? ''} onChange={e => setGeneral('scenario_name', e.target.value)} className={INPUT} /></Field>
@@ -293,7 +316,7 @@ export default function VisualBuilder({ yaml, onChange }: { yaml: string; onChan
             <button onClick={() => addEntity('storage_units', 'storage', STORAGE_DEFAULT)} className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg bg-amber-500 text-white shadow hover:opacity-90"><Plus size={12} /> Storage</button>
             <button onClick={() => addEntity('demand', 'demand', DEMAND_DEFAULT)} className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg bg-blue-500 text-white shadow hover:opacity-90"><Plus size={12} /> Demand</button>
           </div>
-          <button onClick={() => setFull(f => !f)} className="absolute z-10 top-2 right-2 flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg bg-cg-surface border border-cg-border text-cg-txt shadow hover:bg-cg-s2">
+          <button onClick={toggleFull} className="absolute z-10 top-2 right-2 flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg bg-cg-surface border border-cg-border text-cg-txt shadow hover:bg-cg-s2">
             {full ? <Minimize2 size={12} /> : <Maximize2 size={12} />}{full ? 'Exit' : 'Fullscreen'}
           </button>
           <ReactFlow nodes={nodes} edges={graph.edges} nodeTypes={nodeTypes} onNodesChange={handleNodesChange} onNodeClick={onNodeClick} fitView proOptions={{ hideAttribution: true }}>
@@ -384,6 +407,7 @@ export default function VisualBuilder({ yaml, onChange }: { yaml: string; onChan
       </div>
     </div>
   )
+  return full ? createPortal(body, document.body) : body
 }
 
 function PanelHead({ label, onClose }: { label: string; onClose: () => void }) {
