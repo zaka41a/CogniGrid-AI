@@ -27,6 +27,8 @@ export interface StartRunBody {
   scenario_name: string
   description?: string
   push_to_graph?: boolean
+  // Optional uploaded timeseries (raw CSV text). Keys: demand, availability, fuel_prices.
+  timeseries?: Record<string, string>
 }
 
 export const runnerApi = {

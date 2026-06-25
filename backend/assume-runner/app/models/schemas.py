@@ -16,6 +16,9 @@ class RunRequest(BaseModel):
     scenario_name: str = "cogni_scenario"
     description: str   = ""
     push_to_graph: bool = True   # ingest results into Neo4j after run
+    # Optional uploaded timeseries (raw CSV text). Keys: demand, availability,
+    # fuel_prices. When provided they replace the synthetic generation.
+    timeseries: dict[str, str] = {}
 
 
 class RunInfo(BaseModel):

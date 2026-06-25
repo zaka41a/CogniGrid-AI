@@ -56,7 +56,8 @@ def list_runs(user_id: str | None = None) -> list[RunInfo]:
 
 
 async def start_run(req_yaml: str, scenario_name: str, description: str,
-                    push_to_graph: bool, user_id: str | None = None) -> RunInfo:
+                    push_to_graph: bool, timeseries: dict[str, str] | None = None,
+                    user_id: str | None = None) -> RunInfo:
     run_id  = str(uuid.uuid4())[:8]
     run_dir = Path(settings.runs_dir) / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -73,6 +74,17 @@ async def start_run(req_yaml: str, scenario_name: str, description: str,
 
     # Write the raw LLM-generated YAML for reference / parsing
     (run_dir / "config.yaml").write_text(req_yaml)
+
+    # Persist any uploaded timeseries CSVs so _execute can use them instead of
+    # the synthetic generation. Keys: demand, availability, fuel_prices.
+    ts = timeseries or {}
+    if ts:
+        ts_dir = run_dir / "_uploaded_ts"
+        ts_dir.mkdir(exist_ok=True)
+        for key in ("demand", "availability", "fuel_prices"):
+            content = ts.get(key)
+            if content and content.strip():
+                (ts_dir / f"{key}.csv").write_text(content)
 
     task = asyncio.create_task(_execute(run_id, run_dir, push_to_graph))
     _LOCKS[run_id] = task
@@ -393,6 +405,22 @@ async def _execute(run_id: str, run_dir: Path, push_to_graph: bool) -> None:
                     row.append(round(r["max_power"] * factor, 1))
                 w2.writerow(row)
         _log(info, f"[runner] demand_df.csv written ({len(timestamps)} timesteps)")
+
+        # ── 6b. Override synthetic inputs with uploaded timeseries ─────────────
+        # When the user uploaded real CSVs (B2), they take precedence over the
+        # synthetic curves written above. availability_df.csv is only created
+        # when an upload is present (no synthetic equivalent).
+        uploaded_dir = run_dir / "_uploaded_ts"
+        overrides = {
+            "demand":       "demand_df.csv",
+            "fuel_prices":  "fuel_prices_df.csv",
+            "availability": "availability_df.csv",
+        }
+        for key, target in overrides.items():
+            up = uploaded_dir / f"{key}.csv"
+            if up.exists() and up.read_text().strip():
+                (scenario_dir / target).write_text(up.read_text())
+                _log(info, f"[runner] {target} from uploaded timeseries (overrides synthetic)")
 
         # ── 7. Run ASSUME CLI ─────────────────────────────────────────────────
         # assume -s <scenario_name> -c <study_case> -i <inputs_dir> -csv <output_dir>

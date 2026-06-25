@@ -29,6 +29,7 @@ async def create_run(req: RunRequest, request: Request):
         scenario_name=req.scenario_name,
         description=req.description,
         push_to_graph=req.push_to_graph,
+        timeseries=req.timeseries,
         user_id=user_id,
     )
 

@@ -4,7 +4,7 @@ import { useStudio } from '../studioStore'
 import { runnerApi, type RunInfo, STATUS_STYLE } from '../runner'
 
 export default function RunStep() {
-  const { yaml, scenarioName, pushGraph, setPushGraph, selectedRunId, setSelectedRunId, setStep } = useStudio()
+  const { yaml, scenarioName, pushGraph, setPushGraph, selectedRunId, setSelectedRunId, setStep, timeseries } = useStudio()
   const [runs, setRuns] = useState<RunInfo[]>([])
   const [online, setOnline] = useState<boolean | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -35,8 +35,14 @@ export default function RunStep() {
     if (!yaml.trim() || submitting) return
     setSubmitting(true)
     try {
+      // Send any uploaded timeseries (B2). Map store keys → backend keys.
+      const ts: Record<string, string> = {}
+      if (timeseries.demand?.csv)       ts.demand       = timeseries.demand.csv
+      if (timeseries.availability?.csv) ts.availability = timeseries.availability.csv
+      if (timeseries.fuelPrices?.csv)   ts.fuel_prices  = timeseries.fuelPrices.csv
       const { data } = await runnerApi.start({
         yaml_config: yaml, scenario_name: scenarioName, description: '', push_to_graph: pushGraph,
+        timeseries: ts,
       })
       setRuns(prev => [data, ...prev])
       setSelectedRunId(data.run_id)
@@ -73,6 +79,22 @@ export default function RunStep() {
         : 'border-red-500/40 bg-red-500/10 text-red-400'}`}>
         <span className={`w-2 h-2 rounded-full ${online ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
         {online === null ? 'Checking ASSUME Runner...' : online ? 'ASSUME Runner online' : 'ASSUME Runner offline'}
+      </div>
+
+      {/* Which inputs feed the simulation (B2) */}
+      <div className="flex flex-wrap items-center gap-2 text-[11px]">
+        <span className="text-cg-faint">Inputs:</span>
+        {([
+          ['demand',       'Demand',        timeseries.demand],
+          ['availability', 'Availability',  timeseries.availability],
+          ['fuelPrices',   'Fuel prices',   timeseries.fuelPrices],
+        ] as const).map(([k, label, entry]) => (
+          <span key={k} className={`px-2 py-0.5 rounded-full border ${
+            entry ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400'
+                  : 'border-cg-border bg-cg-s2 text-cg-faint'}`}>
+            {label}: {entry ? 'uploaded' : 'synthetic'}
+          </span>
+        ))}
       </div>
 
       <label className="flex items-center gap-2 text-xs text-cg-muted">
