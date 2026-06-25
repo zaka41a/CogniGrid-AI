@@ -22,7 +22,7 @@
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&logo=docker&logoColor=white)](https://docs.docker.com/compose/)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue?style=flat-square)](LICENSE)
 
-[**Quick Start**](#quick-start) · [Architecture](docs/architecture.md) · [API Reference](docs/api.md) · [Admin Guide](docs/admin.md)
+[**Quick Start**](#quick-start) · [Architecture](docs/architecture.md) · [API Reference](docs/api.md) 
 
 </div>
 
@@ -36,7 +36,6 @@ Upload any document (PDF, Word, Excel, PowerPoint, CSV, XML, image) → CogniGri
 - **GraphRAG Chat** multi-hop retrieval-augmented generation with cited sources
 - **AI Agent** ReAct tool-calling agent over your graph
 - **ASSUME Workspace** natural-language → YAML scenario generator + real `assume run` execution with live SSE log streaming
-- **Admin Console** user management, password reset, role change, activity log
 
 Every layer enforces **per-user isolation** (Neo4j `user_id`, Qdrant payload filter, Postgres FK) so accounts cannot see each other's data.
 
@@ -103,8 +102,8 @@ http://localhost:5173
 Sign in with the default admin account:
 
 | Email | Password |
-|---|---|
-| `admin@gmail.com` | `admin4321` |
+|---|----------|
+| `admin@gmail.com` | `******` |
 
 → **Change this password immediately** via *Admin Console → Reset password*.
 → Platform shutdown: `./stop.sh`.
@@ -125,8 +124,7 @@ Sign in with the default admin account:
 
 - [`docs/architecture.md`](docs/architecture.md) - diagrams, data flow, isolation model, GraphRAG and Agent pipelines, full tech stack
 - [`docs/api.md`](docs/api.md) - endpoint reference for every service
-- [`docs/admin.md`](docs/admin.md) - admin console capabilities and audit log
-
+- 
 ## Testing locally
 
 ```bash
