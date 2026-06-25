@@ -600,7 +600,7 @@ def _parse_timeseries(output_dir: Path) -> dict:
                 except (ValueError, TypeError):
                     continue
                 result["price"].append({
-                    "t":      str(r.get(tcol) if tcol else "") or "",
+                    "t":      str(r.get(tcol) if tcol is not None else "") or "",
                     "price":  price,
                     "supply": _num(r, "supply_volume"),
                     "demand": _num(r, "demand_volume"),
@@ -621,7 +621,9 @@ def _parse_timeseries(output_dir: Path) -> dict:
             tcol = _detect_col(fns, _TIME_COLS)
             ucol = _detect_col(fns, ["unit_id", "unit", "name"])
             pcol = _detect_col(fns, ["power", "volume", "dispatch"])
-            if tcol and ucol and pcol:
+            # tcol may be "" (the unnamed pandas index column) — that is valid,
+            # so test against None explicitly rather than truthiness.
+            if tcol is not None and ucol is not None and pcol is not None:
                 bucket: dict[str, dict[str, float]] = {}
                 units: list[str] = []
                 for r in rows:
@@ -638,11 +640,15 @@ def _parse_timeseries(output_dir: Path) -> dict:
                     if u not in units:
                         units.append(u)
                 index = list(bucket.keys())  # insertion order = chronological
+                # Keep generation units (net positive power). Demand units are
+                # net negative and would distort the stacked area below zero.
+                totals = {u: sum(bucket[t].get(u, 0.0) for t in index) for u in units}
+                gen_units = [u for u in units if totals[u] > 0] or units
                 out_rows = [
-                    {"t": t, **{u: round(bucket[t].get(u, 0.0), 1) for u in units}}
+                    {"t": t, **{u: round(bucket[t].get(u, 0.0), 1) for u in gen_units}}
                     for t in index
                 ]
-                result["dispatch"] = {"index": index, "units": units, "rows": out_rows}
+                result["dispatch"] = {"index": index, "units": gen_units, "rows": out_rows}
         except Exception as e:
             logger.warning("timeseries: dispatch parse failed: %s", e)
 
