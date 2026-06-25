@@ -1,5 +1,5 @@
 """
-Shared embedding singleton — avoids reloading the model on every request.
+Shared embedding singleton - avoids reloading the model on every request.
 Falls back to zero-vectors if sentence-transformers is not installed.
 """
 import logging
@@ -19,7 +19,7 @@ def get_embedder():
             logger.info("Loading embedding model: %s", settings.embedding_model)
             _model = SentenceTransformer(settings.embedding_model)
         except Exception as e:
-            logger.warning("sentence-transformers not available (%s) — using zero-vector fallback", e)
+            logger.warning("sentence-transformers not available (%s) - using zero-vector fallback", e)
             _model = None
     return _model
 

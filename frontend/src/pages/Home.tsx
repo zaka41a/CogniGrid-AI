@@ -451,7 +451,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-6 pt-16 pb-20 relative w-full">
           <div className="grid lg:grid-cols-2 gap-14 items-center">
 
-            {/* Left — text */}
+            {/* Left - text */}
             <div>
               <h1 className="text-5xl md:text-6xl font-bold tracking-tight leading-[1.08] mb-6 anim-slide-up d1 text-white">
                 Turn documents into a{' '}
@@ -508,7 +508,7 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Right — animated demo */}
+            {/* Right - animated demo */}
             <div className="anim-slide-up d5">
               <HeroDemo />
             </div>

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ─────────────────────────────────────────────────────────────────────────────
-# CogniGrid AI — Auth Service Test Script
+# CogniGrid AI - Auth Service Test Script
 # ─────────────────────────────────────────────────────────────────────────────
 
 BASE_URL="http://localhost:8080"
@@ -15,13 +15,13 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 RESET='\033[0m'
 
-ok()   { echo -e "  ${GREEN}✅ PASS${RESET} — $1"; ((PASS++)); }
-fail() { echo -e "  ${RED}❌ FAIL${RESET} — $1"; ((FAIL++)); }
+ok()   { echo -e "  ${GREEN}✅ PASS${RESET} - $1"; ((PASS++)); }
+fail() { echo -e "  ${RED}❌ FAIL${RESET} - $1"; ((FAIL++)); }
 info() { echo -e "\n${CYAN}▶ $1${RESET}"; }
 sep()  { echo -e "${YELLOW}────────────────────────────────────────────${RESET}"; }
 
 sep
-echo -e "${CYAN}  CogniGrid AI — Auth Test Suite${RESET}"
+echo -e "${CYAN}  CogniGrid AI - Auth Test Suite${RESET}"
 sep
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -33,7 +33,7 @@ HEALTH=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/actuator/health")
 if [ "$HEALTH" = "200" ]; then
   ok "Gateway is UP (HTTP $HEALTH)"
 else
-  fail "Gateway not responding (HTTP $HEALTH) — is the server running?"
+  fail "Gateway not responding (HTTP $HEALTH) - is the server running?"
   echo -e "\n${RED}Abort: server is not reachable.${RESET}"
   exit 1
 fi
@@ -77,13 +77,13 @@ DUP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/auth/
 if [ "$DUP_STATUS" != "201" ] && [ "$DUP_STATUS" != "200" ]; then
   ok "Duplicate email rejected (HTTP $DUP_STATUS)"
 else
-  fail "Duplicate email was accepted — should have been rejected"
+  fail "Duplicate email was accepted - should have been rejected"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 4. Login with correct credentials
 # ─────────────────────────────────────────────────────────────────────────────
-info "4. Login — correct credentials"
+info "4. Login - correct credentials"
 
 LOGIN_BODY=$(curl -s -X POST "$BASE_URL/api/auth/login" \
   -H "Content-Type: application/json" \
@@ -112,7 +112,7 @@ fi
 # ─────────────────────────────────────────────────────────────────────────────
 # 5. Login with wrong password (should fail)
 # ─────────────────────────────────────────────────────────────────────────────
-info "5. Login — wrong password (expect 401)"
+info "5. Login - wrong password (expect 401)"
 
 WRONG_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/auth/login" \
   -H "Content-Type: application/json" \
@@ -127,7 +127,7 @@ fi
 # ─────────────────────────────────────────────────────────────────────────────
 # 6. Access protected endpoint without token (should fail)
 # ─────────────────────────────────────────────────────────────────────────────
-info "6. Protected endpoint — no token (expect 401/403)"
+info "6. Protected endpoint - no token (expect 401/403)"
 
 NO_TOKEN_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/api/users")
 
@@ -140,26 +140,26 @@ fi
 # ─────────────────────────────────────────────────────────────────────────────
 # 7. Access protected endpoint with valid token
 # ─────────────────────────────────────────────────────────────────────────────
-info "7. Protected endpoint — with valid token"
+info "7. Protected endpoint - with valid token"
 
 if [ -n "$ACCESS_TOKEN" ]; then
   AUTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/api/users" \
     -H "Authorization: Bearer $ACCESS_TOKEN")
 
   if [ "$AUTH_STATUS" = "200" ] || [ "$AUTH_STATUS" = "403" ]; then
-    # 403 is acceptable here — user is ANALYST, /api/users requires ADMIN
+    # 403 is acceptable here - user is ANALYST, /api/users requires ADMIN
     ok "Token accepted by server (HTTP $AUTH_STATUS)"
   else
     fail "Valid token should be accepted, got HTTP $AUTH_STATUS"
   fi
 else
-  fail "Skipped — no access token available"
+  fail "Skipped - no access token available"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 8. Login as Admin
 # ─────────────────────────────────────────────────────────────────────────────
-info "8. Login — default admin account"
+info "8. Login - default admin account"
 
 ADMIN_BODY=$(curl -s -X POST "$BASE_URL/api/auth/login" \
   -H "Content-Type: application/json" \
@@ -195,7 +195,7 @@ if [ -n "$ADMIN_TOKEN" ]; then
     fail "Admin should access /api/users, got HTTP $ADMIN_USERS_STATUS"
   fi
 else
-  fail "Skipped — no admin token available"
+  fail "Skipped - no admin token available"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -216,7 +216,7 @@ if [ -n "$REFRESH_TOKEN" ]; then
     fail "Refresh did not return new access token"
   fi
 else
-  fail "Skipped — no refresh token available"
+  fail "Skipped - no refresh token available"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -235,7 +235,7 @@ if [ -n "$REFRESH_TOKEN" ]; then
     fail "Logout returned HTTP $LOGOUT_STATUS instead of 204"
   fi
 else
-  fail "Skipped — no refresh token available"
+  fail "Skipped - no refresh token available"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -256,13 +256,13 @@ if [ -n "$REFRESH_TOKEN" ]; then
     fail "Invalidated refresh token should be rejected"
   fi
 else
-  fail "Skipped — no refresh token available"
+  fail "Skipped - no refresh token available"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 13. Validation — missing fields (expect 400)
+# 13. Validation - missing fields (expect 400)
 # ─────────────────────────────────────────────────────────────────────────────
-info "13. Validation — empty password (expect 400)"
+info "13. Validation - empty password (expect 400)"
 
 VAL_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/auth/register" \
   -H "Content-Type: application/json" \

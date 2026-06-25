@@ -6,7 +6,7 @@ on:
   pull_request:
     branches: [main, master]
 
-# Limit concurrent runs per branch — newer push cancels older runs.
+# Limit concurrent runs per branch - newer push cancels older runs.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -49,7 +49,7 @@ jobs:
         working-directory: backend/${{ matrix.service }}
         run: |
           python -m pip install --upgrade pip
-          # Install lightweight deps (skip torch / sentence-transformers in CI — too heavy).
+          # Install lightweight deps (skip torch / sentence-transformers in CI - too heavy).
           python -m pip install fastapi==0.111.0 pydantic==2.7.1 pydantic-settings==2.2.1 httpx==0.27.0 PyJWT pytest
       - name: Syntax check
         working-directory: backend/${{ matrix.service }}
@@ -61,7 +61,7 @@ jobs:
           if [ -d tests ]; then
             python -m pytest tests/ -q --tb=short || exit 1
           else
-            echo "No tests/ directory in ${{ matrix.service }} — skipping."
+            echo "No tests/ directory in ${{ matrix.service }} - skipping."
           fi
 
   gateway:

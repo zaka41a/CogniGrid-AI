@@ -1,5 +1,5 @@
 """
-Upload routes — gère l'upload de fichiers et le démarrage du pipeline d'ingestion.
+Upload routes - gère l'upload de fichiers et le démarrage du pipeline d'ingestion.
 
 POST /api/ingestion/upload        → upload un fichier → retourne job_id
 POST /api/ingestion/upload/batch  → upload plusieurs fichiers

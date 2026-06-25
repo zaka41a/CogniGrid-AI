@@ -13,7 +13,7 @@ import { useChartColors } from '../hooks/useChartColors'
 import { graphHttp, ingestHttp } from '../lib/api'
 import { useDeepLink } from '../hooks/useDeepLink'
 
-// 8 s max-wait for stats — avoids the infinite "…" when services are starting up
+// 8 s max-wait for stats - avoids the infinite "…" when services are starting up
 const STATS_TIMEOUT = 8_000
 
 const PIE_COLORS = ['#6366F1', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#0D9488', '#EC4899', '#3B82F6']

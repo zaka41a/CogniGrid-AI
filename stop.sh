@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-#  CogniGrid AI — Stop Platform
+#  CogniGrid AI - Stop Platform
 #
 #  Usage:
 #    ./stop.sh           Stop frontend + gateway, leave Docker services up.
@@ -22,13 +22,13 @@ STOP_DOCKER=false
 [[ "${1:-}" == "--all" ]] && STOP_DOCKER=true
 
 sep
-echo -e "${CYAN}   CogniGrid AI — Stopping Platform${RESET}"
+echo -e "${CYAN}   CogniGrid AI - Stopping Platform${RESET}"
 $STOP_DOCKER && echo -e "${YELLOW}   Mode: --all (Docker services included)${RESET}"
 sep
 
 # Helper: kill a PID listed in a pidfile, then delete the pidfile.
 # CRITICAL: must reject PID 0 and PID 1. `kill 0` in POSIX sends SIGTERM
-# to every process in the caller's process group — i.e. it kills this
+# to every process in the caller's process group - i.e. it kills this
 # very script and the terminal. A stray "0" or empty pidfile would make
 # stop.sh euthanise itself, which is exactly what was happening.
 kill_pidfile() {
@@ -74,7 +74,7 @@ ok "Frontend stopped."
 info "Stopping the Gateway (Spring Boot, port 8080)..."
 kill_pidfile "$LOGS_DIR/gateway.pid"
 # Match the JAR path explicitly. This must NOT match the running shell or
-# editor processes — a bare "GatewayApplication" pattern matched too widely
+# editor processes - a bare "GatewayApplication" pattern matched too widely
 # on dev machines and was killing stop.sh itself.
 pkill -f "gateway-0.0.1-SNAPSHOT\.jar" 2>/dev/null || true
 pkill -f "spring-boot:run" 2>/dev/null || true

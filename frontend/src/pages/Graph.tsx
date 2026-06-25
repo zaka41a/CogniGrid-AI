@@ -53,7 +53,7 @@ export default function Graph() {
   const [layout, setLayout] = useState<LayoutName>('cose')
   const [showMinimap, setShowMinimap] = useState(true)
   const [showExportMenu, setShowExportMenu] = useState(false)
-  // Graph Explorer is part of Knowledge Graph Studio — it shows the user's
+  // Graph Explorer is part of Knowledge Graph Studio - it shows the user's
   // own graph only. The shared ASSUME KB lives in the ASSUME workspace.
   const scope = 'mine'
 
@@ -333,7 +333,7 @@ export default function Graph() {
               )}
             </div>
 
-            {/* Cytoscape container — normal + fullscreen */}
+            {/* Cytoscape container - normal + fullscreen */}
             <div
               className={fullscreen
                 ? 'fixed inset-0 z-50 bg-cg-bg flex flex-col'
@@ -343,7 +343,7 @@ export default function Graph() {
               {fullscreen && (
                 <div className="flex items-center justify-between px-4 py-3 border-b border-cg-border shrink-0">
                   <div className="flex items-center gap-3">
-                    <span className="text-sm font-semibold text-cg-txt">Knowledge Graph — Fullscreen</span>
+                    <span className="text-sm font-semibold text-cg-txt">Knowledge Graph - Fullscreen</span>
                     {nodeCount > 0 && <span className="text-xs text-cg-faint">{nodeCount} nodes</span>}
                   </div>
                   <div className="flex items-center gap-1">

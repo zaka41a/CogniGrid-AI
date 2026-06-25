@@ -1,5 +1,5 @@
 """
-FileRouter — détecte le type de fichier par extension + magic bytes
+FileRouter - détecte le type de fichier par extension + magic bytes
 et retourne le parser approprié.
 """
 import os

@@ -18,11 +18,11 @@ registerCytoscapeExtensions()
  */
 function voltageColor(voltageKv: number | null): string | null {
   if (voltageKv === null || !Number.isFinite(voltageKv)) return null
-  if (voltageKv >= 380) return '#DC2626'  // red    — 380-400 kV
-  if (voltageKv >= 220) return '#F97316'  // orange — 220 kV
-  if (voltageKv >= 110) return '#FACC15'  // yellow — 110 kV
-  if (voltageKv >= 30)  return '#84CC16'  // light green — 30-60 kV
-  if (voltageKv > 0)    return '#10B981'  // green  — LV
+  if (voltageKv >= 380) return '#DC2626'  // red    - 380-400 kV
+  if (voltageKv >= 220) return '#F97316'  // orange - 220 kV
+  if (voltageKv >= 110) return '#FACC15'  // yellow - 110 kV
+  if (voltageKv >= 30)  return '#84CC16'  // light green - 30-60 kV
+  if (voltageKv > 0)    return '#10B981'  // green  - LV
   return null
 }
 
@@ -203,11 +203,11 @@ export default function Network() {
             'opacity':            0.7,
           } as cytoscape.Css.Edge,
         },
-        // Phase 7.1 — n-hop highlight
+        // Phase 7.1 - n-hop highlight
         { selector: '.dimmed',        style: { 'opacity': 0.12 } as cytoscape.Css.Node },
         { selector: 'node.focused',   style: { 'border-color': '#6366F1', 'border-width': 3 } as cytoscape.Css.Node },
         { selector: 'edge.focused',   style: { 'line-color': '#6366F1', 'target-arrow-color': '#6366F1', 'opacity': 1, 'width': 2 } as cytoscape.Css.Edge },
-        // Phase 7.2 — animated power-flow effect (line-dash-offset is updated by the JS animation loop)
+        // Phase 7.2 - animated power-flow effect (line-dash-offset is updated by the JS animation loop)
         { selector: 'edge.flow',      style: { 'line-style': 'dashed', 'line-dash-pattern': [6, 6], 'width': 2, 'opacity': 0.95 } as cytoscape.Css.Edge },
       ],
       layout: layoutOptions(layout),
@@ -257,7 +257,7 @@ export default function Network() {
     if (tooltipDisposeRef.current) { try { tooltipDisposeRef.current() } catch { /* ignore */ } }
   }, [])
 
-  // Phase 7.1 — apply n-hop highlight whenever selection or hop count changes.
+  // Phase 7.1 - apply n-hop highlight whenever selection or hop count changes.
   // `nodeCount` in the deps re-runs the effect after a fresh initCy() rebuild.
   useEffect(() => {
     const cy = cyInstance.current
@@ -274,7 +274,7 @@ export default function Network() {
     hood.addClass('focused')
   }, [selectedNodeId, highlightHops, nodeCount])
 
-  // Phase 7.2 — power-flow animation: cycle line-dash-offset on every edge.
+  // Phase 7.2 - power-flow animation: cycle line-dash-offset on every edge.
   // Step is small enough to look smooth at 60ms cadence. Offset is unbounded
   // by Cytoscape so we never need to wrap.
   useEffect(() => {

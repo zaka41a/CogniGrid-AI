@@ -42,7 +42,7 @@ function ToolChip({ name }: { name: string }) {
   )
 }
 
-/** Strip raw ReAct scaffolding — show only the final answer or clean text */
+/** Strip raw ReAct scaffolding - show only the final answer or clean text */
 function cleanAgentResponse(raw: string): string {
   if (!raw?.trim()) return 'I could not generate a response. Please try again.'
 
@@ -72,7 +72,7 @@ function cleanAgentResponse(raw: string): string {
     return result
   }
 
-  // 4. All content was ReAct scaffolding — return a helpful fallback
+  // 4. All content was ReAct scaffolding - return a helpful fallback
   return 'I processed your request using the available tools. The knowledge graph contains text entities (organizations, people, dates). Try asking a specific question about the documents, for example: "Who are the key people in the documents?" or "What organizations are mentioned?"'
 }
 
@@ -93,7 +93,7 @@ function renderLine(line: string, i: number) {
   return <p key={i} dangerouslySetInnerHTML={{ __html: inlineMd(line) }} />
 }
 
-/** Convert **bold** and `code` to HTML (no XSS risk — input is LLM text) */
+/** Convert **bold** and `code` to HTML (no XSS risk - input is LLM text) */
 function inlineMd(text: string): string {
   return text
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')

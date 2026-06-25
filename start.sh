@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-#  CogniGrid AI — Start Platform
+#  CogniGrid AI - Start Platform
 #
 #  Usage:
 #    ./start.sh             Fast start using existing images (default).
@@ -26,7 +26,7 @@ warn() { echo -e "${YELLOW}⚠   $1${RESET}"; }
 err()  { echo -e "${RED}❌  $1${RESET}"; exit 1; }
 skip() { echo -e "${GREEN}⏭   $1${RESET}"; }
 
-# Helper: safe port killer — won't run kill with empty args
+# Helper: safe port killer - won't run kill with empty args
 kill_port() {
   local port="$1"
   local pids
@@ -46,7 +46,7 @@ FORCE_REBUILD=false
 [[ "${1:-}" == "--rebuild" ]] && FORCE_REBUILD=true
 
 sep
-echo -e "${CYAN}   CogniGrid AI — Starting Platform${RESET}"
+echo -e "${CYAN}   CogniGrid AI - Starting Platform${RESET}"
 if $FORCE_REBUILD; then
   echo -e "${YELLOW}   Mode: Force rebuild (Docker images + Gateway JAR)${RESET}"
 else
@@ -55,7 +55,7 @@ fi
 sep
 
 # ─── Pre-flight checks ───────────────────────────────────────────────────────
-[[ -f "$ROOT_DIR/.env" ]] || err ".env not found — copy .env.example to .env and fill in the values."
+[[ -f "$ROOT_DIR/.env" ]] || err ".env not found - copy .env.example to .env and fill in the values."
 
 info "Checking dependencies..."
 command -v docker >/dev/null 2>&1 || err "Docker is not installed."
@@ -98,7 +98,7 @@ until docker compose exec -T neo4j cypher-shell -u neo4j -p "${NEO4J_PASS_VAL:-c
   sleep 3
   WAITED_NEO4J=$((WAITED_NEO4J + 3))
   if [[ $WAITED_NEO4J -ge $MAX_NEO4J ]]; then
-    warn "Neo4j is not ready after ${MAX_NEO4J}s — the Graph Service will fail to start."
+    warn "Neo4j is not ready after ${MAX_NEO4J}s - the Graph Service will fail to start."
     break
   fi
 done
@@ -114,18 +114,18 @@ if $FORCE_REBUILD; then
   info "Rebuilding and starting Python microservices..."
   DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1 \
     docker compose up -d --build $PYTHON_SERVICES 2>&1 | tee "$LOGS_DIR/docker-build.log" >/dev/null \
-    || warn "One or more services failed to build — see $LOGS_DIR/docker-build.log"
+    || warn "One or more services failed to build - see $LOGS_DIR/docker-build.log"
 else
   info "Starting Python microservices (using existing images)..."
   docker compose up -d $PYTHON_SERVICES 2>&1 | tee "$LOGS_DIR/docker-start.log" >/dev/null \
-    || warn "Some services failed to start — try ./start.sh --rebuild on first run."
+    || warn "Some services failed to start - try ./start.sh --rebuild on first run."
 fi
 ok "Python microservices started (ingestion:8001 graph:8002 ai-engine:8003 graphrag:8004 agent:8005)."
 
 # If the Graph service crashed because Neo4j wasn't ready, restart it now.
 sleep 5
 if ! is_up http://localhost:8002/health; then
-  warn "Graph service not responding — restarting (Neo4j was slow to wake)..."
+  warn "Graph service not responding - restarting (Neo4j was slow to wake)..."
   docker compose restart graph >/dev/null 2>&1 || true
   for _ in {1..20}; do
     is_up http://localhost:8002/health && break
@@ -134,7 +134,7 @@ if ! is_up http://localhost:8002/health; then
   if is_up http://localhost:8002/health; then
     ok "Graph service is back online."
   else
-    warn "Graph service still offline — check 'docker logs cg-graph'."
+    warn "Graph service still offline - check 'docker logs cg-graph'."
   fi
 fi
 
@@ -152,7 +152,7 @@ ok "Monitoring is up."
 # Skip rebuild & relaunch if a Gateway is already healthy and we're not in
 # --rebuild mode. This makes ./start.sh safe to re-run after partial crashes.
 if ! $FORCE_REBUILD && is_up http://localhost:8080/actuator/health; then
-  skip "Gateway already running on :8080 — leaving it untouched."
+  skip "Gateway already running on :8080 - leaving it untouched."
 else
   GATEWAY_JAR=$(ls "$GATEWAY_DIR/target/"*.jar 2>/dev/null | grep -v "sources" | head -1)
 
@@ -166,7 +166,7 @@ else
   [[ -n "$GATEWAY_JAR" ]] || err "Gateway JAR not found."
 
   # Stop any previous Gateway instance and free port 8080.
-  # NEVER call `kill` with PID 0 or 1 — POSIX defines `kill 0` as
+  # NEVER call `kill` with PID 0 or 1 - POSIX defines `kill 0` as
   # "signal every process in the current process group", which would
   # kill this script and the parent terminal.
   if [[ -f "$LOGS_DIR/gateway.pid" ]]; then
@@ -215,12 +215,12 @@ else
   GATEWAY_PID=$(cat "$LOGS_DIR/gateway.pid" 2>/dev/null || echo "")
   [[ -n "$GATEWAY_PID" ]] || err "Failed to capture Gateway PID."
 
-  info "Waiting for the Gateway on port 8080 (cold start can take 4–5 min)..."
+  info "Waiting for the Gateway on port 8080 (cold start can take 4-5 min)..."
   MAX_WAIT=360 ; WAITED=0
   until is_up http://localhost:8080/actuator/health; do
     # Stop early if the Java process died
     if ! kill -0 "$GATEWAY_PID" 2>/dev/null; then
-      err "Gateway process exited unexpectedly — see $LOGS_DIR/gateway.log."
+      err "Gateway process exited unexpectedly - see $LOGS_DIR/gateway.log."
     fi
     sleep 3
     WAITED=$((WAITED + 3))
@@ -228,15 +228,15 @@ else
       echo "  …still waiting (${WAITED}s / ${MAX_WAIT}s)"
     fi
     if [[ $WAITED -ge $MAX_WAIT ]]; then
-      err "Gateway did not start within ${MAX_WAIT}s — see $LOGS_DIR/gateway.log."
+      err "Gateway did not start within ${MAX_WAIT}s - see $LOGS_DIR/gateway.log."
     fi
   done
-  ok "Gateway is ready — http://localhost:8080 (took ${WAITED}s)"
+  ok "Gateway is ready - http://localhost:8080 (took ${WAITED}s)"
 fi
 
 # ─── Frontend (Vite) ─────────────────────────────────────────────────────────
 if is_up http://localhost:5173; then
-  skip "Frontend already running on :5173 — leaving it untouched."
+  skip "Frontend already running on :5173 - leaving it untouched."
 else
   info "Starting the Frontend (Vite)..."
   cd "$FRONTEND_DIR"
@@ -268,9 +268,9 @@ else
     sleep 1
   done
   if is_up http://localhost:5173; then
-    ok "Frontend is ready — http://localhost:5173"
+    ok "Frontend is ready - http://localhost:5173"
   else
-    warn "Frontend did not respond within 30s — check $LOGS_DIR/frontend.log."
+    warn "Frontend did not respond within 30s - check $LOGS_DIR/frontend.log."
   fi
 fi
 

@@ -1,4 +1,4 @@
-"""ASSUME Runner microservice — executes ASSUME simulations and streams results."""
+"""ASSUME Runner microservice - executes ASSUME simulations and streams results."""
 import os
 import logging
 from fastapi import FastAPI
@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes.runner import router
 from app.config import settings
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s — %(message)s")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s - %(message)s")
 
 os.makedirs(settings.runs_dir, exist_ok=True)
 

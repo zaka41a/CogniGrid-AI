@@ -20,6 +20,6 @@ export function registerCytoscapeExtensions(): void {
     cytoscape.use(coseBilkent)
     cytoscape.use(navigator)
   } catch {
-    // Already registered (HMR re-import) — safe to ignore
+    // Already registered (HMR re-import) - safe to ignore
   }
 }

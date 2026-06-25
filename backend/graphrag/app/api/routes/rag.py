@@ -53,7 +53,7 @@ def _classify_pipeline_error(e: Exception) -> HTTPException:
                                   "Qdrant or Neo4j). Check the services are running.")
     if isinstance(e, httpx.TimeoutException):
         return HTTPException(504, "The request timed out waiting for the LLM or a database. Try again.")
-    # Database driver errors — detected by module name to avoid hard imports.
+    # Database driver errors - detected by module name to avoid hard imports.
     mod = type(e).__module__ or ""
     if mod.startswith("neo4j"):
         return HTTPException(503, "The Neo4j knowledge graph is unavailable. "
@@ -91,7 +91,7 @@ async def chat_stream(request: Request, req: RAGRequest):
 
     async def event_stream():
         try:
-            # 1. Retrieval — same as the sync /chat path, kept short to fail fast
+            # 1. Retrieval - same as the sync /chat path, kept short to fail fast
             raw_chunks = await semantic_search(
                 query=req.query,
                 top_k=req.top_k or settings.top_k,

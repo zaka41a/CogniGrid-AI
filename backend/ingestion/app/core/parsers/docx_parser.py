@@ -1,5 +1,5 @@
 """
-DOCX Parser — utilise python-docx pour extraire texte, tableaux et métadonnées
+DOCX Parser - utilise python-docx pour extraire texte, tableaux et métadonnées
 des fichiers Word (.docx).
 """
 from docx import Document

@@ -1,10 +1,10 @@
 """
-JWT helper for the Agent service — verify signature and forward bearer tokens.
+JWT helper for the Agent service - verify signature and forward bearer tokens.
 
 The agent makes downstream HTTP calls to graph/graphrag/etc. on behalf of the
 user, so it needs both:
-  - get_user_id(request)     — read the verified `sub` claim
-  - get_auth_header(request) — return the raw Authorization header so we can
+  - get_user_id(request)     - read the verified `sub` claim
+  - get_auth_header(request) - return the raw Authorization header so we can
                                forward it to internal services
 """
 import logging
@@ -18,7 +18,7 @@ JWT_SECRET = os.getenv("JWT_SECRET", "").strip()
 
 if not JWT_SECRET:
     logger.warning(
-        "[auth] JWT_SECRET is not set — running in INSECURE no-verify mode. "
+        "[auth] JWT_SECRET is not set - running in INSECURE no-verify mode. "
         "Set JWT_SECRET in .env to match the gateway for production safety."
     )
 
@@ -53,7 +53,7 @@ def get_user_id(request: Request) -> str | None:
 def get_auth_header(request: Request) -> str | None:
     """Return the raw Authorization header so we can forward it downstream.
 
-    We DON'T re-validate here — `get_user_id` was responsible for that. We just
+    We DON'T re-validate here - `get_user_id` was responsible for that. We just
     pass through whatever the client sent so internal services can do their own
     verification on receipt.
     """

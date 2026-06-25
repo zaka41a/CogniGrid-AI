@@ -1,5 +1,5 @@
 """
-Ingest route — receives extracted documents from the Ingestion Service.
+Ingest route - receives extracted documents from the Ingestion Service.
 
 POST /api/graph/ingest   → create/update Document + Entity nodes in Neo4j
 """

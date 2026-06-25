@@ -19,7 +19,7 @@ async def lifespan(app: FastAPI):
         await session.execute(
             update(JobModel)
             .where(JobModel.status.in_(["processing", "pending"]))
-            .values(status="failed", error_message="Service restarted — please re-upload")
+            .values(status="failed", error_message="Service restarted - please re-upload")
         )
         await session.commit()
     yield

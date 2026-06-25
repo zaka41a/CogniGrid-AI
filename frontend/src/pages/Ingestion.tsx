@@ -52,7 +52,7 @@ export default function Ingestion() {
       const { data } = await ingestHttp.get<{ jobs: IngestJob[]; total: number }>('/api/ingestion/jobs', { timeout: 8_000 })
       setJobs(data.jobs ?? [])
     } catch {
-      // Service not ready yet — show empty state
+      // Service not ready yet - show empty state
     } finally {
       setLoading(false)
     }

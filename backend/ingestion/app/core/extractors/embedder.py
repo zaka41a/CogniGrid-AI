@@ -1,5 +1,5 @@
 """
-Embedder — generates vectors (embeddings) for entities and documents.
+Embedder - generates vectors (embeddings) for entities and documents.
 Uses sentence-transformers (all-MiniLM-L6-v2 by default, 384 dimensions).
 If sentence-transformers is not installed, returns empty embeddings gracefully.
 """
@@ -13,7 +13,7 @@ try:
     _ST_AVAILABLE = True
 except ImportError:
     _ST_AVAILABLE = False
-    logger.warning("sentence-transformers not installed — embeddings disabled (vectors will be empty)")
+    logger.warning("sentence-transformers not installed - embeddings disabled (vectors will be empty)")
 
 _model = None
 

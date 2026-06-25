@@ -1,5 +1,5 @@
 """
-Agent tools — each tool wraps an HTTP call to an internal service.
+Agent tools - each tool wraps an HTTP call to an internal service.
 
 Every tool accepts an optional ``auth_header`` so the agent can forward
 the user's bearer token to internal services. This keeps all data
@@ -138,14 +138,14 @@ async def generate_assume_scenario(
     3. LLM (Groq) synthesizes a complete, executable YAML config.
 
     Returns a dict with:
-      - yaml_config: str   — the generated YAML
-      - explanation: str   — human-readable walkthrough
-      - similar_examples: list — example configs referenced
-      - warnings: list     — any assumptions made
+      - yaml_config: str   - the generated YAML
+      - explanation: str   - human-readable walkthrough
+      - similar_examples: list - example configs referenced
+      - warnings: list     - any assumptions made
     """
     # File types we never want to retrieve for ASSUME prompts. CIM tabular
     # exports (`.xlsx`, `.csv`) and CIM/RDF (`.xml`) describe power-grid
-    # topology, not electricity-market simulations — they only pollute the
+    # topology, not electricity-market simulations - they only pollute the
     # context and inflate the payload past Groq's 413 limit.
     _ASSUME_EXCLUDE = ["xlsx", "csv", "xml"]
     # Per-chunk character budget. 6 × 1200 = 7.2 KB max for the knowledge
@@ -207,7 +207,7 @@ async def generate_assume_scenario(
         "You are an expert in the ASSUME electricity market simulation framework "
         "(FH Aachen ADAPT project). You generate YAML configuration files ONLY in the "
         "exact schema the CogniGrid runner accepts. You MUST use the schema shown in the "
-        "user message — any deviation will cause the simulation to fail."
+        "user message - any deviation will cause the simulation to fail."
     )
 
     user_prompt = f"""Generate an ASSUME scenario YAML for this CogniGrid simulation runner.
@@ -230,14 +230,14 @@ units:                          # dict of unit_name → attributes (NOT a list)
     fuel_type: <fuel>           # one of: coal, natural gas, lignite, nuclear, wind, solar, oil, other
     max_power: <MW>
     min_power: <MW>
-    efficiency: <0.0–1.0>
+    efficiency: <0.0-1.0>
     unit_operator: operator_1
   <unit_name_2>:
     technology: power_plant
     fuel_type: <fuel>
     max_power: <MW>
     min_power: <MW>
-    efficiency: <0.0–1.0>
+    efficiency: <0.0-1.0>
     unit_operator: operator_2
 
 demand:                         # dict of demand_name → attributes (NOT a list)
@@ -289,7 +289,7 @@ demand:
 {f"GRAPHRAG INSIGHTS:{chr(10)}{rag_context}" if rag_context else ""}
 
 ━━━ INSTRUCTIONS ━━━
-1. Use the MANDATORY YAML SCHEMA above — top-level keys MUST be: general, units, demand.
+1. Use the MANDATORY YAML SCHEMA above - top-level keys MUST be: general, units, demand.
 2. units and demand are DICTS (key: value), NOT lists.
 3. Adapt the scenario description ({description}) by choosing realistic unit capacities and fuel types.
 4. Return ONLY a JSON object with these three fields. Escape all newlines as \\n inside the yaml_config string.
@@ -308,7 +308,7 @@ CRITICAL: yaml_config value MUST use \\n (backslash-n) for newlines, NOT actual 
             "yaml_config": "",
             "explanation": "Groq API key not configured.",
             "similar_examples": similar_examples,
-            "warnings": ["LLM unavailable — no GROQ_API_KEY set"],
+            "warnings": ["LLM unavailable - no GROQ_API_KEY set"],
         }
 
     try:
@@ -524,13 +524,13 @@ TOOLS = {
 
 TOOL_DESCRIPTIONS = """
 Available tools:
-1. search_knowledge_base(query, top_k=5) — semantic search, returns relevant text chunks
-2. ask_knowledge_base(query, use_graph=True) — RAG answer with sources from documents
-3. get_graph_stats() — knowledge graph statistics (node/edge counts)
-4. search_graph(query, limit=10) — search entities in knowledge graph
-5. get_document_insights(doc_id) — entity stats and keywords for a document
-6. find_similar_documents(doc_id, top_k=5) — find semantically similar docs
-7. list_documents(limit=10) — list all ingested documents
-8. generate_assume_scenario(description, duration_hours=24, market_type="day_ahead") — generate a complete ASSUME YAML config from a natural language description; returns yaml_config, explanation, similar_examples, warnings
-9. predict_assume_outcome(scenario_yaml, question="...") — predict market clearing price, dispatch order and key insights for an ASSUME scenario without running it; returns predicted_price_eur_mwh, dispatch_order, market_clearing, key_insights, confidence
+1. search_knowledge_base(query, top_k=5) - semantic search, returns relevant text chunks
+2. ask_knowledge_base(query, use_graph=True) - RAG answer with sources from documents
+3. get_graph_stats() - knowledge graph statistics (node/edge counts)
+4. search_graph(query, limit=10) - search entities in knowledge graph
+5. get_document_insights(doc_id) - entity stats and keywords for a document
+6. find_similar_documents(doc_id, top_k=5) - find semantically similar docs
+7. list_documents(limit=10) - list all ingested documents
+8. generate_assume_scenario(description, duration_hours=24, market_type="day_ahead") - generate a complete ASSUME YAML config from a natural language description; returns yaml_config, explanation, similar_examples, warnings
+9. predict_assume_outcome(scenario_yaml, question="...") - predict market clearing price, dispatch order and key insights for an ASSUME scenario without running it; returns predicted_price_eur_mwh, dispatch_order, market_clearing, key_insights, confidence
 """

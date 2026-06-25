@@ -91,7 +91,7 @@ POSTGRES_PASSWORD=<strong-password>
 ```bash
 chmod +x start.sh
 ./start.sh                 # fast start (existing images)
-./start.sh --rebuild       # full rebuild (first run, ~5–15 min)
+./start.sh --rebuild       # full rebuild (first run, ~5-15 min)
 ```
 
 ### 3. Open the app
@@ -123,9 +123,9 @@ Sign in with the default admin account:
 
 ## Documentation
 
-- [`docs/architecture.md`](docs/architecture.md) — diagrams, data flow, isolation model, GraphRAG and Agent pipelines, full tech stack
-- [`docs/api.md`](docs/api.md) — endpoint reference for every service
-- [`docs/admin.md`](docs/admin.md) — admin console capabilities and audit log
+- [`docs/architecture.md`](docs/architecture.md) - diagrams, data flow, isolation model, GraphRAG and Agent pipelines, full tech stack
+- [`docs/api.md`](docs/api.md) - endpoint reference for every service
+- [`docs/admin.md`](docs/admin.md) - admin console capabilities and audit log
 
 ## Testing locally
 

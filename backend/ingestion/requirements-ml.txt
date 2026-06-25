@@ -1,5 +1,5 @@
-# ML / NLP — installed after torch (separate Docker layer for better caching)
-# NOTE: easyocr and torchvision removed — they pull opencv-python-headless>=4.13
+# ML / NLP - installed after torch (separate Docker layer for better caching)
+# NOTE: easyocr and torchvision removed - they pull opencv-python-headless>=4.13
 #       which requires numpy>=2, conflicting with torch 2.1.2 (numpy<2).
 #       OCR support can be re-added when torch is upgraded to 2.4+.
 numpy==1.26.4                # pinned: torch 2.1.2 needs numpy<2

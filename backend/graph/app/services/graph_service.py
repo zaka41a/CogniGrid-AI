@@ -1,5 +1,5 @@
 """
-GraphService — core business logic for Knowledge Graph operations.
+GraphService - core business logic for Knowledge Graph operations.
 
 Operations:
   - ingest_document: creates Document node + Entity nodes + MENTIONS/RELATED_TO edges
@@ -38,7 +38,7 @@ def _visible_user_ids(user_id: str | None) -> list[str] | None:
 
     The caller sees ONLY their own documents. The shared ASSUME knowledge base
     is intentionally excluded here so it never pollutes the personal graph,
-    dashboard, search or network views — it is reached explicitly via the
+    dashboard, search or network views - it is reached explicitly via the
     ASSUME scope (e.g. get_visualization(scope="shared")). When no user_id is
     provided (legacy / internal callers), return None to keep the
     "see everything" branch.
@@ -327,7 +327,7 @@ class GraphService:
         )
 
     async def delete_document(self, doc_id: str, user_id: str | None = None) -> dict:
-        # Note: we do NOT include the shared scope here — deleting a shared
+        # Note: we do NOT include the shared scope here - deleting a shared
         # doc requires going through the dedicated admin/clear path so a
         # regular user can't accidentally wipe the canonical knowledge base.
         result = await run_query(
@@ -571,7 +571,7 @@ class GraphService:
                 """,
                 {"user_id": user_id},
             )
-            # Delete orphaned documents (NULL user_id — pre-isolation legacy data)
+            # Delete orphaned documents (NULL user_id - pre-isolation legacy data)
             r2 = await run_query(
                 """
                 MATCH (d:Document) WHERE d.user_id IS NULL

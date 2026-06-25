@@ -1,4 +1,4 @@
-"""Pytest config — ensures the service root is on sys.path so tests can import `app.*`."""
+"""Pytest config - ensures the service root is on sys.path so tests can import `app.*`."""
 import sys
 from pathlib import Path
 

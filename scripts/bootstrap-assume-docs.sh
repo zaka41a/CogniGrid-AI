@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # =============================================================================
-#  CogniGrid AI — Bootstrap ASSUME knowledge base (FALLBACK script)
+#  CogniGrid AI - Bootstrap ASSUME knowledge base (FALLBACK script)
 #
 #  Used when the in-app /api/ingestion/bootstrap/assume endpoint isn't deployed
 #  yet (image rebuild stuck). Downloads the assume-framework/assume repo,
 #  filters relevant docs/source/configs, and uploads each via the standard
-#  /api/ingestion/upload endpoint — same pipeline the UI's drag-drop uses.
+#  /api/ingestion/upload endpoint - same pipeline the UI's drag-drop uses.
 #
 #  Usage: ./scripts/bootstrap-assume-docs.sh
 # =============================================================================
@@ -22,7 +22,7 @@ TOKEN=$(curl -fsS -X POST http://localhost:8080/api/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"email":"admin@gmail.com","password":"admin4321"}' \
   | python3 -c "import json,sys; print(json.load(sys.stdin).get('accessToken',''))")
-[[ -n "$TOKEN" ]] || err "Login failed — is the gateway up on :8080?"
+[[ -n "$TOKEN" ]] || err "Login failed - is the gateway up on :8080?"
 ok "Got token (${#TOKEN} chars)"
 
 # Download tarball

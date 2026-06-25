@@ -47,7 +47,7 @@ export const mockActivityFeed: ActivityEvent[] = [
     id: 'a2',
     icon: 'upload',
     title: 'Data ingestion completed',
-    description: 'grid_sensors_march.csv — 12,450 rows processed',
+    description: 'grid_sensors_march.csv - 12,450 rows processed',
     timestamp: '2026-04-02T13:58:00Z',
     severity: 'info',
   },
@@ -63,7 +63,7 @@ export const mockActivityFeed: ActivityEvent[] = [
     id: 'a4',
     icon: 'ai',
     title: 'Prediction model retrained',
-    description: 'Energy Consumption model — new accuracy: 94.2%',
+    description: 'Energy Consumption model - new accuracy: 94.2%',
     timestamp: '2026-04-02T11:45:00Z',
     severity: 'info',
   },
@@ -95,7 +95,7 @@ export const mockActivityFeed: ActivityEvent[] = [
     id: 'a8',
     icon: 'upload',
     title: 'Scheduled import started',
-    description: 'Daily SCADA telemetry import — 08:00 UTC',
+    description: 'Daily SCADA telemetry import - 08:00 UTC',
     timestamp: '2026-04-02T08:00:00Z',
     severity: 'info',
   },
@@ -211,7 +211,7 @@ export const mockConversations: Conversation[] = [
       {
         id: 'm2',
         role: 'ai',
-        content: `Based on my analysis of the knowledge graph and anomaly model, here is the current risk assessment for the **Energy Grid** system:\n\n**Risk Score: 0.87 / 1.00 — CRITICAL**\n\n**Affected Nodes:**\n- EG-447 (Substation A) — anomaly score 0.91\n- EG-023 (Transformer 1) — anomaly score 0.74\n- EG-112 (Sensor cluster) — anomaly score 0.68\n\n**Recommendation:** Immediate inspection of Substation A is advised. Consider load balancing between Grid Zone 1 and Zone 2 to reduce stress on EG-447. Alert status has been escalated to critical tier.`,
+        content: `Based on my analysis of the knowledge graph and anomaly model, here is the current risk assessment for the **Energy Grid** system:\n\n**Risk Score: 0.87 / 1.00 - CRITICAL**\n\n**Affected Nodes:**\n- EG-447 (Substation A) - anomaly score 0.91\n- EG-023 (Transformer 1) - anomaly score 0.74\n- EG-112 (Sensor cluster) - anomaly score 0.68\n\n**Recommendation:** Immediate inspection of Substation A is advised. Consider load balancing between Grid Zone 1 and Zone 2 to reduce stress on EG-447. Alert status has been escalated to critical tier.`,
         timestamp: '14:30',
         tools: ['graph_query', 'anomaly_model'],
       },
@@ -263,7 +263,7 @@ export const mockAlerts: Alert[] = [
     message: 'Substation EG-447 voltage deviation exceeds 15% threshold',
     timestamp: '2026-04-02 14:32', status: 'Open',
     timeline: [
-      { time: '14:32', event: 'Alert triggered — anomaly score 0.91 detected' },
+      { time: '14:32', event: 'Alert triggered - anomaly score 0.91 detected' },
       { time: '14:33', event: 'Notification sent to on-call engineer' },
       { time: '14:35', event: 'Auto-isolation protocol initiated' },
     ],
@@ -273,7 +273,7 @@ export const mockAlerts: Alert[] = [
     message: 'Node NET-12 latency exceeds 200ms for 5 consecutive minutes',
     timestamp: '2026-04-02 10:30', status: 'Acknowledged',
     timeline: [
-      { time: '10:30', event: 'Alert triggered — latency 248ms' },
+      { time: '10:30', event: 'Alert triggered - latency 248ms' },
       { time: '10:45', event: 'Acknowledged by Sarah Chen' },
     ],
   },
@@ -310,16 +310,16 @@ export const mockAlerts: Alert[] = [
     message: 'Grid Zone 2 projected to exceed capacity within 2 hours',
     timestamp: '2026-04-01 22:10', status: 'Open',
     timeline: [
-      { time: '22:10', event: 'Predictive alert triggered — 94% capacity forecast' },
+      { time: '22:10', event: 'Predictive alert triggered - 94% capacity forecast' },
     ],
   },
   {
     id: 'ALT-007', system: 'Network', type: 'Packet Loss', severity: 'Low',
-    message: 'NET-08 reporting 3.2% packet loss — below action threshold',
+    message: 'NET-08 reporting 3.2% packet loss - below action threshold',
     timestamp: '2026-04-01 19:40', status: 'Resolved',
     timeline: [
       { time: '19:40', event: 'Packet loss rate flagged' },
-      { time: '20:00', event: 'Auto-resolved — rate normalized' },
+      { time: '20:00', event: 'Auto-resolved - rate normalized' },
     ],
   },
   {
@@ -328,7 +328,7 @@ export const mockAlerts: Alert[] = [
     timestamp: '2026-04-01 17:22', status: 'Acknowledged',
     timeline: [
       { time: '17:22', event: '3rd failed attempt logged' },
-      { time: '17:25', event: 'Account locked — security team notified' },
+      { time: '17:25', event: 'Account locked - security team notified' },
     ],
   },
   {
@@ -360,12 +360,12 @@ export const mockAlerts: Alert[] = [
   },
   {
     id: 'ALT-012', system: 'Network', type: 'Topology Change', severity: 'Medium',
-    message: 'Unexpected topology change detected — 2 nodes unreachable',
+    message: 'Unexpected topology change detected - 2 nodes unreachable',
     timestamp: '2026-03-30 16:55', status: 'Resolved',
     timeline: [
       { time: '16:55', event: 'Topology mismatch detected' },
       { time: '17:10', event: 'Root cause: scheduled maintenance window' },
-      { time: '17:30', event: 'Nodes restored — alert resolved' },
+      { time: '17:30', event: 'Nodes restored - alert resolved' },
     ],
   },
 ]
@@ -415,7 +415,7 @@ export const mockNotifications: Notification[] = [
   {
     id: 'notif2',
     title: 'Ingestion completed',
-    message: 'grid_sensors_march.csv — 12,450 rows',
+    message: 'grid_sensors_march.csv - 12,450 rows',
     time: '34 min ago',
     read: false,
     type: 'info',

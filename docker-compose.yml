@@ -172,7 +172,7 @@ services:
       JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS}
       JWT_REFRESH_EXPIRATION_MS: ${JWT_REFRESH_EXPIRATION_MS}
       CORS_ORIGINS: ${CORS_ORIGINS}
-      # System-health dashboard targets — reached by compose service name
+      # System-health dashboard targets - reached by compose service name
       # because the gateway runs inside the Docker network (not on localhost).
       INGESTION_HEALTH_URL: http://ingestion:8001/health
       GRAPH_HEALTH_URL: http://graph:8002/health
@@ -425,7 +425,7 @@ services:
       - cognigrid-net
 
 # ─────────────────────────────────────────────────────────────────────────────
-# CONFIGS (inline — évite les problèmes de chemins avec ':' sur Mac)
+# CONFIGS (inline - évite les problèmes de chemins avec ':' sur Mac)
 # ─────────────────────────────────────────────────────────────────────────────
 configs:
   prometheus_config:

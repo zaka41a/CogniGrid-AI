@@ -1,5 +1,5 @@
 """
-Text / JSON / XML Parser — pour les formats texte simples.
+Text / JSON / XML Parser - pour les formats texte simples.
 """
 import json
 import lxml.etree as ET

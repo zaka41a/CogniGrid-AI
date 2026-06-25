@@ -1,5 +1,5 @@
 """
-Jobs routes — consulter le statut et la liste des jobs d'ingestion.
+Jobs routes - consulter le statut et la liste des jobs d'ingestion.
 
 GET    /api/ingestion/jobs       → liste les jobs de l'utilisateur courant
 GET    /api/ingestion/jobs/{id}  → statut d'un job spécifique
@@ -30,7 +30,7 @@ async def get_job(job_id: str, request: Request):
     job = await job_store.get(job_id)
     if not job:
         raise HTTPException(404, "Job not found")
-    # Enforce ownership — return 404 (not 403) so we don't leak existence
+    # Enforce ownership - return 404 (not 403) so we don't leak existence
     if user_id and job.get("user_id") and job["user_id"] != user_id:
         raise HTTPException(404, "Job not found")
     return job
@@ -54,7 +54,7 @@ async def clear_all_jobs(request: Request):
     """Delete current user's ingestion jobs AND their Qdrant vector chunks.
 
     Without the Qdrant cleanup, the RAG service kept returning chunks from
-    "deleted" documents — making "Clear All Data" a half-truth. We now wipe
+    "deleted" documents - making "Clear All Data" a half-truth. We now wipe
     the vector store too, scoped to the same user.
     """
     user_id = get_user_id(request)

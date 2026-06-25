@@ -3,14 +3,14 @@
 These tests boot the real ASGI app via httpx + TestClient, so they need every
 runtime dependency installed (spaCy, sentence-transformers, neo4j-driver, etc.).
 On a minimal CI runner with only fastapi+pydantic+httpx+jwt installed, the import
-of ``app.main`` blows up — we detect that at collection time and skip cleanly so
+of ``app.main`` blows up - we detect that at collection time and skip cleanly so
 CI stays green while local runs (with full requirements.txt) still execute the
 real assertions.
 """
 import pytest
 
 # Try to import the FastAPI app once. If any heavy dep is missing, mark the
-# whole module as skipped — the auth tests in test_auth.py still run.
+# whole module as skipped - the auth tests in test_auth.py still run.
 try:
     from fastapi.testclient import TestClient  # noqa: F401
     from app.main import app as _app

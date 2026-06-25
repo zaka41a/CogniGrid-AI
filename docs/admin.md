@@ -25,7 +25,7 @@ The seed is idempotent: if the account already exists at startup, the bootstrap 
 | Reset password | (modal) | Admin-only password reset, revokes refresh tokens |
 | Suspend / Activate | (row action) | Disables login + revokes tokens for that user |
 | Role change | (inline select) | ADMIN ↔ ANALYST ↔ VIEWER |
-| Delete | (row action, confirm modal) | Permanent — refresh tokens removed first |
+| Delete | (row action, confirm modal) | Permanent - refresh tokens removed first |
 | Activity Log | `/app/admin?tab=activity` | Audit trail (logins, password resets, role changes, deletes) |
 
 ## Self-protection

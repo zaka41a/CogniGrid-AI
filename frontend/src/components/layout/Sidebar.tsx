@@ -207,7 +207,7 @@ export default function Sidebar() {
           )}
         </NavLink>
 
-        {/* Admin Console (ADMIN only) — sits just below Settings */}
+        {/* Admin Console (ADMIN only) - sits just below Settings */}
         {currentUser.role === 'ADMIN' && (
           <NavLink to="/app/admin"
             className={({ isActive }) => [

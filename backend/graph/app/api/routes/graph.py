@@ -1,5 +1,5 @@
 """
-Graph query routes — all data scoped to the authenticated user.
+Graph query routes - all data scoped to the authenticated user.
 """
 import json
 import re
@@ -32,7 +32,7 @@ async def get_visualization(
     Query params:
       - limit: max nodes to return (1..500, default 150)
       - scope: "all" (default), "shared" (ASSUME canonical KB only), or
-               "mine" (caller's personal uploads only — useful to inspect
+               "mine" (caller's personal uploads only - useful to inspect
                just the CIM/RDF documents you ingested yourself).
     """
     user_id = get_user_id(request)
@@ -178,7 +178,7 @@ async def run_cypher(body: CypherRequest, request: Request):
     if ":Document" not in q:
         raise HTTPException(
             status_code=400,
-            detail="Cypher queries must traverse from a (:Document) node — required for per-user scoping.",
+            detail="Cypher queries must traverse from a (:Document) node - required for per-user scoping.",
         )
 
     scoped_q = _inject_user_filter(q)

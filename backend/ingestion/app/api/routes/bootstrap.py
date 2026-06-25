@@ -1,5 +1,5 @@
 """
-Bootstrap routes — auto-import canonical knowledge bases for predefined
+Bootstrap routes - auto-import canonical knowledge bases for predefined
 upstream projects (currently: ASSUME from FH Aachen ADAPT).
 
 POST /api/ingestion/bootstrap/assume
@@ -44,10 +44,10 @@ ASSUME_TARBALL = (
 # or graph nodes by user_id must additionally allow this value through.
 SHARED_USER_ID = "__shared__"
 
-# Only ingest these extensions — rest is binary, generated, or noise
+# Only ingest these extensions - rest is binary, generated, or noise
 _INCLUDE_EXTS = {".md", ".rst", ".py", ".yaml", ".yml"}
 
-# Folders we never want — even if their files match the extension whitelist
+# Folders we never want - even if their files match the extension whitelist
 _SKIP_PARTS = {
     "tests", "test", "__pycache__", "node_modules", "build",
     ".github", ".git", ".venv", "venv", "dist", "egg-info",
@@ -71,7 +71,7 @@ def _is_relevant(rel_path: Path) -> bool:
 async def _existing_shared_file_names() -> set[str]:
     """Return file_names already ingested into the shared knowledge base.
 
-    Used to make /bootstrap/assume idempotent — re-clicking the button does
+    Used to make /bootstrap/assume idempotent - re-clicking the button does
     nothing for already-imported files instead of creating duplicates.
     """
     async with AsyncSessionLocal() as session:
@@ -91,7 +91,7 @@ async def bootstrap_assume(request: Request, background_tasks: BackgroundTasks):
     The chunks and graph nodes are tagged with user_id="__shared__" so the
     semantic_search and graph_search filters can union them with each
     caller's private content. This means a single bootstrap run benefits
-    every user on the platform — no per-user re-ingestion needed.
+    every user on the platform - no per-user re-ingestion needed.
 
     Response shape:
         {
@@ -120,7 +120,7 @@ async def bootstrap_assume(request: Request, background_tasks: BackgroundTasks):
 
     already = await _existing_shared_file_names()
 
-    # 2. Walk the tarball — extract relevant entries to temp files
+    # 2. Walk the tarball - extract relevant entries to temp files
     extracted: list[tuple[str, str, int]] = []  # (file_name, tmp_path, size)
     seen_total = 0
     skipped_existing = 0
@@ -151,7 +151,7 @@ async def bootstrap_assume(request: Request, background_tasks: BackgroundTasks):
                 if not content or len(content) > _MAX_FILE_BYTES:
                     continue
 
-                # Persist to disk — the ingestion pipeline expects a file path
+                # Persist to disk - the ingestion pipeline expects a file path
                 suffix = rel_path.suffix
                 with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
                     tmp.write(content)

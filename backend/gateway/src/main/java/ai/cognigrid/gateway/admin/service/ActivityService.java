@@ -31,7 +31,7 @@ public class ActivityService {
     public static final String UPDATE_USER      = "UPDATE_USER";
 
     private final ActivityEventRepository repo;
-    /** Optional — current request, only present when called from a web context. */
+    /** Optional - current request, only present when called from a web context. */
     private final ObjectProvider<HttpServletRequest> requestProvider;
 
     @Transactional

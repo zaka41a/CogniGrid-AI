@@ -1,5 +1,5 @@
 interface ProgressBarProps {
-  value:    number   // 0–100
+  value:    number   // 0-100
   max?:     number
   color?:   'primary' | 'secondary' | 'danger' | 'warning' | 'accent'
   size?:    'xs' | 'sm' | 'md'

@@ -8,7 +8,7 @@ import { StreamingMessage } from '../components/chat/StreamingMessage'
 const RAG_URL = (import.meta.env.VITE_RAG_URL as string | undefined) ?? 'http://localhost:8004'
 
 // Per-million-token costs (US$). Rough indicative values used for the estimate
-// shown to the user — actual provider invoices are authoritative.
+// shown to the user - actual provider invoices are authoritative.
 const COST_PER_MTOKEN: Record<string, number> = {
   groq:      0.59,   // llama-3.3-70b-versatile blended
   openai:    0.30,   // gpt-4o-mini blended
@@ -297,7 +297,7 @@ export default function Rag() {
     } catch (err: unknown) {
       const aborted = (err as { name?: string }).name === 'AbortError'
       if (aborted && streamed) {
-        // User pressed Stop — keep what we have
+        // User pressed Stop - keep what we have
         streamSucceeded = true
       } else if (aborted) {
         setThinking(false)

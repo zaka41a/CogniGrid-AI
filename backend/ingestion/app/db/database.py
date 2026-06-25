@@ -1,6 +1,6 @@
 """
 Async SQLAlchemy database setup for the Ingestion Service.
-Uses SQLite locally (zero config) — swap DATABASE_URL to PostgreSQL in production.
+Uses SQLite locally (zero config) - swap DATABASE_URL to PostgreSQL in production.
 """
 import os
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
@@ -37,7 +37,7 @@ async def init_db():
                 )
             )
     except Exception:
-        pass  # Column already exists — safe to ignore
+        pass  # Column already exists - safe to ignore
 
 
 async def get_db() -> AsyncSession:

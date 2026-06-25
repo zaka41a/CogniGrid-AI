@@ -1,4 +1,4 @@
-"""Smoke tests for the JWT helper — runs without DB / network dependencies."""
+"""Smoke tests for the JWT helper - runs without DB / network dependencies."""
 import os
 import jwt
 from unittest.mock import MagicMock

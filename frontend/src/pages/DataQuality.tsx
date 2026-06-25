@@ -33,7 +33,7 @@ interface QualitySnapshot {
   info:     number
 }
 
-// Cap history at 30 entries — older snapshots fall off the trend chart anyway
+// Cap history at 30 entries - older snapshots fall off the trend chart anyway
 const MAX_SNAPSHOTS = 30
 // Skip writing a snapshot if the last one is < 60s old, to avoid every
 // quick refresh polluting the trend
@@ -230,7 +230,7 @@ export default function DataQuality() {
     try {
       const { data } = await graphApi.clearAll()
       const n = data.nodes_deleted ?? 0
-      setClearMsg(n > 0 ? `Graph cleared — ${n} nodes deleted.` : 'Graph is already empty.')
+      setClearMsg(n > 0 ? `Graph cleared - ${n} nodes deleted.` : 'Graph is already empty.')
       await loadIssues()
       setTimeout(() => setClearMsg(null), 4000)
     } catch {

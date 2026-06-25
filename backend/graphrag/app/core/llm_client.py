@@ -1,5 +1,5 @@
 """
-LLM client — supports Groq, OpenAI, Anthropic, and Ollama.
+LLM client - supports Groq, OpenAI, Anthropic, and Ollama.
 Returns a plain string answer + approximate token count.
 """
 import json
@@ -85,15 +85,15 @@ def _context_fallback(prompt: str) -> tuple[str, int]:
     return answer, len(answer.split())
 
 
-# ── Groq (httpx direct — openai SDK has SSL/proxy issues inside Docker) ───────
+# ── Groq (httpx direct - openai SDK has SSL/proxy issues inside Docker) ───────
 
 async def _groq(prompt: str, model: str) -> tuple[str, int]:
     """Call Groq's chat completions endpoint with automatic 429 retry.
 
     Groq's free tier enforces both RPM (requests/min) and TPM (tokens/min)
     quotas. When TPM is hit the API returns HTTP 429 with a `retry-after`
-    header (seconds). We honour it up to 3 times — typically the wait is
-    just a few seconds — so transient quota hiccups don't bubble up as a
+    header (seconds). We honour it up to 3 times - typically the wait is
+    just a few seconds - so transient quota hiccups don't bubble up as a
     user-visible failure during a demo.
     """
     import asyncio
@@ -101,7 +101,7 @@ async def _groq(prompt: str, model: str) -> tuple[str, int]:
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.2,
-        "max_tokens": 1024,  # was 2048 — smaller cap = less TPM burn per call
+        "max_tokens": 1024,  # was 2048 - smaller cap = less TPM burn per call
     }
     headers = {
         "Authorization": f"Bearer {settings.groq_api_key}",

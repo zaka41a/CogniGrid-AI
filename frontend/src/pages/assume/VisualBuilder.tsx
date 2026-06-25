@@ -21,7 +21,7 @@ const UNIT_DEFAULT = {
 }
 const STORAGE_DEFAULT = {
   technology: 'storage', unit_operator: 'storage_op',
-  max_power_charge: 100, max_power_discharge: 100, max_volume: 400,
+  max_power_charge: 100, max_power_discharge: 100, max_soc: 400,
   efficiency_charge: 0.95, efficiency_discharge: 0.95, additional_cost: 1, emission_factor: 0,
   bidding_strategies: { EOM: 'flexable_eom_storage' },
 }
@@ -260,7 +260,7 @@ export default function VisualBuilder({ yaml, onChange }: { yaml: string; onChan
                     <Field label="Max charge"><input type="number" value={selEntity.max_power_charge ?? 0} onChange={num('storage_units', sel.key, 'max_power_charge')} className={INPUT} /></Field>
                     <Field label="Max discharge"><input type="number" value={selEntity.max_power_discharge ?? 0} onChange={num('storage_units', sel.key, 'max_power_discharge')} className={INPUT} /></Field>
                   </div>
-                  <Field label="Max volume (MWh)"><input type="number" value={selEntity.max_volume ?? 0} onChange={num('storage_units', sel.key, 'max_volume')} className={INPUT} /></Field>
+                  <Field label="Max SoC (MWh)"><input type="number" value={selEntity.max_soc ?? 0} onChange={num('storage_units', sel.key, 'max_soc')} className={INPUT} /></Field>
                   <div className="grid grid-cols-2 gap-2">
                     <Field label="Eff. charge"><input type="number" step="0.01" value={selEntity.efficiency_charge ?? 0} onChange={num('storage_units', sel.key, 'efficiency_charge')} className={INPUT} /></Field>
                     <Field label="Eff. discharge"><input type="number" step="0.01" value={selEntity.efficiency_discharge ?? 0} onChange={num('storage_units', sel.key, 'efficiency_discharge')} className={INPUT} /></Field>

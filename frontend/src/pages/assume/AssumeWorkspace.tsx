@@ -1,5 +1,5 @@
 /**
- * ADAPT / ASSUME Workspace — Ultra-professional implementation
+ * ADAPT / ASSUME Workspace - Ultra-professional implementation
  * FH Aachen · ADAPT Research Group · Agent-based Electricity Market Simulation
  */
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
@@ -471,7 +471,7 @@ function AdvisorTab() {
         const [num, ...rest] = line.split('. ')
         out.push(<p key={i} className="ml-3 flex items-start gap-2 my-0.5"><span className="text-blue-400 font-bold shrink-0 text-xs mt-0.5">{num}.</span><span>{renderInline(rest.join('. '), `il-${i}`)}</span></p>)
       } else if (/^-{3,}\s*$/.test(line) || /^\*{3,}\s*$/.test(line)) {
-        // Markdown horizontal rule — render as a real divider, not a bare "---"
+        // Markdown horizontal rule - render as a real divider, not a bare "---"
         out.push(<hr key={i} className="my-3 border-0 border-t border-white/10" />)
       } else if (!line)
         out.push(<div key={i} className="h-2" />)
@@ -891,7 +891,7 @@ function KnowledgeTab() {
           </div>
         </div>
 
-        {/* ASSUME Concepts — clickable: each chip runs a real graph search */}
+        {/* ASSUME Concepts - clickable: each chip runs a real graph search */}
         <div className="card overflow-hidden">
           <div className="flex items-center gap-3 px-5 py-4 border-b border-cg-border bg-cg-s2/40">
             <div className="w-7 h-7 rounded-lg bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center">
@@ -1061,17 +1061,17 @@ function RunnerTab({ yamlFromGenerator, nameFromGenerator }: { yamlFromGenerator
   const deletedIds = useRef<Set<string>>(new Set())
   const logRef = useRef<HTMLDivElement>(null)
 
-  // Health check — runs once on mount
+  // Health check - runs once on mount
   useEffect(() => {
     runnerHttp.get('/health', { timeout: 4_000 })
       .then(() => setRunnerOnline(true))
       .catch(() => setRunnerOnline(false))
   }, [])
 
-  // Poll run list — only when runner is confirmed online; stops on first failure
+  // Poll run list - only when runner is confirmed online; stops on first failure
   useEffect(() => {
-    if (runnerOnline === false) return  // offline — don't touch the network
-    if (runnerOnline === null)  return  // still checking health — wait
+    if (runnerOnline === false) return  // offline - don't touch the network
+    if (runnerOnline === null)  return  // still checking health - wait
 
     const poll = async () => {
       try {
@@ -1119,7 +1119,7 @@ function RunnerTab({ yamlFromGenerator, nameFromGenerator }: { yamlFromGenerator
     deletedIds.current.add(id)
     setRuns(prev => prev.filter(r => r.run_id !== id))
     if (selectedRun === id) setSelectedRun(null)
-    try { await runnerHttp.delete(`/api/runner/runs/${id}`) } catch { /* ignore — UI already updated */ }
+    try { await runnerHttp.delete(`/api/runner/runs/${id}`) } catch { /* ignore - UI already updated */ }
   }
 
   const deleteAllRuns = async () => {
@@ -1721,7 +1721,7 @@ output:
     name: 'Winter Peak Scenario',
     market: 'day_ahead',
     units: '5 units',
-    desc: 'High demand winter day with low renewables — stress test for capacity adequacy',
+    desc: 'High demand winter day with low renewables - stress test for capacity adequacy',
     tags: ['winter', 'peak', 'capacity', 'stress test'],
     yaml: `scenario_name: winter_peak
 time_period:
@@ -2200,7 +2200,7 @@ function ImportTab() {
     try {
       const { data } = await ingestionApi.jobs()
       setJobs(data.jobs ?? [])
-    } catch { /* ignore — empty state handles it */ }
+    } catch { /* ignore - empty state handles it */ }
   }, [])
 
   useEffect(() => { loadJobs() }, [loadJobs])
@@ -2225,7 +2225,7 @@ function ImportTab() {
         setBootstrapMsg(
           `Queued ${data.files_queued} files for ingestion ` +
           `(skipped ${data.files_skipped} already ingested · ${data.files_total} total in repo). ` +
-          `Indexing runs in the background — refresh the list to track progress.`
+          `Indexing runs in the background - refresh the list to track progress.`
         )
       }
       await loadJobs()
@@ -2271,7 +2271,7 @@ function ImportTab() {
       ])
       setClearDone(true)
       setConfirmClear(false)
-      await loadJobs()  // refresh the "Ingested Knowledge Base" panel — should show 0 indexed
+      await loadJobs()  // refresh the "Ingested Knowledge Base" panel - should show 0 indexed
       setTimeout(() => setClearDone(false), 4000)
     } catch { /* ignore */ }
     finally { setClearing(false) }
@@ -2494,7 +2494,7 @@ function ImportTab() {
               <button
                 onClick={triggerBootstrap}
                 disabled={bootstrapping}
-                title="Download the github.com/assume-framework/assume repo and ingest its docs + Python source + example configs into the SHARED knowledge base — visible to every user on this platform."
+                title="Download the github.com/assume-framework/assume repo and ingest its docs + Python source + example configs into the SHARED knowledge base - visible to every user on this platform."
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold text-white bg-blue-600 border border-blue-500 hover:bg-blue-700 disabled:opacity-50 transition-all whitespace-nowrap"
               >
                 {bootstrapping
@@ -2716,7 +2716,7 @@ function sanitizeYaml(raw: string): string {
     // fall through to regex extraction
   }
 
-  // ② Invalid JSON (literal newlines in string value) — regex extraction
+  // ② Invalid JSON (literal newlines in string value) - regex extraction
   // Find everything between "yaml_config": " and the next JSON key
   const keyIdx = trimmed.indexOf('"yaml_config"')
   if (keyIdx !== -1) {

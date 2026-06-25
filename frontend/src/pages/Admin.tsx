@@ -17,7 +17,7 @@ type RoleFilter   = 'all' | 'ADMIN' | 'ANALYST'
 type StatusFilter = 'all' | 'active' | 'suspended'
 
 function fmtDate(iso: string | null): string {
-  if (!iso) return '—'
+  if (!iso) return '-'
   try {
     // Java LocalDateTime serializes as "YYYY-MM-DDTHH:mm:ss[.ffffff]" without
     // a timezone suffix. Truncate microseconds to ms and treat as UTC.
@@ -26,9 +26,9 @@ function fmtDate(iso: string | null): string {
       s = s.replace(/(\.\d{3})\d+/, '$1') + 'Z'
     }
     const d = new Date(s)
-    if (isNaN(d.getTime())) return '—'
+    if (isNaN(d.getTime())) return '-'
     return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
-  } catch { return '—' }
+  } catch { return '-' }
 }
 
 function roleBadge(role: string) {
@@ -67,7 +67,7 @@ export default function Admin() {
     } catch (err: unknown) {
       const e = err as { response?: { status?: number; data?: { message?: string } } }
       if (e.response?.status === 403) {
-        setError('Forbidden — your account does not have admin rights.')
+        setError('Forbidden - your account does not have admin rights.')
       } else if (!e.response) {
         setError('Gateway unreachable. Make sure the backend gateway is running on :8080.')
       } else {
@@ -302,7 +302,7 @@ export default function Admin() {
                         <div className="min-w-0">
                           <div className="flex items-center gap-2 leading-tight">
                             <span className="text-cg-txt font-medium truncate max-w-[180px]">
-                              {u.fullName || '—'}
+                              {u.fullName || '-'}
                             </span>
                             {isSelf && <Badge variant="info">You</Badge>}
                           </div>
@@ -391,7 +391,7 @@ export default function Admin() {
             <EmptyState
               icon={<Users size={28} />}
               title="No users found"
-              description={users.length === 0 ? 'No accounts yet — invite users to register.' : 'Try adjusting your filters.'}
+              description={users.length === 0 ? 'No accounts yet - invite users to register.' : 'Try adjusting your filters.'}
             />
           )}
         </div>
@@ -478,14 +478,14 @@ function UserDetailModal({ user, onClose }: { user: AdminUser | null; onClose: (
               {initials(user.fullName || user.email)}
             </div>
             <div>
-              <p className="font-semibold text-cg-txt">{user.fullName || '—'}</p>
+              <p className="font-semibold text-cg-txt">{user.fullName || '-'}</p>
               <p className="text-xs text-cg-muted">{user.email}</p>
             </div>
             <div className="ml-auto">{roleBadge(user.role)}</div>
           </div>
           <Field label="User ID"     value={<span className="font-mono text-xs">{user.id}</span>} />
           <Field label="Email"       value={user.email} />
-          <Field label="Full name"   value={user.fullName || '—'} />
+          <Field label="Full name"   value={user.fullName || '-'} />
           <Field label="Role"        value={user.role} />
           <Field label="Status"      value={user.active
             ? <Badge variant="success" dot>Active</Badge>
@@ -515,7 +515,7 @@ function ActivityLogModal({ open, onClose }: { open: boolean; onClose: () => voi
   const [loading, setLoading] = useState(false)
   const [err,     setErr]     = useState('')
 
-  // Filters + pagination (client-side — backend already returns up to 200)
+  // Filters + pagination (client-side - backend already returns up to 200)
   const [typeFilter, setTypeFilter] = useState<string>('all')
   const [search,     setSearch]     = useState<string>('')
   const [page,       setPage]       = useState(0)
@@ -530,7 +530,7 @@ function ActivityLogModal({ open, onClose }: { open: boolean; onClose: () => voi
       .then(res => setEvents(res.data))
       .catch(e => {
         const ax = e as { response?: { status?: number } }
-        setErr(ax.response?.status === 404 ? 'Activity Log endpoint not available — rebuild the gateway.' : 'Failed to load activity log.')
+        setErr(ax.response?.status === 404 ? 'Activity Log endpoint not available - rebuild the gateway.' : 'Failed to load activity log.')
       })
       .finally(() => setLoading(false))
   }, [open])
@@ -644,9 +644,9 @@ function ActivityLogModal({ open, onClose }: { open: boolean; onClose: () => voi
                     <td className="px-3 py-2 text-xs text-cg-muted whitespace-nowrap" title={e.createdAt}>{fmtDate(e.createdAt)}</td>
                     <td className="px-3 py-2"><span className="flex items-center gap-1.5">{typeIcon(e.type)} {typeBadge(e.type)}</span></td>
                     <td className="px-3 py-2 text-xs text-cg-txt   font-mono truncate" title={e.actorEmail ?? ''}>{e.actorEmail}</td>
-                    <td className="px-3 py-2 text-xs text-cg-muted font-mono truncate" title={e.targetEmail ?? ''}>{e.targetEmail || '—'}</td>
-                    <td className="px-3 py-2 text-xs text-cg-faint truncate"            title={e.detail ?? ''}>{e.detail || '—'}</td>
-                    <td className="px-3 py-2 text-xs text-cg-faint font-mono truncate"  title={e.ipAddress ?? ''}>{e.ipAddress || '—'}</td>
+                    <td className="px-3 py-2 text-xs text-cg-muted font-mono truncate" title={e.targetEmail ?? ''}>{e.targetEmail || '-'}</td>
+                    <td className="px-3 py-2 text-xs text-cg-faint truncate"            title={e.detail ?? ''}>{e.detail || '-'}</td>
+                    <td className="px-3 py-2 text-xs text-cg-faint font-mono truncate"  title={e.ipAddress ?? ''}>{e.ipAddress || '-'}</td>
                   </tr>
                 ))}
                 {pageRows.length === 0 && (

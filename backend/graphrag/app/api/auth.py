@@ -1,9 +1,9 @@
 """
-JWT helper — verify signature against JWT_SECRET and extract user identity.
+JWT helper - verify signature against JWT_SECRET and extract user identity.
 
 Behavior:
 - If JWT_SECRET is set, verify HS256 signature. Reject any token whose signature
-  does not match — this prevents anyone bypassing the gateway and forging tokens
+  does not match - this prevents anyone bypassing the gateway and forging tokens
   by hitting the service port directly.
 - If JWT_SECRET is NOT set, fall back to no-signature-verification mode and log
   a single startup warning. Useful only for local development where the JWT
@@ -20,7 +20,7 @@ JWT_SECRET = os.getenv("JWT_SECRET", "").strip()
 
 if not JWT_SECRET:
     logger.warning(
-        "[auth] JWT_SECRET is not set — running in INSECURE no-verify mode. "
+        "[auth] JWT_SECRET is not set - running in INSECURE no-verify mode. "
         "Set JWT_SECRET in .env to match the gateway for production safety."
     )
 

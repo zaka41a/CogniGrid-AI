@@ -59,7 +59,7 @@ async def semantic_search(
     """Search for chunks semantically similar to the query, scoped to user_id.
 
     File-type filters apply to the `file_name` extension (e.g. ".xlsx") because
-    the legacy ingestion payload stores only `file_name` in Qdrant — there is
+    the legacy ingestion payload stores only `file_name` in Qdrant - there is
     no `file_type` field on existing points. To preserve the requested top_k
     when an exclude filter is active, we over-fetch by 4× and trim after the
     Python-side filter.
@@ -96,7 +96,7 @@ async def semantic_search(
         )
         points = results
     except Exception as e:
-        logger.warning("Qdrant search failed: %s — returning empty results", e)
+        logger.warning("Qdrant search failed: %s - returning empty results", e)
         return []
 
     chunks = [

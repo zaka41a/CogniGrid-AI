@@ -1,5 +1,5 @@
 """
-PDF Parser — utilise PyMuPDF pour le texte et pdfplumber pour les tableaux.
+PDF Parser - utilise PyMuPDF pour le texte et pdfplumber pour les tableaux.
 PyMuPDF est rapide pour extraire le texte brut.
 pdfplumber est plus précis pour détecter et extraire les tableaux.
 """

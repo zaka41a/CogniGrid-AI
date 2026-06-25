@@ -27,8 +27,8 @@ function downloadDataUrl(dataUrl: string, filename: string): void {
 /**
  * Export the current Cytoscape instance in the chosen format.
  * - json/csv: structural export (nodes + edges)
- * - png:      raster bitmap (cy.png — Cytoscape built-in)
- * - svg:      not natively supported by cytoscape — falls back to PNG with a console warning
+ * - png:      raster bitmap (cy.png - Cytoscape built-in)
+ * - svg:      not natively supported by cytoscape - falls back to PNG with a console warning
  *             (adding cytoscape-svg would bring a 200 KB dep that isn't justified yet)
  */
 export function exportGraph(cy: cytoscape.Core, fmt: Format, basename = 'graph_export'): void {

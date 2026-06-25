@@ -22,7 +22,7 @@ import java.util.UUID;
 /**
  * Admin operations on user accounts.
  *
- * Caller must already hold {@code ROLE_ADMIN} — enforced at the controller level.
+ * Caller must already hold {@code ROLE_ADMIN} - enforced at the controller level.
  * Each method that mutates a user revokes that user's refresh tokens, so the
  * change takes effect on the next access-token expiration without needing a
  * separate session-invalidation flow.
@@ -106,7 +106,7 @@ public class AdminUserService {
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         userRepository.save(user);
 
-        // Revoke this user's existing refresh tokens — they must log back in
+        // Revoke this user's existing refresh tokens - they must log back in
         List<RefreshToken> tokens = refreshTokenRepository.findAll().stream()
                 .filter(rt -> rt.getUser().getId().equals(id))
                 .toList();

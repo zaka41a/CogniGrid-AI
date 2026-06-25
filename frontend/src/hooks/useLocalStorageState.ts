@@ -20,7 +20,7 @@ export function useLocalStorageState<T>(key: string, initial: T): [T, (v: T | ((
     try {
       localStorage.setItem(key, JSON.stringify(value))
     } catch {
-      // Quota exceeded or private mode — ignore silently
+      // Quota exceeded or private mode - ignore silently
     }
   }, [key, value])
 

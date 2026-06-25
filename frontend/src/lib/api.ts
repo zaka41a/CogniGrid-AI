@@ -116,7 +116,7 @@ export const ingestionApi = {
     form.append('file', file)
     return ingestHttp.post<IngestJob>('/api/ingestion/upload', form, {
       headers: { 'Content-Type': 'multipart/form-data' },
-      timeout: 300_000, // 5 min — NLP extraction can be slow for large files
+      timeout: 300_000, // 5 min - NLP extraction can be slow for large files
       onUploadProgress: e => onProgress?.(Math.round((e.loaded * 100) / (e.total ?? 1))),
     })
   },
@@ -229,7 +229,7 @@ export const adminApi = {
 }
 
 // ─── AI Engine endpoints (ai-engine service :8003) ────────────────────────────
-// Calls go directly to the AI Engine — the gateway does not proxy these.
+// Calls go directly to the AI Engine - the gateway does not proxy these.
 export const aiEngineApi = {
   similar:       (docId: string) => aiEngineHttp.get(`/api/ai/documents/${docId}/similar`),
   insights:      (docId: string) => aiEngineHttp.get(`/api/ai/documents/${docId}/insights`),

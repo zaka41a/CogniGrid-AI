@@ -1,5 +1,5 @@
 """
-CogniGrid Agent — a ReAct-style agent implemented without LangGraph dependency issues.
+CogniGrid Agent - a ReAct-style agent implemented without LangGraph dependency issues.
 Uses a simple Thought → Action → Observation loop with any LLM.
 """
 import json
@@ -25,9 +25,9 @@ CRITICAL RULES:
 4. If a tool returns empty results, ALWAYS check whether the user has ANY documents indexed
    (list_documents). If they have zero, tell them clearly to upload via Data Ingestion.
 5. Never repeat the same tool call with identical args.
-6. Always end with FINAL ANSWER on its own line. Be concrete — name files, entities, numbers.
+6. Always end with FINAL ANSWER on its own line. Be concrete - name files, entities, numbers.
 
-OUTPUT FORMAT — strict ReAct:
+OUTPUT FORMAT - strict ReAct:
 THOUGHT: <reasoning, 1-2 lines>
 ACTION: <tool_name>
 ARGS: <strict JSON, e.g. {{"query": "...", "limit": 10}}>
@@ -129,7 +129,7 @@ def _extract_clean_response(text: str) -> str:
     """
     Extract a user-readable response from raw ReAct output.
     If FINAL ANSWER exists, return it. Otherwise strip THOUGHT/ACTION/ARGS/OBSERVATION blocks.
-    Never returns raw ReAct scaffolding — falls back to a helpful message.
+    Never returns raw ReAct scaffolding - falls back to a helpful message.
     """
     if not text or not text.strip():
         return ""
@@ -158,7 +158,7 @@ def _extract_clean_response(text: str) -> str:
     if result and not re.match(r"^(THOUGHT|ACTION|ARGS|OBSERVATION):", result, re.I):
         return result
 
-    # All content was ReAct scaffolding — return empty so caller uses synthesized fallback
+    # All content was ReAct scaffolding - return empty so caller uses synthesized fallback
     return ""
 
 
@@ -237,7 +237,7 @@ async def run_agent(req: AgentRequest, auth_header: str | None = None) -> AgentR
     test_output = await _call_llm(prompt, req.llm_provider, req.llm_model)
 
     if test_output is None:
-        # No LLM available — run inferred tools directly and format output
+        # No LLM available - run inferred tools directly and format output
         final_answer = await _no_llm_fallback(req.message, auth_header=auth_header)
     else:
         llm_output = test_output

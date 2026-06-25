@@ -1,5 +1,5 @@
 """
-CIM XML Parser — parses IEC CIM/RDF power system XML files.
+CIM XML Parser - parses IEC CIM/RDF power system XML files.
 
 Extracts CIM entities (Substation, BusbarSection, ACLineSegment,
 PowerTransformer, etc.) and their attributes as structured data,

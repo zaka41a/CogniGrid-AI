@@ -37,7 +37,7 @@ export default function App() {
         {/* Universe chooser (full screen, no sidebar) */}
         <Route index element={<Hub />} />
 
-        {/* Working pages — rendered inside the Layout (sidebar + navbar) */}
+        {/* Working pages - rendered inside the Layout (sidebar + navbar) */}
         <Route element={<Layout />}>
           {/* Knowledge Graph Studio */}
           <Route path="dashboard"     element={<Dashboard />} />

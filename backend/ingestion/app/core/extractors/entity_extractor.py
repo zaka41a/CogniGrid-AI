@@ -1,5 +1,5 @@
 """
-Entity Extractor — NER via SpaCy + keywords via KeyBERT.
+Entity Extractor - NER via SpaCy + keywords via KeyBERT.
 Both are optional: if packages are missing, returns empty results gracefully.
 """
 import logging
@@ -13,14 +13,14 @@ try:
     _NLP_AVAILABLE = True
 except ImportError:
     _NLP_AVAILABLE = False
-    logger.warning("spacy not installed — NER disabled")
+    logger.warning("spacy not installed - NER disabled")
 
 try:
     from keybert import KeyBERT
     _KW_AVAILABLE = True
 except ImportError:
     _KW_AVAILABLE = False
-    logger.warning("keybert not installed — keyword extraction disabled")
+    logger.warning("keybert not installed - keyword extraction disabled")
 
 _nlp      = None
 _kw_model = None
@@ -34,7 +34,7 @@ def get_nlp():
         try:
             _nlp = spacy.load("en_core_web_sm")
         except OSError:
-            logger.warning("SpaCy model not found — NER disabled")
+            logger.warning("SpaCy model not found - NER disabled")
     return _nlp
 
 

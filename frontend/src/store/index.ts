@@ -86,7 +86,7 @@ export const useAppStore = create<AppState>((set) => ({
     localStorage.removeItem('cg_token')
     localStorage.removeItem('cg_user')
     // Per-user chat histories (cg_rag_history_<email>, cg_agent_conversations_<email>)
-    // and avatars (cg_avatar_<email>) are intentionally KEPT — they're keyed by
+    // and avatars (cg_avatar_<email>) are intentionally KEPT - they're keyed by
     // email so each account loads its own state on next sign-in. Wiping them
     // would silently destroy the user's conversation history on every logout.
     set({ currentUser: DEFAULT_USER, isAuthenticated: false, token: null, notifications: [] })
@@ -100,7 +100,7 @@ export const useAppStore = create<AppState>((set) => ({
         localStorage.setItem(avatarKey(s.currentUser.email), avatarDataUrl)
         const { avatar, ...withoutAvatar } = updated
         localStorage.setItem('cg_user', JSON.stringify(withoutAvatar))
-      } catch { /* quota exceeded — in-memory only */ }
+      } catch { /* quota exceeded - in-memory only */ }
       return { currentUser: updated }
     })
   },

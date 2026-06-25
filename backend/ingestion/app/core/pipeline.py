@@ -1,5 +1,5 @@
 """
-IngestionPipeline — orchestre les étapes d'ingestion :
+IngestionPipeline - orchestre les étapes d'ingestion :
 
   1. Parse le fichier (selon son type)
   2. Extrait entités + mots-clés (SpaCy + KeyBERT)
@@ -38,7 +38,7 @@ class IngestionPipeline:
         """
 
         async def progress(pct: int, msg: str):
-            logger.info(f"[{job_id}] {pct}% — {msg}")
+            logger.info(f"[{job_id}] {pct}% - {msg}")
             if on_progress:
                 await on_progress(pct)
 

@@ -17,7 +17,7 @@ class RAGRequest(BaseModel):
     scope: str = "personal"   # "personal" = caller's own data, "assume" = shared ASSUME KB
     llm_provider: str = ""   # overrides default if set
     llm_model: str    = ""
-    # Restrict retrieval by file extension — used to keep ASSUME chats from
+    # Restrict retrieval by file extension - used to keep ASSUME chats from
     # surfacing CIM .xlsx chunks, and vice-versa, while we don't yet have a
     # proper per-module namespace. Both lists are case-insensitive, leading
     # dots stripped (e.g. "xlsx" matches both ".xlsx" and "xlsx").

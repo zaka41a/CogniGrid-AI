@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-echo "🚀 Starting CogniGrid AI — Development Environment"
+echo "🚀 Starting CogniGrid AI - Development Environment"
 
 # Check .env exists
 if [ ! -f .env ]; then

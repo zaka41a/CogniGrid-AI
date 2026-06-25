@@ -20,11 +20,11 @@ DACH MARKET ANALYSIS
 Germany represents the largest knowledge graph market in continental Europe.
 
 Top sectors by adoption:
-1. Automotive (Volkswagen, BMW, Mercedes — supply chain + quality management)
-2. Pharmaceuticals (Bayer, Merck — drug discovery, clinical trial management)
-3. Financial Services (Deutsche Bank, Allianz — risk graph, AML compliance)
-4. Manufacturing (Siemens, Bosch, ThyssenKrupp — IoT + maintenance graph)
-5. Telecommunications (Deutsche Telekom, 1&1 — network topology management)
+1. Automotive (Volkswagen, BMW, Mercedes - supply chain + quality management)
+2. Pharmaceuticals (Bayer, Merck - drug discovery, clinical trial management)
+3. Financial Services (Deutsche Bank, Allianz - risk graph, AML compliance)
+4. Manufacturing (Siemens, Bosch, ThyssenKrupp - IoT + maintenance graph)
+5. Telecommunications (Deutsche Telekom, 1&1 - network topology management)
 
 Cities with highest AI/KG startup density:
 - Berlin: 142 AI startups, 23 with knowledge graph focus

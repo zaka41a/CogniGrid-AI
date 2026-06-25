@@ -194,7 +194,7 @@ export default function Documents() {
   const processed  = docs.filter(d => d.status === 'processed')
   const totalNodes = processed.reduce((s, d) => s + d.nodes, 0)
 
-  // Preview side panel — fetches the first chunks of the selected doc.
+  // Preview side panel - fetches the first chunks of the selected doc.
   const previewDoc = docs.find(d => d.id === previewId)
   useEffect(() => {
     if (!previewId) { setPreviewBody(''); return }

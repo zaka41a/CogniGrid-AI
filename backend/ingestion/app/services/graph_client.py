@@ -1,5 +1,5 @@
 """
-GraphClient — HTTP client that pushes extracted data to the Graph Service.
+GraphClient - HTTP client that pushes extracted data to the Graph Service.
 Uses httpx (async) so it doesn't block the FastAPI event loop.
 """
 import httpx
@@ -69,7 +69,7 @@ class GraphClient:
                 resp.raise_for_status()
                 return resp.json()
             except httpx.HTTPError as e:
-                logger.warning(f"Graph service unavailable — continuing without graph push: {e}")
+                logger.warning(f"Graph service unavailable - continuing without graph push: {e}")
                 return {"nodes_created": 0, "warning": "graph_service_unavailable"}
 
     async def delete_document(self, doc_id: str, auth_header: str | None = None) -> dict:
@@ -110,7 +110,7 @@ class QdrantClient:
                             file_name: str = "", user_id: str | None = None):
         """Index document chunks in Qdrant so the RAG service can semantic-search them.
 
-        Qdrant requires point IDs to be either unsigned integers or UUIDs — plain
+        Qdrant requires point IDs to be either unsigned integers or UUIDs - plain
         strings like ``"<job_id>_<chunk_idx>"`` are rejected with HTTP 400. We
         derive a deterministic UUIDv5 from ``(job_id, chunk_idx)`` so re-uploading
         the same document overwrites prior points instead of creating duplicates.
@@ -137,7 +137,7 @@ class QdrantClient:
         async with httpx.AsyncClient(timeout=30.0) as client:
             try:
                 # Ensure the collection exists. Qdrant returns 200/409 (already exists)
-                # — both are acceptable, anything else is a real failure.
+                # - both are acceptable, anything else is a real failure.
                 create_resp = await client.put(
                     f"{self.base_url}/collections/{self.collection}",
                     json={"vectors": {"size": 384, "distance": "Cosine"}},
@@ -171,7 +171,7 @@ class QdrantClient:
     async def delete_by_filter(self, must: list[dict]) -> int:
         """Delete all points matching the given Qdrant filter conditions.
 
-        Returns the number of points deleted (best-effort — Qdrant doesn't
+        Returns the number of points deleted (best-effort - Qdrant doesn't
         always return an exact count; we infer from operation_id success).
         """
         if not must:

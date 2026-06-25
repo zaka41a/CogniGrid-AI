@@ -1,5 +1,5 @@
 """
-RAGService — the core GraphRAG pipeline.
+RAGService - the core GraphRAG pipeline.
 
 Pipeline:
   1. Semantic search in Qdrant → top-K chunks
@@ -58,7 +58,7 @@ class RAGService:
             user_id=user_id,
             scope=req.scope,
         )
-        # Filter out very weak matches — they pollute the prompt without adding
+        # Filter out very weak matches - they pollute the prompt without adding
         # any signal, especially for short queries like "hi" that have no semantic
         # overlap with anything indexed.
         scored = [c for c in raw_chunks if (c.get("score") or 0) >= MIN_SCORE]
@@ -77,12 +77,12 @@ class RAGService:
                 scope=req.scope,
             )
 
-        # 2b. Empty-state short-circuit — don't bother the LLM if we have nothing
+        # 2b. Empty-state short-circuit - don't bother the LLM if we have nothing
         # to ground the answer in. Saves a token-burning round trip and gives the
         # user actionable feedback instead of a vague refusal.
         if not sources and not graph_ctx:
             logger.info(
-                "RAG empty-state for user=%s query=%r — no sources, no graph context",
+                "RAG empty-state for user=%s query=%r - no sources, no graph context",
                 user_id, req.query[:80],
             )
             return RAGResponse(
@@ -119,7 +119,7 @@ class RAGService:
     ) -> str:
         parts = [SYSTEM_PROMPT, "\n"]
 
-        # Document context — truncate per chunk AND cap total context size so we
+        # Document context - truncate per chunk AND cap total context size so we
         # never exceed Groq's input limit even with very long XML/CSV chunks.
         if sources:
             parts.append("=== Document Context ===")
@@ -127,13 +127,13 @@ class RAGService:
             for i, s in enumerate(sources, 1):
                 text = (s.text or "")[:MAX_CHUNK_CHARS]
                 if total_ctx + len(text) > MAX_TOTAL_CTX_CHARS:
-                    parts.append(f"[truncated — {len(sources) - i + 1} more sources omitted]")
+                    parts.append(f"[truncated - {len(sources) - i + 1} more sources omitted]")
                     break
                 parts.append(f"[{i}] (file: {s.file_name}, score: {s.score:.2f})\n{text}")
                 total_ctx += len(text)
             parts.append("")
 
-        # Graph context (already small — node texts only)
+        # Graph context (already small - node texts only)
         if graph_ctx:
             parts.append("=== Knowledge Graph Context ===")
             for node in graph_ctx[:20]:

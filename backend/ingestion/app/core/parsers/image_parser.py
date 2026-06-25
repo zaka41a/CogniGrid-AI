@@ -1,5 +1,5 @@
 """
-Image Parser — uses EasyOCR to extract text from images.
+Image Parser - uses EasyOCR to extract text from images.
 Supports JPEG, PNG, TIFF, BMP, WEBP.
 If easyocr or PIL are not installed, returns empty text gracefully.
 """
@@ -13,14 +13,14 @@ try:
     _EASYOCR_AVAILABLE = True
 except ImportError:
     _EASYOCR_AVAILABLE = False
-    logger.warning("easyocr not installed — image OCR disabled")
+    logger.warning("easyocr not installed - image OCR disabled")
 
 try:
     from PIL import Image
     _PIL_AVAILABLE = True
 except ImportError:
     _PIL_AVAILABLE = False
-    logger.warning("Pillow not installed — image metadata disabled")
+    logger.warning("Pillow not installed - image metadata disabled")
 
 _reader = None
 

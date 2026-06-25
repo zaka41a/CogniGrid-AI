@@ -1,5 +1,5 @@
 """
-JobStore — persistent CRUD for ingestion jobs using SQLAlchemy.
+JobStore - persistent CRUD for ingestion jobs using SQLAlchemy.
 Replaces the in-memory _jobs dict in upload.py.
 """
 from datetime import datetime

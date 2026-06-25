@@ -1,5 +1,5 @@
 """
-StorageService — manages file storage in MinIO (S3-compatible).
+StorageService - manages file storage in MinIO (S3-compatible).
 Gracefully degrades if MinIO is unavailable (uploads are skipped but
 the rest of the pipeline continues).
 """
@@ -14,7 +14,7 @@ try:
     _BOTO3_AVAILABLE = True
 except ImportError:
     _BOTO3_AVAILABLE = False
-    logger.warning("boto3 not installed — file storage disabled")
+    logger.warning("boto3 not installed - file storage disabled")
 
 
 class StorageService:
@@ -35,7 +35,7 @@ class StorageService:
             )
             self._ensure_bucket()
         except Exception as e:
-            logger.warning(f"MinIO not reachable — storage disabled: {e}")
+            logger.warning(f"MinIO not reachable - storage disabled: {e}")
             self.client = None
 
     def _ensure_bucket(self):
@@ -49,7 +49,7 @@ class StorageService:
 
     def upload(self, file_path: str, object_name: str) -> str:
         if self.client is None:
-            logger.warning("Storage unavailable — skipping upload")
+            logger.warning("Storage unavailable - skipping upload")
             return f"local/{object_name}"
         try:
             self.client.upload_file(file_path, settings.minio_bucket, object_name)

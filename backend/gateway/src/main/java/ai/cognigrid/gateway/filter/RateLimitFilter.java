@@ -23,7 +23,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *  - Auth login attempts:  10 requests / minute / IP    (brute-force protection)
  *  - Admin endpoints:      60 requests / minute / IP    (limits scripted abuse)
  *
- * In-memory only — adequate for a single-instance deployment. For multi-instance
+ * In-memory only - adequate for a single-instance deployment. For multi-instance
  * scale, swap the bucket store for Redis (the bucket-resolver interface is
  * trivial to externalize).
  *

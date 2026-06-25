@@ -1,5 +1,5 @@
 /**
- * Tiny inline trendline for KPI cards. Lightweight pure SVG — no recharts overhead.
+ * Tiny inline trendline for KPI cards. Lightweight pure SVG - no recharts overhead.
  * Pass an array of numbers; the component normalises to fit width × height.
  */
 interface Props {

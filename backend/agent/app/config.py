@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     openai_api_key: str       = ""
     anthropic_api_key: str    = ""
 
-    # Services — use Docker container names (reachable from inside Docker network)
+    # Services - use Docker container names (reachable from inside Docker network)
     graph_service_url: str      = "http://cg-graph:8002"
     rag_service_url: str        = "http://cg-graphrag:8004"
     ai_engine_url: str          = "http://cg-ai-engine:8003"

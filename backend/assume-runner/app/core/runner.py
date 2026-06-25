@@ -148,7 +148,7 @@ async def _execute(run_id: str, run_dir: Path, push_to_graph: bool) -> None:
         try:
             user_cfg: dict = yaml.safe_load(raw_yaml) or {}
         except Exception as e:
-            _log(info, f"[runner] YAML parse warning: {e} — using empty config")
+            _log(info, f"[runner] YAML parse warning: {e} - using empty config")
             user_cfg = {}
 
         safe_name  = info.scenario_name.replace(" ", "_").replace("/", "_")
@@ -180,7 +180,7 @@ async def _execute(run_id: str, run_dir: Path, push_to_graph: bool) -> None:
         if t_end <= t_start:
             t_end = t_start + timedelta(hours=24)
 
-        # Market name — supports both list format [{name: EOM}] and dict format {EOM: {...}}
+        # Market name - supports both list format [{name: EOM}] and dict format {EOM: {...}}
         markets_raw = user_cfg.get("markets", [])
         market_name = "EOM"
         if isinstance(markets_raw, list) and markets_raw:
@@ -207,7 +207,7 @@ async def _execute(run_id: str, run_dir: Path, push_to_graph: bool) -> None:
                 "end_date":   t_end.strftime("%Y-%m-%d %H:%M"),
                 "time_step":  time_step_str,
                 "fuel_prices": {
-                    "co2":         25.0,   # €/tCO₂ — required by ASSUME forecaster
+                    "co2":         25.0,   # €/tCO₂ - required by ASSUME forecaster
                     "nuclear":      3.0,
                     "lignite":      6.0,
                     "hard coal":   20.0,
@@ -282,7 +282,7 @@ async def _execute(run_id: str, run_dir: Path, push_to_graph: bool) -> None:
             })
 
         if not pp_rows:
-            _log(info, "[runner] No generation units in YAML — using defaults")
+            _log(info, "[runner] No generation units in YAML - using defaults")
             pp_rows = [
                 {
                     "name": "gas_plant", "unit_operator": "GenCo",
@@ -334,7 +334,7 @@ async def _execute(run_id: str, run_dir: Path, push_to_graph: bool) -> None:
             })
 
         if not dm_rows:
-            _log(info, "[runner] No demand units in YAML — using default 500 MW")
+            _log(info, "[runner] No demand units in YAML - using default 500 MW")
             dm_rows = [{
                 "name": "demand_1", "unit_operator": "Retailer",
                 "technology": "demand", "max_power": 500.0, "min_power": 0.0,  # must be 0
@@ -366,8 +366,8 @@ async def _execute(run_id: str, run_dir: Path, push_to_graph: bool) -> None:
                 "technology":           "storage",
                 "max_power_charge":     float(su.get("max_power_charge", 100)),
                 "max_power_discharge":  float(su.get("max_power_discharge", 100)),
-                "max_volume":           float(su.get("max_volume", su.get("max_soc", 400))),
-                "min_volume":           float(su.get("min_volume", 0)),
+                "max_soc":              float(su.get("max_soc", su.get("max_volume", 400))),
+                "min_soc":              float(su.get("min_soc", su.get("min_volume", 0))),
                 "efficiency_charge":    float(su.get("efficiency_charge", 0.95)),
                 "efficiency_discharge": float(su.get("efficiency_discharge", 0.95)),
                 "initial_soc":          float(su.get("initial_soc", 0)),
@@ -378,7 +378,7 @@ async def _execute(run_id: str, run_dir: Path, push_to_graph: bool) -> None:
         if st_rows:
             st_fields = [
                 "name", "unit_operator", "technology", "max_power_charge", "max_power_discharge",
-                "max_volume", "min_volume", "efficiency_charge", "efficiency_discharge",
+                "max_soc", "min_soc", "efficiency_charge", "efficiency_discharge",
                 "initial_soc", "additional_cost", "emission_factor", bidding_col,
             ]
             with open(scenario_dir / "storage_units.csv", "w", newline="") as f:
@@ -387,7 +387,7 @@ async def _execute(run_id: str, run_dir: Path, push_to_graph: bool) -> None:
                 w.writerows(st_rows)
             _log(info, f"[runner] storage_units.csv written ({len(st_rows)} units)")
 
-        # ── 6. demand_df.csv — synthetic daily demand curve ───────────────────
+        # ── 6. demand_df.csv - synthetic daily demand curve ───────────────────
         step_h = max(time_step, 1)
         timestamps: list[datetime] = []
         cur = t_start
@@ -400,7 +400,7 @@ async def _execute(run_id: str, run_dir: Path, push_to_graph: bool) -> None:
         if not timestamps:
             timestamps = [t_start + timedelta(hours=h) for h in range(49)]
 
-        # ── 7. fuel_prices_df.csv — required by ASSUME forecaster ─────────────
+        # ── 7. fuel_prices_df.csv - required by ASSUME forecaster ─────────────
         # ASSUME loads this and sets forecasts with prefix "fuel_price_".
         # Must cover the extended index (start → end+1day).
         fuel_cols = ["co2", "natural gas", "coal", "lignite", "hard coal",
@@ -500,7 +500,7 @@ async def _execute(run_id: str, run_dir: Path, push_to_graph: bool) -> None:
                 await _push_results_to_graph(run_id, info)
         elif proc.returncode == 0 and not output_files:
             info.status      = RunStatus.failed
-            info.error       = "ASSUME exited cleanly but produced no output — check the log for an aborted simulation."
+            info.error       = "ASSUME exited cleanly but produced no output. Check the log for an aborted simulation."
             info.finished_at = datetime.now(timezone.utc).isoformat()
             logger.error("Run %s produced no output despite exit 0", run_id)
         else:
@@ -540,7 +540,7 @@ def _parse_results(output_dir: Path) -> dict:
     """
     summary: dict = {}
 
-    # Market meta — clearing prices (column: "price")
+    # Market meta - clearing prices (column: "price")
     meta_path = output_dir / "market_meta.csv"
     if meta_path.exists():
         try:
@@ -565,7 +565,7 @@ def _parse_results(output_dir: Path) -> dict:
         except Exception as e:
             logger.warning("Could not parse market_meta.csv: %s", e)
 
-    # Unit dispatch — power per unit (columns: "unit", "power")
+    # Unit dispatch - power per unit (columns: "unit", "power")
     dispatch_path = output_dir / "unit_dispatch.csv"
     if dispatch_path.exists():
         try:
@@ -660,7 +660,7 @@ def _parse_timeseries(output_dir: Path) -> dict:
             tcol = _detect_col(fns, _TIME_COLS)
             ucol = _detect_col(fns, ["unit_id", "unit", "name"])
             pcol = _detect_col(fns, ["power", "volume", "dispatch"])
-            # tcol may be "" (the unnamed pandas index column) — that is valid,
+            # tcol may be "" (the unnamed pandas index column) - that is valid,
             # so test against None explicitly rather than truthiness.
             if tcol is not None and ucol is not None and pcol is not None:
                 bucket: dict[str, dict[str, float]] = {}
@@ -702,7 +702,7 @@ async def _push_results_to_graph(run_id: str, info: RunInfo) -> None:
         return
     try:
         text = (
-            f"ASSUME Simulation Results — Run {run_id}\n"
+            f"ASSUME Simulation Results - Run {run_id}\n"
             f"Scenario: {info.scenario_name}\n"
             f"Duration: {info.duration_s}s\n"
             f"Status: {info.status}\n\n"

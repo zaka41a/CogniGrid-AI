@@ -1,5 +1,5 @@
 """
-CSV / Excel Parser — utilise pandas pour lire les fichiers tabulaires.
+CSV / Excel Parser - utilise pandas pour lire les fichiers tabulaires.
 Convertit chaque ligne en texte lisible + extrait les métadonnées du dataset.
 
 Pour les CSVs entités-relations (colonnes source/target/relationship),
@@ -111,7 +111,7 @@ class CSVParser(BaseParser):
         # ── Détection CSV entités-relations ──────────────────────────────────────
         src_col, tgt_col, rel_col = _detect_er_columns(list(df.columns))
         if src_col and tgt_col:
-            logger.info(f"Entity-relationship CSV detected (src={src_col}, tgt={tgt_col}, rel={rel_col}) — bypassing NER")
+            logger.info(f"Entity-relationship CSV detected (src={src_col}, tgt={tgt_col}, rel={rel_col}) - bypassing NER")
             cim_entities = _er_csv_to_cim(df, src_col, tgt_col, rel_col)
             summary = f"Entity-relationship dataset: {len(cim_entities)} unique entities, {len(df)} relationships"
             metadata["er_csv"]    = True

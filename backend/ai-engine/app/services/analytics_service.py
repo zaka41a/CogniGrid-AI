@@ -1,5 +1,5 @@
 """
-AnalyticsService — document similarity, clustering, insights, knowledge gaps.
+AnalyticsService - document similarity, clustering, insights, knowledge gaps.
 """
 import logging
 import numpy as np
