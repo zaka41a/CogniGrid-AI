@@ -240,7 +240,7 @@ export default function Dashboard() {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke={grid} vertical={false} />
-                  <XAxis dataKey="date" tick={{ fill: tick, fontSize: 10 }} tickLine={false} axisLine={false} interval={2} />
+                  <XAxis dataKey="date" tick={{ fill: tick, fontSize: 10 }} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={36} />
                   <YAxis tick={{ fill: tick, fontSize: 10 }} tickLine={false} axisLine={false} allowDecimals={false} />
                   <Tooltip contentStyle={tooltip.contentStyle} labelStyle={tooltip.labelStyle} />
                   <Area
