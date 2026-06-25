@@ -223,13 +223,13 @@ async def _execute(run_id: str, run_dir: Path, push_to_graph: bool) -> None:
                         "product_type":       "energy",
                         # Required by make_market_config
                         "market_mechanism":   "pay_as_clear",
-                        "opening_frequency":  "1d",    # market opens once per day
-                        "opening_duration":   "1h",    # auction lasts 1h before delivery
+                        "opening_frequency":  "1d",            # market opens once per day
+                        "opening_duration":   time_step_str,   # auction aligned to the time step
                         "products": [
                             {
-                                "duration":        "1h",  # each product covers 1 hour
-                                "count":           24,    # 24 hourly products per day
-                                "first_delivery":  "1h",  # first delivery 1h after open
+                                "duration":        time_step_str,           # one product per time step
+                                "count":           max(1, 24 // time_step),  # products to cover the day
+                                "first_delivery":  time_step_str,            # first delivery one step after open
                             }
                         ],
                         # Optional limits
