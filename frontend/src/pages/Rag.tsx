@@ -13,6 +13,7 @@ const COST_PER_MTOKEN: Record<string, number> = {
   groq:      0.59,   // llama-3.3-70b-versatile blended
   openai:    0.30,   // gpt-4o-mini blended
   anthropic: 1.20,   // claude-haiku-4-5 blended
+  fh:        0,      // FH-hosted, no per-token billing
   ollama:    0,      // local
 }
 
@@ -40,6 +41,7 @@ const LLM_PROVIDERS_BASE: Omit<ProviderInfo, 'status'>[] = [
   { id: 'groq',      label: 'Groq',    sub: 'Llama 3.3 70B',          model: 'llama-3.3-70b-versatile', color: 'text-orange-500  bg-orange-500/10  border-orange-500/30'  },
   { id: 'openai',    label: 'OpenAI',  sub: 'GPT-4o mini',            model: 'gpt-4o-mini',             color: 'text-blue-500    bg-blue-500/10    border-blue-500/30'    },
   { id: 'anthropic', label: 'Claude',  sub: 'claude-haiku-4-5',       model: 'claude-haiku-4-5-20251001',color: 'text-violet-500  bg-violet-500/10  border-violet-500/30'  },
+  { id: 'fh',        label: 'FH GPT-OSS', sub: '120B · FH-chatbot',   model: 'openai-gpt-oss-120b',     color: 'text-teal-500    bg-teal-500/10    border-teal-500/30'    },
   { id: 'ollama',    label: 'Ollama',  sub: 'Local model',            model: '',                        color: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/30' },
 ]
 

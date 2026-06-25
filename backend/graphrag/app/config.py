@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     ollama_base_url: str      = "http://host.docker.internal:11434"
     openai_api_key: str       = ""
     anthropic_api_key: str    = ""
+    # FH-chatbot: OpenAI-compatible endpoint (GPT-OSS 120B)
+    fh_api_key: str           = ""
+    fh_base_url: str          = ""   # e.g. https://chat.kiconnect.nrw/api/v1
+    fh_model: str             = "openai-gpt-oss-120b"
 
     # Redis
     redis_url: str = "redis://cg-redis:6379/0"

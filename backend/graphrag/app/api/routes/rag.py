@@ -248,6 +248,27 @@ async def providers_status():
     else:
         statuses.append({"id": "anthropic", "status": "unconfigured", "model": "claude-haiku-4-5-20251001"})
 
+    # ── FH-chatbot (OpenAI-compatible, GPT-OSS 120B) ──────────────────────
+    if settings.fh_api_key and settings.fh_base_url:
+        try:
+            base = settings.fh_base_url.rstrip("/")
+            async with httpx.AsyncClient(timeout=5.0) as c:
+                r = await c.post(
+                    f"{base}/chat/completions",
+                    headers={"Authorization": f"Bearer {settings.fh_api_key}", "Content-Type": "application/json"},
+                    json={"model": settings.fh_model, "messages": [{"role": "user", "content": "ping"}], "max_tokens": 1},
+                )
+            if r.status_code == 200:
+                statuses.append({"id": "fh", "status": "active", "model": settings.fh_model})
+            elif r.status_code == 429:
+                statuses.append({"id": "fh", "status": "quota", "model": settings.fh_model})
+            else:
+                statuses.append({"id": "fh", "status": "error", "model": settings.fh_model})
+        except Exception:
+            statuses.append({"id": "fh", "status": "error", "model": settings.fh_model})
+    else:
+        statuses.append({"id": "fh", "status": "unconfigured", "model": settings.fh_model})
+
     # ── Ollama ────────────────────────────────────────────────────────────
     try:
         async with httpx.AsyncClient(timeout=4.0) as c:

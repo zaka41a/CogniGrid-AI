@@ -1,11 +1,19 @@
 import { useState, useRef, useEffect } from 'react'
-import { Send, Sparkles, Loader2, Wand2 } from 'lucide-react'
+import { Send, Loader2, Bot } from 'lucide-react'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { ragHttp } from '../../../lib/api'
 import { ASSUME_SYSTEM } from '../studioStore'
 
 interface Msg { role: 'user' | 'assistant'; content: string }
+
+const PROVIDERS = [
+  { id: 'groq',      label: 'Groq · Llama 3.3 70B',    model: 'llama-3.3-70b-versatile' },
+  { id: 'openai',    label: 'OpenAI · GPT-4o mini',    model: 'gpt-4o-mini' },
+  { id: 'anthropic', label: 'Claude · Haiku 4.5',      model: 'claude-haiku-4-5-20251001' },
+  { id: 'fh',        label: 'FH GPT-OSS 120B',         model: 'openai-gpt-oss-120b' },
+  { id: 'ollama',    label: 'Ollama · Local',          model: '' },
+]
 
 const EXAMPLES = [
   'Configure a day ahead market with wind and gas units',
@@ -39,6 +47,7 @@ export default function AdvisorStep() {
   const [messages, setMessages] = useState<Msg[]>([])
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
+  const [provider, setProvider] = useState('groq')
   const endRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, busy])
@@ -51,10 +60,11 @@ export default function AdvisorStep() {
     setBusy(true)
     try {
       const history = messages.map(m => ({ role: m.role, content: m.content }))
+      const sel = PROVIDERS.find(p => p.id === provider) ?? PROVIDERS[0]
       const { data } = await ragHttp.post<{ answer: string }>('/api/rag/chat', {
         query: `${ASSUME_SYSTEM}\n\nUser: ${q}`,
-        llm_provider: 'groq',
-        llm_model: 'llama-3.3-70b-versatile',
+        llm_provider: sel.id,
+        llm_model: sel.model,
         history,
         use_graph_context: true,
         scope: 'assume',
@@ -76,7 +86,7 @@ export default function AdvisorStep() {
         {empty ? (
           <div className="h-full flex flex-col items-center justify-center text-center px-4">
             <div className="w-14 h-14 rounded-2xl gradient-primary text-white flex items-center justify-center shadow-cg mb-4">
-              <Wand2 size={26} />
+              <Bot size={26} />
             </div>
             <h2 className="text-xl font-bold text-cg-txt mb-1">ASSUME Scenario Advisor</h2>
             <p className="text-sm text-cg-muted mb-6 max-w-md">
@@ -104,7 +114,7 @@ export default function AdvisorStep() {
               ) : (
                 <div key={i} className="flex gap-3">
                   <div className="w-8 h-8 shrink-0 rounded-xl gradient-primary text-white flex items-center justify-center">
-                    <Sparkles size={15} />
+                    <Bot size={15} />
                   </div>
                   <div className="flex-1 min-w-0 text-sm text-cg-txt2 pt-1">
                     <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD}>{m.content}</ReactMarkdown>
@@ -124,6 +134,18 @@ export default function AdvisorStep() {
 
       {/* composer */}
       <div className="pt-3 max-w-3xl mx-auto w-full">
+        <div className="flex items-center justify-end mb-1.5">
+          <label className="flex items-center gap-1.5 text-[11px] text-cg-muted">
+            <span className="uppercase tracking-wide font-semibold">Model</span>
+            <select
+              value={provider}
+              onChange={e => setProvider(e.target.value)}
+              className="bg-cg-surface border border-cg-border rounded-lg px-2 py-1 text-[11px] text-cg-txt focus:outline-none focus:border-cg-primary"
+            >
+              {PROVIDERS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+            </select>
+          </label>
+        </div>
         <div className="flex items-end gap-2 rounded-2xl border border-cg-border bg-cg-surface shadow-cg p-2">
           <textarea
             value={input}
@@ -138,7 +160,7 @@ export default function AdvisorStep() {
             <Send size={16} />
           </button>
         </div>
-        <p className="text-center text-[10px] text-cg-faint mt-1.5">Powered by GraphRAG over the ASSUME knowledge base · Groq Llama 3.3 70B</p>
+        <p className="text-center text-[10px] text-cg-faint mt-1.5">Powered by GraphRAG over the ASSUME knowledge base · {(PROVIDERS.find(p => p.id === provider) ?? PROVIDERS[0]).label}</p>
       </div>
     </div>
   )

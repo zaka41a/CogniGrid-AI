@@ -29,6 +29,8 @@ async def generate(
         return await _openai(prompt, model or "gpt-4o-mini")
     elif provider == "anthropic" and settings.anthropic_api_key:
         return await _anthropic(prompt, model or "claude-haiku-4-5-20251001")
+    elif provider == "fh" and settings.fh_api_key and settings.fh_base_url:
+        return await _fh(prompt, model or settings.fh_model)
     elif provider == "ollama":
         try:
             return await _ollama(prompt, model)
@@ -43,6 +45,8 @@ async def generate(
             return await _openai(prompt, "gpt-4o-mini")
         if settings.anthropic_api_key:
             return await _anthropic(prompt, "claude-haiku-4-5-20251001")
+        if settings.fh_api_key and settings.fh_base_url:
+            return await _fh(prompt, settings.fh_model)
         try:
             return await _ollama(prompt, model)
         except Exception:
@@ -164,6 +168,31 @@ async def _openai(prompt: str, model: str) -> tuple[str, int]:
     return answer, tokens
 
 
+# ── FH-chatbot (OpenAI-compatible endpoint, GPT-OSS 120B) ─────────────────────
+
+async def _fh(prompt: str, model: str) -> tuple[str, int]:
+    base = settings.fh_base_url.rstrip("/")
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        resp = await client.post(
+            f"{base}/chat/completions",
+            headers={
+                "Authorization": f"Bearer {settings.fh_api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": model,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.2,
+                "max_tokens": 2048,
+            },
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    answer = data["choices"][0]["message"]["content"] or ""
+    tokens = data.get("usage", {}).get("total_tokens", len(answer.split()))
+    return answer, tokens
+
+
 # ── Anthropic ─────────────────────────────────────────────────────────────────
 
 async def _anthropic(prompt: str, model: str) -> tuple[str, int]:
@@ -218,6 +247,10 @@ async def generate_stream(
             return
         if provider == "anthropic" and settings.anthropic_api_key:
             async for c in _anthropic_stream(prompt, model or "claude-haiku-4-5-20251001"):
+                yield c
+            return
+        if provider == "fh" and settings.fh_api_key and settings.fh_base_url:
+            async for c in _fh_stream(prompt, model or settings.fh_model):
                 yield c
             return
     except Exception as e:
@@ -284,6 +317,45 @@ async def _openai_stream(prompt: str, model: str) -> AsyncIterator[str | _FinalU
         async with client.stream(
             "POST",
             "https://api.openai.com/v1/chat/completions",
+            json=payload,
+            headers=headers,
+        ) as resp:
+            resp.raise_for_status()
+            async for line in resp.aiter_lines():
+                if not line or not line.startswith("data: "):
+                    continue
+                data = line[6:].strip()
+                if data == "[DONE]":
+                    break
+                try:
+                    obj = json.loads(data)
+                    delta = obj["choices"][0]["delta"].get("content")
+                    if delta:
+                        output_chars += len(delta)
+                        yield delta
+                except Exception:
+                    continue
+    yield _FinalUsage(total=max(1, output_chars // 4))
+
+
+async def _fh_stream(prompt: str, model: str) -> AsyncIterator[str | _FinalUsage]:
+    payload = {
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.2,
+        "max_tokens": 2048,
+        "stream": True,
+    }
+    headers = {
+        "Authorization": f"Bearer {settings.fh_api_key}",
+        "Content-Type": "application/json",
+    }
+    base = settings.fh_base_url.rstrip("/")
+    output_chars = 0
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        async with client.stream(
+            "POST",
+            f"{base}/chat/completions",
             json=payload,
             headers=headers,
         ) as resp:
