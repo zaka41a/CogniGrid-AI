@@ -136,6 +136,30 @@ public class AuthService {
                 user.getId(), user.getEmail(), "self-service password change");
     }
 
+    public AuthResponse.UserInfo getCurrentUser(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new AuthException("User not found"));
+        return toUserInfo(user);
+    }
+
+    public AuthResponse.UserInfo updateProfile(String email, String fullName, String newEmail) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new AuthException("User not found"));
+        if (fullName != null && !fullName.isBlank()) {
+            user.setFullName(fullName.trim());
+        }
+        if (newEmail != null && !newEmail.isBlank() && !newEmail.equalsIgnoreCase(email)) {
+            if (userRepository.existsByEmail(newEmail.trim())) {
+                throw new AuthException("Email already in use");
+            }
+            user.setEmail(newEmail.trim());
+        }
+        user.setUpdatedAt(LocalDateTime.now());
+        userRepository.save(user);
+        log.info("Profile updated for user: {}", email);
+        return toUserInfo(user);
+    }
+
     private AuthResponse buildAuthResponse(User user) {
         var springUser = new org.springframework.security.core.userdetails.User(
                 user.getEmail(), user.getPasswordHash(), java.util.List.of()
