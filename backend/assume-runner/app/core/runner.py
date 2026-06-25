@@ -549,6 +549,106 @@ def _parse_results(output_dir: Path) -> dict:
     return summary
 
 
+# ─── full time series (for the results dashboard, B3) ───────────────────────
+
+_TIME_COLS = ["time", "datetime", "product_start", "start_time", "timestamp", "index", ""]
+
+
+def _detect_col(fieldnames: list, candidates: list[str]) -> str | None:
+    lower = {fn.lower(): fn for fn in fieldnames if fn is not None}
+    for c in candidates:
+        if c in lower:
+            return lower[c]
+    return None
+
+
+def get_run_timeseries(run_id: str, user_id: str | None = None) -> dict:
+    """Return per-timestep price and dispatch series for a completed run."""
+    info = get_run(run_id, user_id=user_id)
+    if info is None:
+        return {}
+    out = _find_output_dir(Path(settings.runs_dir) / run_id / "output")
+    if not out.exists():
+        return {"price": [], "dispatch": {"index": [], "units": [], "rows": []}}
+    return _parse_timeseries(out)
+
+
+def _parse_timeseries(output_dir: Path) -> dict:
+    result: dict = {"price": [], "dispatch": {"index": [], "units": [], "rows": []}}
+
+    # ── price curve from market_meta.csv ─────────────────────────────────────
+    meta = output_dir / "market_meta.csv"
+    if meta.exists():
+        try:
+            with open(meta, newline="") as f:
+                reader = csv.DictReader(f)
+                rows = list(reader)
+                fns = reader.fieldnames or []
+            tcol = _detect_col(fns, _TIME_COLS)
+
+            def _num(r: dict, key: str) -> float:
+                try:
+                    return round(float(r.get(key, "") or 0), 1)
+                except (ValueError, TypeError):
+                    return 0.0
+
+            for r in rows:
+                if r.get("price") in (None, ""):
+                    continue
+                try:
+                    price = round(float(r["price"]), 2)
+                except (ValueError, TypeError):
+                    continue
+                result["price"].append({
+                    "t":      str(r.get(tcol) if tcol else "") or "",
+                    "price":  price,
+                    "supply": _num(r, "supply_volume"),
+                    "demand": _num(r, "demand_volume"),
+                })
+        except Exception as e:
+            logger.warning("timeseries: market_meta parse failed: %s", e)
+
+    # ── dispatch over time (market_dispatch.csv, fallback unit_dispatch.csv) ──
+    disp = output_dir / "market_dispatch.csv"
+    if not disp.exists():
+        disp = output_dir / "unit_dispatch.csv"
+    if disp.exists():
+        try:
+            with open(disp, newline="") as f:
+                reader = csv.DictReader(f)
+                rows = list(reader)
+                fns = reader.fieldnames or []
+            tcol = _detect_col(fns, _TIME_COLS)
+            ucol = _detect_col(fns, ["unit_id", "unit", "name"])
+            pcol = _detect_col(fns, ["power", "volume", "dispatch"])
+            if tcol and ucol and pcol:
+                bucket: dict[str, dict[str, float]] = {}
+                units: list[str] = []
+                for r in rows:
+                    t = str(r.get(tcol) or "")
+                    u = str(r.get(ucol) or "")
+                    if not t or not u:
+                        continue
+                    try:
+                        p = float(r.get(pcol, "") or 0)
+                    except (ValueError, TypeError):
+                        p = 0.0
+                    bucket.setdefault(t, {})
+                    bucket[t][u] = bucket[t].get(u, 0.0) + p
+                    if u not in units:
+                        units.append(u)
+                index = list(bucket.keys())  # insertion order = chronological
+                out_rows = [
+                    {"t": t, **{u: round(bucket[t].get(u, 0.0), 1) for u in units}}
+                    for t in index
+                ]
+                result["dispatch"] = {"index": index, "units": units, "rows": out_rows}
+        except Exception as e:
+            logger.warning("timeseries: dispatch parse failed: %s", e)
+
+    return result
+
+
 # ─── push results to knowledge graph ────────────────────────────────────────
 
 async def _push_results_to_graph(run_id: str, info: RunInfo) -> None:

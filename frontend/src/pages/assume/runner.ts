@@ -31,10 +31,22 @@ export interface StartRunBody {
   timeseries?: Record<string, string>
 }
 
+export interface PricePoint { t: string; price: number; supply: number; demand: number }
+export interface DispatchSeries {
+  index: string[]
+  units: string[]
+  rows: Array<Record<string, number | string>>  // { t, <unit>: power, ... }
+}
+export interface RunTimeseries {
+  price: PricePoint[]
+  dispatch: DispatchSeries
+}
+
 export const runnerApi = {
   list:   () => runnerHttp.get<RunInfo[]>('/api/runner/runs', { timeout: 8_000 }),
   start:  (body: StartRunBody) => runnerHttp.post<RunInfo>('/api/runner/runs', body),
   remove: (id: string) => runnerHttp.delete(`/api/runner/runs/${id}`),
+  timeseries: (id: string) => runnerHttp.get<RunTimeseries>(`/api/runner/runs/${id}/timeseries`, { timeout: 10_000 }),
   health: () => runnerHttp.get('/health', { timeout: 5_000 }),
 }
 

@@ -13,7 +13,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from app.models.schemas import RunRequest, RunInfo
-from app.core.runner import start_run, get_run, list_runs, delete_run
+from app.core.runner import start_run, get_run, list_runs, delete_run, get_run_timeseries
 from app.api.auth import get_user_id
 
 router = APIRouter()
@@ -47,6 +47,16 @@ async def get_run_status(run_id: str, request: Request):
     if not info:
         raise HTTPException(404, f"Run {run_id} not found")
     return info
+
+
+@router.get("/runs/{run_id}/timeseries")
+async def run_timeseries(run_id: str, request: Request):
+    """Per-timestep price + dispatch series for the results dashboard."""
+    user_id = get_user_id(request)
+    info = get_run(run_id, user_id=user_id)
+    if not info:
+        raise HTTPException(404, f"Run {run_id} not found")
+    return get_run_timeseries(run_id, user_id=user_id)
 
 
 @router.delete("/runs/{run_id}")
