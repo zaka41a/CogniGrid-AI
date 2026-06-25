@@ -141,7 +141,7 @@ export default function ResultsStep() {
                 </ResponsiveContainer>
               </div>
             </div>
-          ) : summaryDispatchData.length > 0 && (
+          ) : (!loadingTs && summaryDispatchData.length > 0) && (
             <div className="rounded-xl border border-cg-border bg-cg-surface p-4">
               <p className="text-sm font-bold text-cg-txt mb-3">Dispatch by unit (total MWh)</p>
               <div className="h-64">
@@ -159,7 +159,11 @@ export default function ResultsStep() {
             </div>
           )}
 
-          {loadingTs && <p className="text-[11px] text-cg-faint">Loading time series…</p>}
+          {loadingTs && (
+            <div className="rounded-xl border border-cg-border bg-cg-surface p-8 flex items-center justify-center gap-2 text-sm text-cg-faint">
+              <span className="w-4 h-4 border-2 border-cg-border border-t-cg-primary rounded-full animate-spin" /> Loading charts...
+            </div>
+          )}
           {!loadingTs && priceData.length === 0 && dispatchRows.length === 0 && (
             <p className="text-[11px] text-cg-faint">No time-series output found for this run (showing summary only).</p>
           )}
