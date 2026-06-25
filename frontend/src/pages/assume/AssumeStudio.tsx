@@ -1,6 +1,7 @@
-import { type ReactNode, type ComponentType } from 'react'
+import { type ReactNode, type ComponentType, useEffect } from 'react'
 import { PencilRuler, LineChart, Play, BarChart3, GitCompare, Bot, Check } from 'lucide-react'
 import { useStudio, type StudioStep } from './studioStore'
+import { useAppStore } from '../../store'
 import AdvisorStep from './steps/AdvisorStep'
 import DesignStep from './steps/DesignStep'
 import TimeseriesStep from './steps/TimeseriesStep'
@@ -27,6 +28,9 @@ const STEP_VIEWS: Record<StudioStep, ComponentType> = {
 
 export default function AssumeStudio() {
   const { step, setStep, scenarioName } = useStudio()
+  const syncUser = useStudio(s => s.syncUser)
+  const email = useAppStore(s => s.currentUser.email)
+  useEffect(() => { syncUser(email) }, [email, syncUser])
   const StepView = STEP_VIEWS[step]
   const activeIdx = STEPS.findIndex(s => s.id === step)
 

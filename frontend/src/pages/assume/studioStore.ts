@@ -12,6 +12,7 @@ export interface TimeseriesEntry {
 export type TimeseriesKey = 'demand' | 'availability' | 'fuelPrices'
 
 interface StudioState {
+  ownerEmail: string | null
   step: StudioStep
   scenarioName: string
   yaml: string
@@ -24,6 +25,7 @@ interface StudioState {
   setPushGraph: (b: boolean) => void
   setSelectedRunId: (id: string | null) => void
   setTimeseries: (k: TimeseriesKey, e: TimeseriesEntry | null) => void
+  syncUser: (email: string | undefined) => void
 }
 
 export const DEFAULT_ASSUME_YAML = `general:
@@ -97,17 +99,23 @@ export const ASSUME_SYSTEM =
   'Reference real ASSUME classes (NaiveSingleBidStrategy, flexable strategies, ' +
   'clearing algorithms) and give concrete YAML when asked.'
 
-export const useStudio = create<StudioState>((set) => ({
-  step: 'design',
+const INITIAL_STUDIO = {
+  step: 'design' as StudioStep,
   scenarioName: 'day_ahead_example',
   yaml: DEFAULT_ASSUME_YAML,
   pushGraph: true,
-  selectedRunId: null,
-  timeseries: { demand: null, availability: null, fuelPrices: null },
+  selectedRunId: null as string | null,
+  timeseries: { demand: null, availability: null, fuelPrices: null } as Record<TimeseriesKey, TimeseriesEntry | null>,
+}
+
+export const useStudio = create<StudioState>((set) => ({
+  ownerEmail: null,
+  ...INITIAL_STUDIO,
   setStep: (step) => set({ step }),
   setScenarioName: (scenarioName) => set({ scenarioName }),
   setYaml: (yaml) => set({ yaml }),
   setPushGraph: (pushGraph) => set({ pushGraph }),
   setSelectedRunId: (selectedRunId) => set({ selectedRunId }),
   setTimeseries: (k, e) => set((s) => ({ timeseries: { ...s.timeseries, [k]: e } })),
+  syncUser: (email) => set((s) => (s.ownerEmail === (email ?? null) ? {} : { ...INITIAL_STUDIO, ownerEmail: email ?? null })),
 }))
