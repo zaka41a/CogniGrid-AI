@@ -177,9 +177,11 @@ export default function VisualBuilder({ yaml, onChange }: { yaml: string; onChan
   const posRef = useRef<Record<string, XY>>({})
 
   const ops = useMemo(() => {
-    const all = [...deriveOps(doc), ...extraOps]
+    const derived = deriveOps(doc)
+    const extras = extraOps.filter(o => !derived.includes(o) && sel?.kind === 'op' && sel.name === o)
+    const all = [...derived, ...extras]
     return all.filter((o, i) => all.indexOf(o) === i)
-  }, [doc, extraOps])
+  }, [doc, extraOps, sel])
 
   const graph = useMemo(() => buildGraph(doc, ops, sel, posRef.current), [doc, ops, sel])
   const [nodes, setNodes, onNodesChange] = useNodesState(graph.nodes)
