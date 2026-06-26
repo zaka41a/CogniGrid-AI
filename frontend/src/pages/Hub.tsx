@@ -138,9 +138,8 @@ export default function Hub() {
             </div>
           )}
 
-          <div className="mt-10 flex items-center justify-between text-[11px] text-white/30">
+          <div className="mt-10 text-[11px] text-white/30">
             <span>CogniGrid AI · Knowledge Graph + ASSUME</span>
-            <span>FH Aachen</span>
           </div>
         </div>
       </main>
