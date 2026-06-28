@@ -624,9 +624,10 @@ export default function Home() {
 
 
       {/* ── CTA ────────────────────────────────────────────────────────────── */}
-      <section className="px-6 pb-28">
-        <div className="max-w-4xl mx-auto relative overflow-hidden rounded-3xl
-          bg-gradient-to-br from-emerald-600 via-emerald-500 to-teal-600 p-12 text-center text-white">
+      <section className="px-6 py-24 border-y border-white/10 flex items-center justify-center">
+        <div className="max-w-4xl w-full mx-auto relative overflow-hidden rounded-3xl
+          bg-gradient-to-br from-emerald-600 via-emerald-500 to-teal-600 p-12 text-center text-white
+          flex flex-col items-center justify-center">
           {/* Orbs inside CTA */}
           <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-3xl">
             <div className="absolute -top-8 -left-8 w-40 h-40 rounded-full bg-white/15 blur-2xl" />
