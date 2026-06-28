@@ -33,9 +33,9 @@
 Upload any document (PDF, Word, Excel, PowerPoint, CSV, XML, image) → CogniGrid extracts entities and relationships, builds a per-user **Neo4j knowledge graph**, indexes chunks in **Qdrant**, and exposes them through:
 
 - **Graph Explorer** interactive force-directed visualisation
-- **GraphRAG Chat** multi-hop retrieval-augmented generation with cited sources
+- **GraphRAG Chat** multi-hop retrieval-augmented generation with cited sources, provider selectable (Groq, OpenAI, Claude, FH GPT-OSS 120B, Ollama)
 - **AI Agent** ReAct tool-calling agent over your graph
-- **ASSUME Workspace** natural-language → YAML scenario generator + real `assume run` execution with live SSE log streaming
+- **ASSUME Studio** a visual node-based scenario builder (operators, units, storage, demand, market), real uploaded timeseries (demand, availability, fuel prices), `assume run` with live SSE logs, and a results dashboard (price curve, supply vs demand, stacked dispatch over time)
 
 Every layer enforces **per-user isolation** (Neo4j `user_id`, Qdrant payload filter, Postgres FK) so accounts cannot see each other's data.
 
@@ -83,6 +83,17 @@ DEFAULT_LLM_MODEL=llama-3.3-70b-versatile
 JWT_SECRET=<min-32-char-random-string>
 NEO4J_PASSWORD=<strong-password>
 POSTGRES_PASSWORD=<strong-password>
+```
+
+Optional extra LLM providers (any subset):
+
+```env
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+# FH-chatbot (KIConnect NRW, OpenAI-compatible, GPT-OSS 120B)
+FH_API_KEY=<key>
+FH_BASE_URL=https://chat.kiconnect.nrw/api/v1
+FH_MODEL=openai-gpt-oss-120b
 ```
 
 ### 2. Start everything

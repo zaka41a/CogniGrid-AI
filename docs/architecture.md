@@ -1,4 +1,4 @@
-# CogniGrid AI . Architecture
+# CogniGrid AI  Architecture
 
 ## High-level diagram
 
@@ -43,7 +43,7 @@ Document Upload (multipart POST → :8001)
   ├── spaCy NER → entities
   ├── Relation extraction (CIM ref-id / regex)
   ├── Embeddings (sentence-transformers/all-MiniLM-L6-v2, 384-d)
-  └── ───────────────────────────────────────┐
+  └── ────────────────────────────────────────┐
                                               │
             ┌─────────────────────────────────┴─────────────────────────────┐
             ▼                                                               ▼
@@ -75,7 +75,7 @@ User query
 1. Semantic search (Qdrant)              → top-K chunks (filtered by user_id, score ≥ 0.20)
 2. Graph context (Neo4j)                 → keyword-matched entities + N-hop neighbors
 3. Build prompt with size guards         → max 1500 chars/source, 12K total
-4. LLM call (Groq / OpenAI / Anthropic)  → answer + cited sources [N]
+4. LLM call (Groq / OpenAI / Anthropic / FH GPT-OSS / Ollama)  → answer + cited sources [N]
 5. Empty-state shortcut                  → no LLM call when sources & graph_ctx both empty
 ```
 

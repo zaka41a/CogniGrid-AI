@@ -77,10 +77,15 @@ Cypher.
 ## GraphRAG (`:8004`)
 
 ```http
-POST /api/rag/chat     {query, top_k?, history?, use_graph_context?, llm_provider?}  → RAGResponse
+POST /api/rag/chat     {query, top_k?, history?, use_graph_context?, llm_provider?, llm_model?, scope?}  → RAGResponse
+POST /api/rag/chat/stream   (same body)                                              → SSE token stream
 POST /api/rag/search   {query, top_k?, file_type_filter?}                            → SearchResponse
 GET  /api/rag/providers                                                              → {providers}
 ```
+
+`llm_provider` accepts `groq`, `openai`, `anthropic`, `fh` (FH GPT-OSS 120B via KIConnect), `ollama`.
+`scope` is `personal` (the caller's documents, default) or `assume` (the shared ASSUME knowledge base).
+`/providers` returns each provider with `status` (`active`, `quota`, `error`, `unconfigured`).
 
 `RAGResponse`:
 ```json
@@ -111,13 +116,18 @@ graph queries stay scoped to the user.
 ## ASSUME Runner (`:8006`)
 
 ```http
-POST   /api/runner/runs             {yaml_config, scenario_name, description?, push_to_graph?}  → RunInfo
+POST   /api/runner/runs             {yaml_config, scenario_name, description?, push_to_graph?, timeseries?}  → RunInfo
 GET    /api/runner/runs                                                                          → RunInfo[]
 GET    /api/runner/runs/{id}                                                                     → RunInfo
+GET    /api/runner/runs/{id}/timeseries                            → {price[], dispatch{index,units,rows}}
 DELETE /api/runner/runs/{id}                                                                     → {message}
 GET    /api/runner/runs/{id}/logs                                  Server-Sent Events stream
 GET    /health
 ```
+
+`timeseries` is an optional map of raw CSV text with keys `demand`, `availability`, `fuel_prices`.
+When provided it replaces the synthetic generation. `/timeseries` returns the parsed
+per-timestep price curve and the stacked dispatch by unit for the results dashboard.
 
 ## AI Engine (`:8003`)
 

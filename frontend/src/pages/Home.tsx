@@ -3,8 +3,11 @@ import { Link } from 'react-router-dom'
 import {
   ArrowRight, GitBranch, Upload, Bot,
   MessageSquare, Zap, Database, Globe, CheckCircle,
-  Github, Twitter, Linkedin, ChevronRight, Cpu, Network,
+  Github, ChevronRight, Cpu, Network,
 } from 'lucide-react'
+
+const GITHUB  = 'https://github.com/zaka41a/CogniGrid-AI'
+const GATEWAY = (import.meta.env.VITE_GATEWAY_URL as string | undefined) ?? ''
 
 /* ── Brand ──────────────────────────────────────────────────────────────────── */
 function Brand({ className = 'text-sm' }: { className?: string }) {
@@ -365,9 +368,9 @@ const FEATURES = [
   {
     icon: <Zap size={22} />,
     color: '#10B981',
-    title: 'ASSUME Workspace',
-    desc: 'Generate, run, and compare electricity market simulations. AI creates valid ASSUME YAML configs from natural language descriptions.',
-    bullets: ['AI scenario generation', 'ASSUME v0.4 framework', 'Compare scenarios'],
+    title: 'ASSUME Studio',
+    desc: 'Design electricity market scenarios in a visual node builder, feed real timeseries, run the ASSUME framework, and analyse results live.',
+    bullets: ['Visual scenario builder', 'Real timeseries input', 'Results dashboard'],
   },
 ]
 
@@ -398,7 +401,7 @@ const STEPS = [
     icon: <MessageSquare size={18} />,
     title: 'Chat and query',
     desc: 'Ask complex questions across all your documents. The AI finds answers using both vector similarity and graph context, giving you precise, cited, multi-hop reasoning.',
-    bullets: ['GraphRAG combines vector and graph search', 'Source citations for every answer', 'AI Agent for complex multi-step reasoning', 'Multi-LLM: OpenAI, Anthropic, Ollama'],
+    bullets: ['GraphRAG combines vector and graph search', 'Source citations for every answer', 'AI Agent for complex multi-step reasoning', 'Multi-LLM: Groq, OpenAI, Claude, FH GPT-OSS, Ollama'],
   },
 ]
 
@@ -490,21 +493,11 @@ export default function Home() {
                 Open-source · Self-hosted · No data sent to third parties
               </p>
 
-              {/* Social proof badges */}
-              <div className="mt-8 flex items-center gap-3 anim-slide-up d5">
-                <div className="flex -space-x-2">
-                  {['B', 'Z', 'A', 'M'].map((l, i) => (
-                    <div key={l}
-                      className="w-7 h-7 rounded-full border-2 border-slate-900 flex items-center justify-center text-[10px] font-bold text-white"
-                      style={{ background: ['#3B82F6','#10B981','#6366F1','#F59E0B'][i] }}
-                    >
-                      {l}
-                    </div>
-                  ))}
-                </div>
-                <p className="text-xs text-white/40">
-                  Trusted by data teams · <span className="text-emerald-400 font-medium">Free & open-source</span>
-                </p>
+              {/* Capability badges */}
+              <div className="mt-8 flex flex-wrap items-center gap-2 anim-slide-up d5">
+                {['GraphRAG', 'ASSUME simulations', 'Per-user isolation', 'Multi-LLM'].map(t => (
+                  <span key={t} className="text-[11px] text-white/60 bg-white/5 border border-white/10 rounded-full px-3 py-1">{t}</span>
+                ))}
               </div>
             </div>
 
@@ -675,16 +668,32 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-6 py-12">
           <div className="grid grid-cols-2 md:grid-cols-3 gap-8 mb-10">
             {[
-              { title: 'Platform',  links: ['Dashboard', 'Graph Explorer', 'GraphRAG Chat', 'AI Agent'] },
-              { title: 'Resources', links: ['Documentation', 'API Reference', 'Swagger UI', 'Status'] },
-              { title: 'Project',   links: ['GitHub', 'Changelog', 'License'] },
+              { title: 'Platform', links: [
+                { label: 'Dashboard', href: '/app/dashboard' },
+                { label: 'Graph Explorer', href: '/app/graph' },
+                { label: 'GraphRAG Chat', href: '/app/rag' },
+                { label: 'AI Agent', href: '/app/agent' },
+              ] },
+              { title: 'Resources', links: [
+                { label: 'Documentation', href: `${GITHUB}/tree/main/docs`, external: true },
+                { label: 'API Reference', href: `${GITHUB}/blob/main/docs/api.md`, external: true },
+                { label: 'Swagger UI', href: `${GATEWAY}/swagger-ui/index.html`, external: true },
+              ] },
+              { title: 'Project', links: [
+                { label: 'GitHub', href: GITHUB, external: true },
+                { label: 'License', href: `${GITHUB}/blob/main/LICENSE`, external: true },
+              ] },
             ].map(col => (
               <div key={col.title}>
                 <p className="text-xs font-semibold uppercase tracking-widest text-white/25 mb-4">{col.title}</p>
                 <ul className="space-y-2.5">
                   {col.links.map(link => (
-                    <li key={link}>
-                      <a href="#" className="text-sm text-white/45 hover:text-white/80 transition-colors">{link}</a>
+                    <li key={link.label}>
+                      <a
+                        href={link.href}
+                        {...((link as { external?: boolean }).external ? { target: '_blank', rel: 'noreferrer' } : {})}
+                        className="text-sm text-white/45 hover:text-white/80 transition-colors"
+                      >{link.label}</a>
                     </li>
                   ))}
                 </ul>
@@ -699,11 +708,9 @@ export default function Home() {
               <span className="text-white/25 text-sm">· © 2026</span>
             </div>
             <div className="flex items-center gap-3">
-              {[Github, Twitter, Linkedin].map((Icon, i) => (
-                <button key={i} className="p-2 rounded-lg text-white/25 hover:text-white/70 hover:bg-white/8 transition-colors">
-                  <Icon size={16} />
-                </button>
-              ))}
+              <a href={GITHUB} target="_blank" rel="noreferrer" className="p-2 rounded-lg text-white/25 hover:text-white/70 hover:bg-white/8 transition-colors">
+                <Github size={16} />
+              </a>
             </div>
           </div>
         </div>
