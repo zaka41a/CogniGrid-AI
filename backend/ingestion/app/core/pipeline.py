@@ -10,12 +10,42 @@ IngestionPipeline - orchestre les étapes d'ingestion :
 """
 import asyncio
 import logging
+import re
 from app.core.file_router import FileRouter
 from app.core.extractors.entity_extractor import EntityExtractor
 from app.core.extractors.embedder import Embedder
 from app.models.schemas import ExtractedDocument
 
 logger = logging.getLogger(__name__)
+
+
+def _cooccurrence_relations(entities, text):
+    """Link entities that appear together in the same sentence (RELATED_TO).
+
+    Gives non-CIM documents a real entity graph instead of isolated nodes.
+    """
+    from app.models.schemas import ExtractedRelation as SchemaRelation
+    names = [(e.name, e.name.lower()) for e in entities if len(e.name) >= 3]
+    if len(names) < 2:
+        return []
+    sentences = re.split(r"[.!?\n]+", text[:120_000])[:3000]
+    pair_count: dict[tuple[str, str], int] = {}
+    for s in sentences:
+        sl = s.lower()
+        present: list[str] = []
+        for orig, low in names:
+            if low in sl and orig not in present:
+                present.append(orig)
+        for i in range(len(present)):
+            for j in range(i + 1, len(present)):
+                a, b = sorted((present[i], present[j]))
+                pair_count[(a, b)] = pair_count.get((a, b), 0) + 1
+    top = sorted(pair_count.items(), key=lambda kv: -kv[1])[:300]
+    return [
+        SchemaRelation(source=a, relation="RELATED_TO", target=b,
+                       confidence=min(0.5 + cnt * 0.1, 0.95))
+        for (a, b), cnt in top
+    ]
 
 
 class IngestionPipeline:
@@ -109,6 +139,10 @@ class IngestionPipeline:
                         target=target_name,
                         confidence=1.0,
                     ))
+
+        # Non-CIM documents: build co-occurrence relations so the graph has edges
+        if not relations and len(entities) >= 2:
+            relations = await asyncio.to_thread(_cooccurrence_relations, entities, parse_result.text)
 
         doc = ExtractedDocument(
             job_id=job_id,
