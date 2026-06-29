@@ -423,8 +423,9 @@ export default function Agent() {
               <div>
                 <h3 className="text-base font-semibold text-cg-txt mb-1.5">AI Agent Ready</h3>
                 <p className="text-sm text-cg-muted max-w-sm">
-                  I can query the knowledge graph, run anomaly models, predict failures,
-                  and generate insights from your data.
+                  Autonomous agent with tools: I query the graph (entity lookups, neighbors),
+                  run anomaly models, predict failures and generate insights. For quick cited
+                  answers from your documents, use GraphRAG Chat.
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-2 w-full max-w-xs">

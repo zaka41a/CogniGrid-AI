@@ -3,6 +3,7 @@ Fetches graph context from Neo4j to enrich RAG responses.
 Extracts entities from query → finds them in graph → retrieves neighbors.
 """
 import logging
+import re
 from neo4j import AsyncGraphDatabase
 from app.config import settings
 from app.models.schemas import GraphContextNode
@@ -12,6 +13,23 @@ logger = logging.getLogger(__name__)
 _driver = None
 
 SHARED_USER_ID = "__shared__"
+
+
+def _query_tokens(query: str) -> list[str]:
+    """Extract candidate entity tokens from a query.
+
+    Keeps real words (len >= 4) and short identifiers that contain a digit or
+    underscore (SM_1, G1, SS_4bus), after stripping punctuation. This lets the
+    graph lookup catch entity names that vector search over text misses.
+    """
+    raw = re.findall(r"[A-Za-z0-9_]+", query)
+    out: list[str] = []
+    for t in raw:
+        if len(t) >= 4 or (len(t) >= 2 and re.search(r"[\d_]", t)):
+            low = t.lower()
+            if low not in out:
+                out.append(low)
+    return out[:8]
 
 
 def _get_driver():
@@ -33,7 +51,7 @@ async def get_graph_context(query: str, hops: int = 2,
     2. Find matching entities mentioned in the user's Document nodes
     3. Retrieve their neighbors up to `hops` away (still within the user's subgraph)
     """
-    words = [w.strip() for w in query.split() if len(w.strip()) > 3]
+    words = _query_tokens(query)
     if not words:
         return []
 
@@ -41,7 +59,7 @@ async def get_graph_context(query: str, hops: int = 2,
     effective_id = SHARED_USER_ID if scope == "assume" else user_id
 
     # Build OR filter for entity text matches (parameterised per word)
-    word_params = {f"w{i}": w.lower() for i, w in enumerate(words[:5])}
+    word_params = {f"w{i}": w for i, w in enumerate(words)}
     conditions = " OR ".join(
         [f"toLower(e.text) CONTAINS $w{i}" for i in range(len(word_params))]
     )

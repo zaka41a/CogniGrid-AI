@@ -476,8 +476,9 @@ export default function Rag() {
               <div>
                 <h3 className="text-base font-semibold text-cg-txt mb-1">GraphRAG Chat</h3>
                 <p className="text-sm text-cg-muted max-w-sm">
-                  Ask questions about your documents and knowledge graph.
-                  I'll retrieve relevant context and generate grounded answers.
+                  Best for questions about your document content. I retrieve relevant
+                  text and graph context, then answer with sources. For entity lookups,
+                  models or multi-step tasks, use the AI Agent.
                 </p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-md">
