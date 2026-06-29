@@ -6,7 +6,7 @@ import ReactFlow, {
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { parse, stringify } from 'yaml'
-import { Factory, Plug, Building2, BatteryCharging, Users, Plus, Trash2, X, SlidersHorizontal, Maximize2, Minimize2, LayoutGrid } from 'lucide-react'
+import { Factory, Plug, Building2, BatteryCharging, Users, Plus, Trash2, X, SlidersHorizontal, Maximize2, Minimize2, LayoutGrid, Undo2, Redo2 } from 'lucide-react'
 
 type Doc = Record<string, any>
 type XY = { x: number; y: number }
@@ -174,6 +174,8 @@ export default function VisualBuilder({ yaml, onChange }: { yaml: string; onChan
   const [extraOps, setExtraOps] = useState<string[]>([])
   const [sel, setSel] = useState<Sel>(null)
   const [full, setFull] = useState(false)
+  const [past, setPast] = useState<Doc[]>([])
+  const [future, setFuture] = useState<Doc[]>([])
   const posRef = useRef<Record<string, XY>>({})
 
   const ops = useMemo(() => {
@@ -204,7 +206,30 @@ export default function VisualBuilder({ yaml, onChange }: { yaml: string; onChan
     })
   }, [])
 
-  const commit = useCallback((next: Doc) => { setDoc(next); onChange(stringify(next)) }, [onChange])
+  const commit = (next: Doc) => {
+    setPast(p => [...p, doc].slice(-50))
+    setFuture([])
+    setDoc(next)
+    onChange(stringify(next))
+  }
+  const undo = () => {
+    if (!past.length) return
+    const prev = past[past.length - 1]
+    setPast(past.slice(0, -1))
+    setFuture(f => [doc, ...f])
+    setDoc(prev)
+    onChange(stringify(prev))
+    setSel(null)
+  }
+  const redo = () => {
+    if (!future.length) return
+    const nxt = future[0]
+    setFuture(future.slice(1))
+    setPast(p => [...p, doc])
+    setDoc(nxt)
+    onChange(stringify(nxt))
+    setSel(null)
+  }
   const handleNodesChange = useCallback((changes: NodeChange[]) => {
     onNodesChange(changes)
     changes.forEach(c => { if (c.type === 'position' && c.position) posRef.current[c.id] = c.position })
@@ -301,17 +326,31 @@ export default function VisualBuilder({ yaml, onChange }: { yaml: string; onChan
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Delete' && e.key !== 'Backspace') return
       const el = document.activeElement
-      if (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return
-      if (!sel) return
-      e.preventDefault()
-      if (sel.kind === 'op') removeOperator(sel.name)
-      else if (sel.kind === 'ent' && (sel.section as string) !== 'markets') removeEntity(sel.section, sel.key)
+      const typing = !!el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)
+      const mod = e.metaKey || e.ctrlKey
+      if (mod && e.key.toLowerCase() === 'z') {
+        if (typing) return
+        e.preventDefault()
+        if (e.shiftKey) redo(); else undo()
+        return
+      }
+      if (mod && e.key.toLowerCase() === 'y') {
+        if (typing) return
+        e.preventDefault()
+        redo()
+        return
+      }
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (typing || !sel) return
+        e.preventDefault()
+        if (sel.kind === 'op') removeOperator(sel.name)
+        else if (sel.kind === 'ent' && (sel.section as string) !== 'markets') removeEntity(sel.section, sel.key)
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [sel, doc])
+  }, [sel, doc, past, future])
 
   const general = doc.general ?? {}
   const markets = Object.keys(doc.markets ?? {})
@@ -342,6 +381,12 @@ export default function VisualBuilder({ yaml, onChange }: { yaml: string; onChan
             <button onClick={() => addEntity('demand', 'demand', DEMAND_DEFAULT)} className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg bg-blue-500 text-white shadow hover:opacity-90"><Plus size={12} /> Demand</button>
           </div>
           <div className="absolute z-10 top-2 right-2 flex items-center gap-2">
+            <button onClick={undo} disabled={!past.length} title="Undo (Ctrl+Z)" className="flex items-center justify-center w-8 h-8 rounded-lg bg-cg-surface border border-cg-border text-cg-txt shadow hover:bg-cg-s2 disabled:opacity-40">
+              <Undo2 size={13} />
+            </button>
+            <button onClick={redo} disabled={!future.length} title="Redo (Ctrl+Shift+Z)" className="flex items-center justify-center w-8 h-8 rounded-lg bg-cg-surface border border-cg-border text-cg-txt shadow hover:bg-cg-s2 disabled:opacity-40">
+              <Redo2 size={13} />
+            </button>
             <button onClick={tidy} className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg bg-cg-surface border border-cg-border text-cg-txt shadow hover:bg-cg-s2">
               <LayoutGrid size={12} /> Tidy
             </button>
