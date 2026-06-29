@@ -53,6 +53,8 @@ public class AuthService {
 
         userRepository.save(user);
         log.info("New user registered: {}", user.getEmail());
+        activityService.record(ActivityService.REGISTER, user.getEmail(),
+                user.getId(), user.getEmail(), "self-registration");
 
         return buildAuthResponse(user);
     }

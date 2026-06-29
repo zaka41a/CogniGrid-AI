@@ -22,6 +22,7 @@ public class ActivityService {
 
     public static final String LOGIN_OK         = "LOGIN_OK";
     public static final String LOGIN_FAIL       = "LOGIN_FAIL";
+    public static final String REGISTER         = "REGISTER";
     public static final String PASSWORD_RESET   = "PASSWORD_RESET";
     public static final String PASSWORD_CHANGE  = "PASSWORD_CHANGE";
     public static final String ROLE_CHANGE      = "ROLE_CHANGE";
