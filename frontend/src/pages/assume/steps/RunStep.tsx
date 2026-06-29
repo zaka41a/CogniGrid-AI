@@ -1,14 +1,38 @@
-import { useState, useEffect, useRef } from 'react'
-import { Play, Loader2, Trash2, BarChart3 } from 'lucide-react'
+import { useState, useEffect, useRef, useMemo } from 'react'
+import { Play, Loader2, Trash2, BarChart3, AlertTriangle, Info } from 'lucide-react'
+import { parse } from 'yaml'
 import { useStudio } from '../studioStore'
 import { runnerApi, type RunInfo, STATUS_STYLE } from '../runner'
+import { useToast } from '../../../components/ui/Toast'
+
+function validateScenario(yamlStr: string): { errors: string[]; warnings: string[] } {
+  const errors: string[] = []
+  const warnings: string[] = []
+  let doc: Record<string, any>
+  try {
+    const parsed = parse(yamlStr)
+    doc = parsed && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return { errors: ['The YAML is invalid and cannot be parsed.'], warnings: [] }
+  }
+  if (Object.keys(doc.markets ?? {}).length === 0) errors.push('No market defined. Add a market (for example EOM).')
+  const g = doc.general ?? {}
+  if (g.start_date && g.end_date && String(g.end_date) <= String(g.start_date)) errors.push('End date must be after start date.')
+  if (Object.keys(doc.units ?? {}).length === 0 && Object.keys(doc.storage_units ?? {}).length === 0)
+    warnings.push('No generation or storage unit. The market may not clear.')
+  if (Object.keys(doc.demand ?? {}).length === 0) warnings.push('No demand unit. A default demand will be used.')
+  return { errors, warnings }
+}
 
 export default function RunStep() {
   const { yaml, scenarioName, pushGraph, setPushGraph, selectedRunId, setSelectedRunId, setStep, timeseries } = useStudio()
+  const toast = useToast()
   const [runs, setRuns] = useState<RunInfo[]>([])
   const [online, setOnline] = useState<boolean | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const logRef = useRef<HTMLDivElement>(null)
+  const { errors, warnings } = useMemo(() => validateScenario(yaml), [yaml])
+  const canRun = errors.length === 0
 
   useEffect(() => {
     let alive = true
@@ -33,9 +57,9 @@ export default function RunStep() {
 
   const launch = async () => {
     if (!yaml.trim() || submitting) return
+    if (!canRun) { toast.error('Cannot run', errors[0]); return }
     setSubmitting(true)
     try {
-      // Send any uploaded timeseries (B2). Map store keys → backend keys.
       const ts: Record<string, string> = {}
       if (timeseries.demand?.csv)       ts.demand       = timeseries.demand.csv
       if (timeseries.availability?.csv) ts.availability = timeseries.availability.csv
@@ -46,8 +70,9 @@ export default function RunStep() {
       })
       setRuns(prev => [data, ...prev])
       setSelectedRunId(data.run_id)
+      toast.success('Simulation started', scenarioName)
     } catch (e: unknown) {
-      alert((e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? 'Failed to start run')
+      toast.error('Failed to start run', (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail)
     } finally {
       setSubmitting(false)
     }
@@ -66,12 +91,28 @@ export default function RunStep() {
           <h2 className="text-lg font-bold text-cg-txt mb-1">Run simulation</h2>
           <p className="text-sm text-cg-muted">Execute the scenario and stream the ASSUME log.</p>
         </div>
-        <button onClick={launch} disabled={submitting || online === false}
+        <button onClick={launch} disabled={submitting || online === false || !canRun}
+          title={!canRun ? errors[0] : undefined}
           className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-cg-primary text-white shadow-cg hover:opacity-90 disabled:opacity-40 transition-opacity">
           {submitting ? <Loader2 size={15} className="animate-spin" /> : <Play size={15} />}
           Launch
         </button>
       </div>
+
+      {(errors.length > 0 || warnings.length > 0) && (
+        <div className="space-y-1.5">
+          {errors.map((m, i) => (
+            <div key={`e${i}`} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-red-500/40 bg-red-500/10 text-xs text-red-500">
+              <AlertTriangle size={13} className="shrink-0" /> {m}
+            </div>
+          ))}
+          {warnings.map((m, i) => (
+            <div key={`w${i}`} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-amber-500/40 bg-amber-500/10 text-xs text-amber-500">
+              <Info size={13} className="shrink-0" /> {m}
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs ${
         online === null ? 'border-cg-border bg-cg-s2 text-cg-faint'

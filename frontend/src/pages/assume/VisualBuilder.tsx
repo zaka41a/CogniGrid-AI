@@ -6,7 +6,7 @@ import ReactFlow, {
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { parse, stringify } from 'yaml'
-import { Factory, Plug, Building2, BatteryCharging, Users, Plus, Trash2, X, SlidersHorizontal, Maximize2, Minimize2 } from 'lucide-react'
+import { Factory, Plug, Building2, BatteryCharging, Users, Plus, Trash2, X, SlidersHorizontal, Maximize2, Minimize2, LayoutGrid } from 'lucide-react'
 
 type Doc = Record<string, any>
 type XY = { x: number; y: number }
@@ -294,6 +294,25 @@ export default function VisualBuilder({ yaml, onChange }: { yaml: string; onChan
     setSel(null)
   }
 
+  const tidy = () => {
+    posRef.current = {}
+    setNodes(buildGraph(doc, ops, sel, posRef.current).nodes)
+  }
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return
+      const el = document.activeElement
+      if (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return
+      if (!sel) return
+      e.preventDefault()
+      if (sel.kind === 'op') removeOperator(sel.name)
+      else if (sel.kind === 'ent' && (sel.section as string) !== 'markets') removeEntity(sel.section, sel.key)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [sel, doc])
+
   const general = doc.general ?? {}
   const markets = Object.keys(doc.markets ?? {})
   const num = (section: Section, key: string, field: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -322,9 +341,14 @@ export default function VisualBuilder({ yaml, onChange }: { yaml: string; onChan
             <button onClick={() => addEntity('storage_units', 'storage', STORAGE_DEFAULT)} className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg bg-amber-500 text-white shadow hover:opacity-90"><Plus size={12} /> Storage</button>
             <button onClick={() => addEntity('demand', 'demand', DEMAND_DEFAULT)} className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg bg-blue-500 text-white shadow hover:opacity-90"><Plus size={12} /> Demand</button>
           </div>
-          <button onClick={toggleFull} className="absolute z-10 top-2 right-2 flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg bg-cg-surface border border-cg-border text-cg-txt shadow hover:bg-cg-s2">
-            {full ? <Minimize2 size={12} /> : <Maximize2 size={12} />}{full ? 'Exit' : 'Fullscreen'}
-          </button>
+          <div className="absolute z-10 top-2 right-2 flex items-center gap-2">
+            <button onClick={tidy} className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg bg-cg-surface border border-cg-border text-cg-txt shadow hover:bg-cg-s2">
+              <LayoutGrid size={12} /> Tidy
+            </button>
+            <button onClick={toggleFull} className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg bg-cg-surface border border-cg-border text-cg-txt shadow hover:bg-cg-s2">
+              {full ? <Minimize2 size={12} /> : <Maximize2 size={12} />}{full ? 'Exit' : 'Fullscreen'}
+            </button>
+          </div>
           <ReactFlow nodes={nodes} edges={graph.edges} nodeTypes={nodeTypes} onNodesChange={handleNodesChange} onNodeClick={onNodeClick} fitView proOptions={{ hideAttribution: true }}>
             <Background color="#cbd5e1" gap={18} />
             <Controls showInteractive={false} />
