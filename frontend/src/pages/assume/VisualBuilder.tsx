@@ -6,7 +6,7 @@ import ReactFlow, {
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { parse, stringify } from 'yaml'
-import { Factory, Plug, Building2, BatteryCharging, Users, Plus, Trash2, X, SlidersHorizontal, Maximize2, Minimize2, LayoutGrid, Undo2, Redo2 } from 'lucide-react'
+import { Factory, Plug, Building2, BatteryCharging, Users, Plus, Trash2, X, SlidersHorizontal, Maximize2, Minimize2, LayoutGrid, Undo2, Redo2, AlertTriangle, Copy } from 'lucide-react'
 
 type Doc = Record<string, any>
 type XY = { x: number; y: number }
@@ -64,23 +64,67 @@ function membersOf(doc: Doc, op: string) {
   return res
 }
 
-function ChildBody({ icon, label, sub, color, selected }: { icon: React.ReactNode; label: string; sub: string; color: string; selected: boolean }) {
+function entityIssue(section: Section, v: any): string | null {
+  const eff = (x: any) => x != null && (x <= 0 || x > 1)
+  if (section === 'demand') {
+    if (!(Number(v?.max_power) > 0)) return 'Max power must be greater than 0'
+    if ((Number(v?.min_power) || 0) > (Number(v?.max_power) || 0)) return 'Min power exceeds max power'
+    return null
+  }
+  if (section === 'storage_units') {
+    if (!(Number(v?.max_power_charge) > 0) && !(Number(v?.max_power_discharge) > 0)) return 'Charge or discharge power must be greater than 0'
+    if (!(Number(v?.max_soc) > 0)) return 'Max SoC must be greater than 0'
+    if (eff(v?.efficiency_charge) || eff(v?.efficiency_discharge)) return 'Efficiency must be between 0 and 1'
+    return null
+  }
+  if (!(Number(v?.max_power) > 0)) return 'Max power must be greater than 0'
+  if ((Number(v?.min_power) || 0) > (Number(v?.max_power) || 0)) return 'Min power exceeds max power'
+  if (eff(v?.efficiency)) return 'Efficiency must be between 0 and 1'
+  return null
+}
+
+function computeKpis(doc: Doc) {
+  const units = Object.values<any>(doc.units ?? {})
+  const storage = Object.values<any>(doc.storage_units ?? {})
+  const demand = Object.values<any>(doc.demand ?? {})
+  const supply = units.reduce((s, u) => s + (Number(u?.max_power) || 0), 0)
+    + storage.reduce((s, u) => s + (Number(u?.max_power_discharge) || 0), 0)
+  const dem = demand.reduce((s, u) => s + (Number(u?.max_power) || 0), 0)
+  const margin = dem > 0 ? ((supply - dem) / dem) * 100 : null
+  let issues = 0
+  for (const sec of SECTIONS)
+    for (const v of Object.values<any>(doc[sec] ?? {}))
+      if (entityIssue(sec, v)) issues++
+  return { supply, demand: dem, margin, units: units.length, storage: storage.length, demandCount: demand.length, issues }
+}
+
+function ChildBody({ icon, label, sub, color, selected, invalid, issue }: { icon: React.ReactNode; label: string; sub: string; color: string; selected: boolean; invalid?: boolean; issue?: string }) {
+  const border = invalid ? '#EF4444' : (selected ? color : color + '55')
   return (
-    <div className="rounded-lg bg-white px-2.5 py-1.5 shadow-sm h-full" style={{ border: `2px solid ${selected ? color : color + '55'}` }}>
+    <div className="rounded-lg bg-white px-2.5 py-1.5 shadow-sm h-full relative" style={{ border: `2px solid ${border}` }}>
       <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-800">{icon}{label}</div>
       <div className="text-[9px] text-slate-500 mt-0.5 truncate">{sub}</div>
+      {invalid && (
+        <span title={issue} className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center shadow">
+          <AlertTriangle size={9} />
+        </span>
+      )}
     </div>
   )
 }
-const UnitNode = ({ data, selected }: NodeProps) => <ChildBody icon={<Factory size={11} className="text-emerald-600" />} label={data.label} sub={data.sub} color="#10B981" selected={!!selected} />
-const StorageNode = ({ data, selected }: NodeProps) => <ChildBody icon={<BatteryCharging size={11} className="text-amber-600" />} label={data.label} sub={data.sub} color="#F59E0B" selected={!!selected} />
-const DemandNode = ({ data, selected }: NodeProps) => <ChildBody icon={<Plug size={11} className="text-blue-600" />} label={data.label} sub={data.sub} color="#3B82F6" selected={!!selected} />
+const UnitNode = ({ data, selected }: NodeProps) => <ChildBody icon={<Factory size={11} className="text-emerald-600" />} label={data.label} sub={data.sub} color="#10B981" selected={!!selected} invalid={data.invalid} issue={data.issue} />
+const StorageNode = ({ data, selected }: NodeProps) => <ChildBody icon={<BatteryCharging size={11} className="text-amber-600" />} label={data.label} sub={data.sub} color="#F59E0B" selected={!!selected} invalid={data.invalid} issue={data.issue} />
+const DemandNode = ({ data, selected }: NodeProps) => <ChildBody icon={<Plug size={11} className="text-blue-600" />} label={data.label} sub={data.sub} color="#3B82F6" selected={!!selected} invalid={data.invalid} issue={data.issue} />
 
 function OperatorNode({ data, selected }: NodeProps) {
   return (
     <div className="h-full w-full rounded-2xl bg-slate-50/80 backdrop-blur-sm" style={{ border: `2px solid ${selected ? data.color : data.color + '66'}` }}>
       <div className="flex items-center gap-1.5 px-3 h-9 rounded-t-2xl text-[11px] font-bold text-white" style={{ background: data.color }}>
-        <Users size={12} />{data.label}<span className="ml-auto font-normal opacity-80">{data.count}</span>
+        <Users size={12} />{data.label}
+        {data.issues > 0 && (
+          <span className="ml-1 flex items-center gap-0.5 text-[9px] bg-red-500 rounded-full px-1.5 py-0.5"><AlertTriangle size={8} />{data.issues}</span>
+        )}
+        <span className="ml-auto font-normal opacity-80">{data.count}</span>
       </div>
       <Handle type="source" position={data.side === 'demand' ? Position.Left : Position.Right} className="!w-2.5 !h-2.5" style={{ background: data.color }} />
     </div>
@@ -135,9 +179,10 @@ function buildGraph(doc: Doc, ops: string[], sel: Sel, pos: Record<string, XY>):
     const def = demand ? { x: RIGHT_X, y: yR } : { x: LEFT_X, y: yL }
     if (demand) yR += height + 24; else yL += height + 24
     const p = pos[opId] ?? def
+    const opIssues = members.filter(m => entityIssue(m.section, m.v)).length
     nodes.push({
       id: opId, type: 'operator', position: p, draggable: true,
-      style: { width: CONT_W, height }, data: { label: op, color: colorOf(i), count: members.length, side: demand ? 'demand' : 'supply' },
+      style: { width: CONT_W, height }, data: { label: op, color: colorOf(i), count: members.length, side: demand ? 'demand' : 'supply', issues: opIssues },
       selected: sel?.kind === 'op' && sel.name === op,
     })
     members.forEach((m, j) => {
@@ -146,10 +191,12 @@ function buildGraph(doc: Doc, ops: string[], sel: Sel, pos: Record<string, XY>):
       const sub = m.section === 'units' ? `${m.v?.fuel_type ?? 'unit'} . ${m.v?.max_power ?? '?'} MW`
         : m.section === 'storage_units' ? `storage . ${m.v?.max_power_discharge ?? '?'} MW`
         : `demand . ${m.v?.max_power ?? '?'} MW`
+      const issue = entityIssue(m.section, m.v)
       nodes.push({
         id, type: childType[m.section], parentId: opId, extent: 'parent',
         position: rel, draggable: true, style: { width: CHILD_W, height: CHILD_H },
-        data: { label: m.key, sub }, selected: sel?.kind === 'ent' && sel.section === m.section && sel.key === m.key,
+        data: { label: m.key, sub, invalid: !!issue, issue: issue ?? undefined },
+        selected: sel?.kind === 'ent' && sel.section === m.section && sel.key === m.key,
       })
     })
     if (market) edges.push({
@@ -278,6 +325,14 @@ export default function VisualBuilder({ yaml, onChange }: { yaml: string; onChan
     commit({ ...doc, [section]: sect })
     setSel(null)
   }
+  const duplicateEntity = (section: Section, key: string) => {
+    const src = (doc[section] ?? {})[key]
+    if (!src) return
+    const base = key.replace(/_\d+$/, '') || section.slice(0, -1)
+    const newKey = uniqueKey(section, base)
+    commit({ ...doc, [section]: { ...(doc[section] ?? {}), [newKey]: { ...src } } })
+    setSel({ kind: 'ent', section, key: newKey })
+  }
   const setField = (section: Section, key: string, field: string, value: unknown) => {
     const sect = { ...(doc[section] ?? {}) }
     sect[key] = { ...(sect[key] ?? {}), [field]: value }
@@ -341,6 +396,12 @@ export default function VisualBuilder({ yaml, onChange }: { yaml: string; onChan
         redo()
         return
       }
+      if (mod && e.key.toLowerCase() === 'd') {
+        if (typing) return
+        e.preventDefault()
+        if (sel?.kind === 'ent' && (sel.section as string) !== 'markets') duplicateEntity(sel.section, sel.key)
+        return
+      }
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (typing || !sel) return
         e.preventDefault()
@@ -354,6 +415,7 @@ export default function VisualBuilder({ yaml, onChange }: { yaml: string; onChan
 
   const general = doc.general ?? {}
   const markets = Object.keys(doc.markets ?? {})
+  const kpis = computeKpis(doc)
   const num = (section: Section, key: string, field: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const n = parseFloat(e.target.value)
     setField(section, key, field, Number.isFinite(n) ? n : 0)
@@ -370,6 +432,14 @@ export default function VisualBuilder({ yaml, onChange }: { yaml: string; onChan
         <Field label="Start date"><input value={general.start_date ?? ''} onChange={e => setGeneral('start_date', e.target.value)} className={INPUT} /></Field>
         <Field label="End date"><input value={general.end_date ?? ''} onChange={e => setGeneral('end_date', e.target.value)} className={INPUT} /></Field>
         <Field label="Time step"><input value={general.time_step ?? ''} onChange={e => setGeneral('time_step', e.target.value)} className={INPUT} /></Field>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 shrink-0">
+        <Kpi label="Supply" value={`${Math.round(kpis.supply)} MW`} tone="emerald" />
+        <Kpi label="Demand" value={`${Math.round(kpis.demand)} MW`} tone="blue" />
+        <Kpi label="Reserve margin" value={kpis.margin == null ? 'n/a' : `${kpis.margin >= 0 ? '+' : ''}${kpis.margin.toFixed(0)}%`} tone={kpis.margin == null || kpis.margin >= 0 ? 'emerald' : 'red'} />
+        <Kpi label="Units" value={`${kpis.units} gen · ${kpis.storage} stor · ${kpis.demandCount} dem`} tone="slate" />
+        <Kpi label="Issues" value={String(kpis.issues)} tone={kpis.issues > 0 ? 'red' : 'slate'} />
       </div>
 
       <div className={full ? 'flex gap-3 flex-1 min-h-0' : 'flex gap-3 h-[60vh]'}>
@@ -394,7 +464,7 @@ export default function VisualBuilder({ yaml, onChange }: { yaml: string; onChan
               {full ? <Minimize2 size={12} /> : <Maximize2 size={12} />}{full ? 'Exit' : 'Fullscreen'}
             </button>
           </div>
-          <ReactFlow nodes={nodes} edges={graph.edges} nodeTypes={nodeTypes} onNodesChange={handleNodesChange} onNodeClick={onNodeClick} fitView proOptions={{ hideAttribution: true }}>
+          <ReactFlow nodes={nodes} edges={graph.edges} nodeTypes={nodeTypes} onNodesChange={handleNodesChange} onNodeClick={onNodeClick} fitView snapToGrid snapGrid={[16, 16]} proOptions={{ hideAttribution: true }}>
             <Background color="#cbd5e1" gap={18} />
             <Controls showInteractive={false} />
             <MiniMap pannable zoomable nodeColor={n => MINIMAP_COLOR[n.type ?? 'unit'] ?? '#94a3b8'} maskColor="rgba(148,163,184,0.15)" />
@@ -478,7 +548,10 @@ export default function VisualBuilder({ yaml, onChange }: { yaml: string; onChan
                 </div>
               )}
 
-              <button onClick={() => removeEntity(sel.section, sel.key)} className="flex items-center gap-1.5 text-[11px] font-semibold text-cg-danger hover:underline"><Trash2 size={12} /> Delete node</button>
+              <div className="flex items-center gap-3">
+                <button onClick={() => duplicateEntity(sel.section, sel.key)} className="flex items-center gap-1.5 text-[11px] font-semibold text-cg-primary hover:underline"><Copy size={12} /> Duplicate</button>
+                <button onClick={() => removeEntity(sel.section, sel.key)} className="flex items-center gap-1.5 text-[11px] font-semibold text-cg-danger hover:underline"><Trash2 size={12} /> Delete node</button>
+              </div>
             </div>
           ) : (
             <p className="text-xs text-cg-faint">Click an operator, a node or the market to edit it. Use the toolbar to add an operator, power plant, storage or demand.</p>
@@ -504,5 +577,20 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <span className="block text-[10px] font-semibold uppercase tracking-wide text-cg-muted mb-1">{label}</span>
       {children}
     </label>
+  )
+}
+
+const KPI_TONE: Record<string, string> = {
+  emerald: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600',
+  blue:    'border-blue-500/30 bg-blue-500/10 text-blue-600',
+  red:     'border-red-500/30 bg-red-500/10 text-red-600',
+  slate:   'border-cg-border bg-cg-s2 text-cg-muted',
+}
+function Kpi({ label, value, tone }: { label: string; value: string; tone: keyof typeof KPI_TONE }) {
+  return (
+    <div className={`flex flex-col rounded-xl border px-3 py-1.5 ${KPI_TONE[tone]}`}>
+      <span className="text-[9px] font-semibold uppercase tracking-wide opacity-70">{label}</span>
+      <span className="text-sm font-bold leading-tight">{value}</span>
+    </div>
   )
 }
