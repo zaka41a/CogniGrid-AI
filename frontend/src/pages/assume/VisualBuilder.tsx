@@ -339,6 +339,14 @@ export default function VisualBuilder({ yaml, onChange }: { yaml: string; onChan
     commit({ ...doc, [section]: sect })
   }
   const setGeneral = (field: string, value: unknown) => commit({ ...doc, general: { ...(doc.general ?? {}), [field]: value } })
+  const setMarketField = (mkt: string, field: string, value: unknown) =>
+    commit({ ...doc, markets: { ...doc.markets, [mkt]: { ...(doc.markets?.[mkt] ?? {}), [field]: value } } })
+  const setMarketProduct = (mkt: string, field: string, value: unknown) => {
+    const m = { ...(doc.markets?.[mkt] ?? {}) }
+    const list = Array.isArray(m.products) && m.products.length ? m.products : [{ duration: '1h', count: 24, first_delivery: '0h' }]
+    m.products = list.map((p: any, i: number) => (i === 0 ? { ...p, [field]: value } : p))
+    commit({ ...doc, markets: { ...doc.markets, [mkt]: m } })
+  }
   const setBidding = (section: Section, key: string, value: string) => setField(section, key, 'bidding_strategies', { [Object.keys(doc.markets ?? {})[0] ?? 'EOM']: value })
   const renameEntity = (section: Section, oldKey: string, newKey: string) => {
     const clean = newKey.trim()
@@ -487,8 +495,12 @@ export default function VisualBuilder({ yaml, onChange }: { yaml: string; onChan
           ) : sel?.kind === 'ent' && (sel.section as string) === 'markets' && doc.markets?.[sel.key] ? (
             <div className="space-y-3">
               <PanelHead label="market" onClose={() => setSel(null)} />
-              <Field label="Operator"><input value={doc.markets[sel.key].operator ?? ''} onChange={e => commit({ ...doc, markets: { ...doc.markets, [sel.key]: { ...doc.markets[sel.key], operator: e.target.value } } })} className={INPUT} /></Field>
-              <Field label="Product"><input value={doc.markets[sel.key].product ?? ''} onChange={e => commit({ ...doc, markets: { ...doc.markets, [sel.key]: { ...doc.markets[sel.key], product: e.target.value } } })} className={INPUT} /></Field>
+              <Field label="Operator"><input value={doc.markets[sel.key].operator ?? ''} onChange={e => setMarketField(sel.key, 'operator', e.target.value)} className={INPUT} /></Field>
+              <Field label="Product"><input value={doc.markets[sel.key].product ?? ''} onChange={e => setMarketField(sel.key, 'product', e.target.value)} className={INPUT} /></Field>
+              <div className="grid grid-cols-2 gap-2">
+                <Field label="Product duration"><input value={doc.markets[sel.key].products?.[0]?.duration ?? '1h'} onChange={e => setMarketProduct(sel.key, 'duration', e.target.value)} className={INPUT} /></Field>
+                <Field label="Product count"><input type="number" value={doc.markets[sel.key].products?.[0]?.count ?? 24} onChange={e => { const n = parseInt(e.target.value, 10); setMarketProduct(sel.key, 'count', Number.isFinite(n) ? n : 24) }} className={INPUT} /></Field>
+              </div>
             </div>
           ) : sel?.kind === 'ent' && ent ? (
             <div className="space-y-3">
@@ -513,6 +525,10 @@ export default function VisualBuilder({ yaml, onChange }: { yaml: string; onChan
                     <Field label="Emission"><input type="number" step="0.01" value={ent.emission_factor ?? 0} onChange={num('units', sel.key, 'emission_factor')} className={INPUT} /></Field>
                   </div>
                   <Field label="Marginal cost (EUR/MWh)"><input type="number" step="0.1" value={ent.additional_cost ?? 0} onChange={num('units', sel.key, 'additional_cost')} className={INPUT} /></Field>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Field label="Start cost (EUR)"><input type="number" step="1" value={ent.start_cost ?? 0} onChange={num('units', sel.key, 'start_cost')} className={INPUT} /></Field>
+                    <Field label="Fixed cost (EUR)"><input type="number" step="1" value={ent.fixed_cost ?? 0} onChange={num('units', sel.key, 'fixed_cost')} className={INPUT} /></Field>
+                  </div>
                   <Field label="Bidding strategy">
                     <select value={ent.bidding_strategies?.[markets[0] ?? 'EOM'] ?? 'NaiveSingleBidStrategy'} onChange={e => setBidding('units', sel.key, e.target.value)} className={INPUT}>
                       <option>NaiveSingleBidStrategy</option><option>flexable_eom</option><option>flexable_eom_block</option>
