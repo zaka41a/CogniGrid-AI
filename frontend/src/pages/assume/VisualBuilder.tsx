@@ -1,12 +1,13 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { toPng } from 'html-to-image'
 import ReactFlow, {
   Background, Controls, MiniMap, Handle, Position, MarkerType, useNodesState,
   type Node, type Edge, type NodeProps, type NodeChange,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { parse, stringify } from 'yaml'
-import { Factory, Plug, Building2, BatteryCharging, Users, Plus, Trash2, X, SlidersHorizontal, Maximize2, Minimize2, LayoutGrid, Undo2, Redo2, AlertTriangle, Copy } from 'lucide-react'
+import { Factory, Plug, Building2, BatteryCharging, Users, Plus, Trash2, X, SlidersHorizontal, Maximize2, Minimize2, LayoutGrid, Undo2, Redo2, AlertTriangle, Copy, ImageDown } from 'lucide-react'
 
 type Doc = Record<string, any>
 type XY = { x: number; y: number }
@@ -17,7 +18,7 @@ const INPUT = 'w-full bg-cg-bg border border-cg-border rounded-lg px-2.5 py-1.5 
 const OP_COLORS = ['#6366F1', '#0EA5E9', '#14B8A6', '#F59E0B', '#EC4899', '#84CC16', '#A855F7', '#EF4444']
 const SECTIONS: Section[] = ['units', 'storage_units', 'demand']
 const CHILD_W = 196
-const CHILD_H = 56
+const CHILD_H = 64
 const HEAD_H = 46
 const CONT_W = 232
 
@@ -98,12 +99,15 @@ function computeKpis(doc: Doc) {
   return { supply, demand: dem, margin, units: units.length, storage: storage.length, demandCount: demand.length, issues }
 }
 
-function ChildBody({ icon, label, sub, color, selected, invalid, issue }: { icon: React.ReactNode; label: string; sub: string; color: string; selected: boolean; invalid?: boolean; issue?: string }) {
+function ChildBody({ icon, label, sub, color, selected, invalid, issue, cap }: { icon: React.ReactNode; label: string; sub: string; color: string; selected: boolean; invalid?: boolean; issue?: string; cap?: number }) {
   const border = invalid ? '#EF4444' : (selected ? color : color + '55')
   return (
-    <div className="rounded-lg bg-white px-2.5 py-1.5 shadow-sm h-full relative" style={{ border: `2px solid ${border}` }}>
+    <div className="rounded-lg bg-white px-2.5 py-1.5 shadow-sm h-full relative flex flex-col justify-center" style={{ border: `2px solid ${border}` }}>
       <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-800">{icon}{label}</div>
       <div className="text-[9px] text-slate-500 mt-0.5 truncate">{sub}</div>
+      <div className="h-1 rounded-full bg-slate-100 mt-1 overflow-hidden">
+        <div className="h-full rounded-full" style={{ width: `${Math.round(Math.min(cap ?? 0, 1) * 100)}%`, background: color }} />
+      </div>
       {invalid && (
         <span title={issue} className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center shadow">
           <AlertTriangle size={9} />
@@ -112,9 +116,9 @@ function ChildBody({ icon, label, sub, color, selected, invalid, issue }: { icon
     </div>
   )
 }
-const UnitNode = ({ data, selected }: NodeProps) => <ChildBody icon={<Factory size={11} className="text-emerald-600" />} label={data.label} sub={data.sub} color="#10B981" selected={!!selected} invalid={data.invalid} issue={data.issue} />
-const StorageNode = ({ data, selected }: NodeProps) => <ChildBody icon={<BatteryCharging size={11} className="text-amber-600" />} label={data.label} sub={data.sub} color="#F59E0B" selected={!!selected} invalid={data.invalid} issue={data.issue} />
-const DemandNode = ({ data, selected }: NodeProps) => <ChildBody icon={<Plug size={11} className="text-blue-600" />} label={data.label} sub={data.sub} color="#3B82F6" selected={!!selected} invalid={data.invalid} issue={data.issue} />
+const UnitNode = ({ data, selected }: NodeProps) => <ChildBody icon={<Factory size={11} className="text-emerald-600" />} label={data.label} sub={data.sub} color="#10B981" selected={!!selected} invalid={data.invalid} issue={data.issue} cap={data.cap} />
+const StorageNode = ({ data, selected }: NodeProps) => <ChildBody icon={<BatteryCharging size={11} className="text-amber-600" />} label={data.label} sub={data.sub} color="#F59E0B" selected={!!selected} invalid={data.invalid} issue={data.issue} cap={data.cap} />
+const DemandNode = ({ data, selected }: NodeProps) => <ChildBody icon={<Plug size={11} className="text-blue-600" />} label={data.label} sub={data.sub} color="#3B82F6" selected={!!selected} invalid={data.invalid} issue={data.issue} cap={data.cap} />
 
 function OperatorNode({ data, selected }: NodeProps) {
   return (
@@ -163,12 +167,20 @@ function isDemandOp(doc: Doc, op: string): boolean {
   return m.length > 0 && m.every(x => x.section === 'demand')
 }
 
+function powerOf(section: Section, v: any): number {
+  if (section === 'demand') return Number(v?.max_power) || 0
+  if (section === 'storage_units') return Number(v?.max_power_discharge) || Number(v?.max_power_charge) || 0
+  return Number(v?.max_power) || 0
+}
+
 function buildGraph(doc: Doc, ops: string[], sel: Sel, pos: Record<string, XY>): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = []
   const edges: Edge[] = []
   const colorOf = (i: number) => OP_COLORS[i % OP_COLORS.length]
   const LEFT_X = 20, MARKET_X = 460, RIGHT_X = 760
   const market = Object.keys(doc.markets ?? {})[0]
+  let maxPow = 1
+  for (const sec of SECTIONS) for (const v of Object.values<any>(doc[sec] ?? {})) maxPow = Math.max(maxPow, powerOf(sec, v))
   let yL = 20, yR = 20
 
   ops.forEach((op, i) => {
@@ -195,7 +207,7 @@ function buildGraph(doc: Doc, ops: string[], sel: Sel, pos: Record<string, XY>):
       nodes.push({
         id, type: childType[m.section], parentId: opId, extent: 'parent',
         position: rel, draggable: true, style: { width: CHILD_W, height: CHILD_H },
-        data: { label: m.key, sub, invalid: !!issue, issue: issue ?? undefined },
+        data: { label: m.key, sub, invalid: !!issue, issue: issue ?? undefined, cap: powerOf(m.section, m.v) / maxPow },
         selected: sel?.kind === 'ent' && sel.section === m.section && sel.key === m.key,
       })
     })
@@ -224,6 +236,7 @@ export default function VisualBuilder({ yaml, onChange }: { yaml: string; onChan
   const [past, setPast] = useState<Doc[]>([])
   const [future, setFuture] = useState<Doc[]>([])
   const posRef = useRef<Record<string, XY>>({})
+  const canvasRef = useRef<HTMLDivElement>(null)
 
   const ops = useMemo(() => {
     const derived = deriveOps(doc)
@@ -386,6 +399,18 @@ export default function VisualBuilder({ yaml, onChange }: { yaml: string; onChan
     posRef.current = {}
     setNodes(buildGraph(doc, ops, sel, posRef.current).nodes)
   }
+  const exportPng = () => {
+    const vp = canvasRef.current?.querySelector('.react-flow__viewport') as HTMLElement | null
+    if (!vp) return
+    toPng(vp, { backgroundColor: '#ffffff', pixelRatio: 2 })
+      .then(url => {
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `${doc.general?.scenario_name || 'scenario'}.png`
+        a.click()
+      })
+      .catch(() => {})
+  }
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -451,7 +476,7 @@ export default function VisualBuilder({ yaml, onChange }: { yaml: string; onChan
       </div>
 
       <div className={full ? 'flex gap-3 flex-1 min-h-0' : 'flex gap-3 h-[60vh]'}>
-        <div className="flex-1 rounded-xl border border-cg-border overflow-hidden bg-cg-bg relative">
+        <div ref={canvasRef} className="flex-1 rounded-xl border border-cg-border overflow-hidden bg-cg-bg relative">
           <div className="absolute z-10 top-2 left-2 flex flex-wrap gap-2">
             <button onClick={addOperator} className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg bg-slate-700 text-white shadow hover:opacity-90"><Plus size={12} /> Operator</button>
             <button onClick={() => addEntity('units', 'unit', UNIT_DEFAULT)} className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg bg-emerald-500 text-white shadow hover:opacity-90"><Plus size={12} /> Power plant</button>
@@ -467,6 +492,9 @@ export default function VisualBuilder({ yaml, onChange }: { yaml: string; onChan
             </button>
             <button onClick={tidy} className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg bg-cg-surface border border-cg-border text-cg-txt shadow hover:bg-cg-s2">
               <LayoutGrid size={12} /> Tidy
+            </button>
+            <button onClick={exportPng} className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg bg-cg-surface border border-cg-border text-cg-txt shadow hover:bg-cg-s2">
+              <ImageDown size={12} /> PNG
             </button>
             <button onClick={toggleFull} className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg bg-cg-surface border border-cg-border text-cg-txt shadow hover:bg-cg-s2">
               {full ? <Minimize2 size={12} /> : <Maximize2 size={12} />}{full ? 'Exit' : 'Fullscreen'}
